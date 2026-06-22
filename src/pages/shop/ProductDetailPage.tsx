@@ -11,6 +11,7 @@ import {
 } from "react-router-dom";
 
 import ProductDetailSkeleton from "../../components/shop/ProductDetailSkeleton";
+import ProductRecommendations from "../../components/shop/ProductRecommendations";
 import { useCart } from "../../features/cart/CartContext";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import {
@@ -581,6 +582,8 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </div>
+      <ProductRecommendations product={product} />
+
     </section>
   );
 }
