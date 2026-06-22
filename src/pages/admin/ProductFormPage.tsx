@@ -4,6 +4,16 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useStoreData } from "../../features/admin/StoreDataContext";
 import ProductImageManager from "../../components/admin/ProductImageManager";
+import {
+  getProductAdAssignments,
+  listAdDataSources,
+  saveProductAdAssignments,
+} from "../../services/ads";
+import type {
+  AdDataSource,
+  AdPlatform,
+  ProductAdAssignments,
+} from "../../types/ads";
 import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup } from "../../types/product";
 import { slugify } from "../../utils/slug";
 
@@ -59,10 +69,62 @@ export default function ProductFormPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [adSources, setAdSources] = useState<AdDataSource[]>([]);
+  const [adAssignments, setAdAssignments] = useState<ProductAdAssignments>({
+    meta: null,
+    tiktok: null,
+  });
+  const [adsLoading, setAdsLoading] = useState(true);
+  const [adsError, setAdsError] = useState("");
+  const isEditing = Boolean(existingProduct || createdProductId);
 
   useEffect(() => {
     if (existingProduct) setForm(createInitialState(existingProduct));
   }, [existingProduct?.id]);
+
+  useEffect(() => {
+    let active = true;
+
+    if (id && !existingProduct) {
+      return () => {
+        active = false;
+      };
+    }
+
+    setAdsLoading(true);
+    setAdsError("");
+
+    void Promise.all([
+      listAdDataSources(),
+      existingProduct
+        ? getProductAdAssignments(existingProduct.id)
+        : Promise.resolve({
+            meta: null,
+            tiktok: null,
+          } satisfies ProductAdAssignments),
+    ])
+      .then(([sources, assignments]) => {
+        if (!active) return;
+        setAdSources(sources);
+        setAdAssignments(assignments);
+      })
+      .catch((loadAdsError: unknown) => {
+        if (!active) return;
+        setAdsError(
+          loadAdsError instanceof Error
+            ? loadAdsError.message
+            : "Không thể tải cấu hình Pixel quảng cáo.",
+        );
+      })
+      .finally(() => {
+        if (active) setAdsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id, existingProduct?.id]);
 
   if (loading) {
     return <section className="rounded-3xl bg-white p-8 text-center shadow-sm">Đang tải dữ liệu sản phẩm...</section>;
@@ -143,12 +205,37 @@ export default function ProductFormPage() {
     }));
   }
 
+  function sourcesFor(platform: AdPlatform) {
+    return adSources.filter(
+      (source) => source.platform === platform,
+    );
+  }
+
+  function defaultSourceName(platform: AdPlatform) {
+    return adSources.find(
+      (source) =>
+        source.platform === platform &&
+        source.isDefault &&
+        source.isActive,
+    )?.name;
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     if (uploadingImages) {
       setError("Vui lòng chờ tải ảnh hoàn tất.");
+      return;
+    }
+
+    if (adsLoading) {
+      setError("Vui lòng chờ tải cấu hình Pixel hoàn tất.");
+      return;
+    }
+
+    if (adsError) {
+      setError(`Không thể lưu sản phẩm: ${adsError}`);
       return;
     }
 
@@ -203,16 +290,45 @@ export default function ProductFormPage() {
     };
 
     setSaving(true);
-    const result = existingProduct
-      ? await updateProduct(existingProduct.id, input)
+    const targetProductId =
+      existingProduct?.id ?? createdProductId;
+    const result = targetProductId
+      ? await updateProduct(targetProductId, input)
       : await createProduct(input);
-    setSaving(false);
 
     if (!result.success) {
+      setSaving(false);
       setError(result.message);
       return;
     }
 
+    const savedProductId =
+      result.data?.id ?? targetProductId;
+
+    if (!savedProductId) {
+      setSaving(false);
+      setError("Sản phẩm đã lưu nhưng không xác định được mã sản phẩm.");
+      return;
+    }
+
+    if (!targetProductId) {
+      setCreatedProductId(savedProductId);
+    }
+
+    try {
+      await saveProductAdAssignments(
+        savedProductId,
+        adAssignments,
+      );
+    } catch (assignmentError) {
+      setSaving(false);
+      setError(
+        `Sản phẩm đã lưu nhưng chưa lưu được Pixel quảng cáo: ${assignmentError instanceof Error ? assignmentError.message : "Lỗi không xác định."} Bấm lưu lại để thử lại, hệ thống sẽ không tạo trùng sản phẩm.`,
+      );
+      return;
+    }
+
+    setSaving(false);
     navigate("/admin/san-pham");
   }
 
@@ -221,7 +337,7 @@ export default function ProductFormPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">Sản phẩm</p>
-          <h1 className="mt-2 text-3xl font-black sm:text-4xl">{existingProduct ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h1>
+          <h1 className="mt-2 text-3xl font-black sm:text-4xl">{isEditing ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h1>
         </div>
         <Link to="/admin/san-pham" className="inline-flex min-h-11 items-center rounded-2xl bg-white px-5 font-bold text-[#3f4850] shadow-sm">← Quay lại</Link>
       </div>
@@ -235,7 +351,7 @@ export default function ProductFormPage() {
                 Tên sản phẩm <span className="text-[#a43c12]">*</span>
                 <input
                   value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value, slug: existingProduct ? current.slug : slugify(event.target.value) }))}
+                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value, slug: isEditing ? current.slug : slugify(event.target.value) }))}
                   className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
                   placeholder="Ví dụ: Móc khóa mèo ngái ngủ"
                 />
@@ -346,6 +462,73 @@ export default function ProductFormPage() {
           </article>
 
           <article className="rounded-3xl bg-white p-6 shadow-sm">
+            <h2 className="text-xl font-black">Theo dõi quảng cáo</h2>
+            <p className="mt-2 text-sm leading-6 text-[#707881]">
+              Để trống để dùng Pixel mặc định của từng nền tảng.
+            </p>
+
+            {adsLoading && (
+              <p className="mt-4 rounded-2xl bg-[#f7f9ff] p-4 text-sm text-[#707881]">
+                Đang tải danh sách Pixel...
+              </p>
+            )}
+
+            {adsError && (
+              <p className="mt-4 rounded-2xl bg-[#fff0eb] p-4 text-sm font-semibold text-[#a43c12]">
+                {adsError}
+              </p>
+            )}
+
+            {!adsLoading && !adsError && (
+              <div className="mt-5 space-y-5">
+                {(["meta", "tiktok"] as const).map((platform) => {
+                  const currentValue = adAssignments[platform] ?? "";
+                  const defaultName = defaultSourceName(platform);
+
+                  return (
+                    <label
+                      key={platform}
+                      className="block text-sm font-bold"
+                    >
+                      {platform === "meta"
+                        ? "Meta Pixel"
+                        : "TikTok Pixel"}
+                      <select
+                        value={currentValue}
+                        onChange={(event) =>
+                          setAdAssignments((current) => ({
+                            ...current,
+                            [platform]: event.target.value || null,
+                          }))
+                        }
+                        className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                      >
+                        <option value="">
+                          Dùng Pixel mặc định{defaultName ? ` (${defaultName})` : " (chưa cấu hình)"}
+                        </option>
+                        {sourcesFor(platform).map((source) => (
+                          <option
+                            key={source.id}
+                            value={source.id}
+                            disabled={
+                              !source.isActive &&
+                              currentValue !== source.id
+                            }
+                          >
+                            {source.name}
+                            {source.isDefault ? " — Mặc định" : ""}
+                            {!source.isActive ? " — Đang tắt" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+
+          <article className="rounded-3xl bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">Hiển thị dự phòng</h2>
             <p className="mt-2 text-sm leading-6 text-[#707881]">Chỉ dùng khi sản phẩm chưa có ảnh.</p>
             <div className="mt-5 grid aspect-square place-items-center rounded-3xl text-8xl" style={{ backgroundColor: form.background }}>{form.emoji || "📦"}</div>
@@ -359,7 +542,7 @@ export default function ProductFormPage() {
           {error && <p className="rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]">{error}</p>}
 
           <button type="submit" disabled={saving || uploadingImages} className="min-h-13 w-full rounded-2xl bg-[#fe7e4f] px-6 font-bold text-white shadow-lg shadow-[#fe7e4f]/20 disabled:cursor-not-allowed disabled:opacity-60">
-            {uploadingImages ? "Đang tải ảnh..." : saving ? "Đang lưu..." : existingProduct ? "Lưu thay đổi" : "Lưu và hiển thị"}
+            {uploadingImages ? "Đang tải ảnh..." : saving ? "Đang lưu..." : isEditing ? "Lưu thay đổi" : "Lưu và hiển thị"}
           </button>
         </aside>
       </form>
