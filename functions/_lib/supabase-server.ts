@@ -1,11 +1,16 @@
-import { createClient } from "@supabase/supabase-js";
-
-import { HttpError } from "./http";
+import {
+  HttpError,
+} from "./http";
 
 export type AdsFunctionEnv = {
   SUPABASE_URL?: string;
   SUPABASE_SERVER_KEY?: string;
   ADS_TOKEN_ENCRYPTION_KEY?: string;
+};
+
+type SupabaseServerConfig = {
+  url: string;
+  key: string;
 };
 
 function requiredBinding(
@@ -33,23 +38,39 @@ export function requireEncryptionKey(
   );
 }
 
-export function createSupabaseServerClient(
+export function getSupabaseServerConfig(
   env: AdsFunctionEnv,
-) {
-  const supabaseUrl = requiredBinding(
-    env.SUPABASE_URL,
-    "SUPABASE_URL",
-  );
-  const serverKey = requiredBinding(
-    env.SUPABASE_SERVER_KEY,
-    "SUPABASE_SERVER_KEY",
-  );
+): SupabaseServerConfig {
+  return {
+    url: requiredBinding(
+      env.SUPABASE_URL,
+      "SUPABASE_URL",
+    ).replace(/\/+$/, ""),
+    key: requiredBinding(
+      env.SUPABASE_SERVER_KEY,
+      "SUPABASE_SERVER_KEY",
+    ),
+  };
+}
 
-  return createClient(supabaseUrl, serverKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
+export async function supabaseServerFetch(
+  env: AdsFunctionEnv,
+  path: string,
+  init: RequestInit = {},
+) {
+  const config =
+    getSupabaseServerConfig(env);
+  const headers =
+    new Headers(init.headers);
+
+  headers.set("apikey", config.key);
+  headers.set("Accept", "application/json");
+
+  return fetch(
+    `${config.url}${path}`,
+    {
+      ...init,
+      headers,
     },
-  });
+  );
 }

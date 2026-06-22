@@ -12,6 +12,7 @@ import {
 } from "../../../_lib/http";
 import {
   requireEncryptionKey,
+  supabaseServerFetch,
 } from "../../../_lib/supabase-server";
 import type {
   AdsFunctionEnv,
@@ -54,31 +55,124 @@ function sourceIdFromContext(
 }
 
 async function ensureSourceExists(
-  supabase: Awaited<
-    ReturnType<typeof requireAdmin>
-  >["supabase"],
+  env: AdsFunctionEnv,
   sourceId: string,
 ) {
-  const {
-    data,
-    error,
-  } = await supabase
-    .from("ad_data_sources")
-    .select("id")
-    .eq("id", sourceId)
-    .maybeSingle();
+  const query =
+    "/rest/v1/ad_data_sources" +
+    `?id=eq.${encodeURIComponent(sourceId)}` +
+    "&select=id" +
+    "&limit=1";
+  const response =
+    await supabaseServerFetch(
+      env,
+      query,
+    );
 
-  if (error) {
+  if (!response.ok) {
+    console.error(
+      "ad-source-check-failed",
+      response.status,
+    );
+
     throw new HttpError(
       500,
       "Không thể kiểm tra cấu hình Pixel.",
     );
   }
 
-  if (!(data as AdDataSourceRow | null)) {
+  const payload =
+    (await response.json()) as unknown;
+
+  if (!Array.isArray(payload)) {
+    throw new HttpError(
+      500,
+      "Phản hồi cấu hình Pixel không hợp lệ.",
+    );
+  }
+
+  if (!(payload[0] as AdDataSourceRow | undefined)) {
     throw new HttpError(
       404,
       "Không tìm thấy cấu hình Pixel.",
+    );
+  }
+}
+
+async function saveEncryptedSecret(
+  env: AdsFunctionEnv,
+  sourceId: string,
+  ciphertext: string,
+  initializationVector: string,
+  algorithm: string,
+  updatedAt: string,
+) {
+  const response =
+    await supabaseServerFetch(
+      env,
+      "/rest/v1/ad_data_source_secrets" +
+        "?on_conflict=ad_data_source_id",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Prefer:
+            "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          ad_data_source_id: sourceId,
+          ciphertext,
+          initialization_vector:
+            initializationVector,
+          algorithm,
+          updated_at: updatedAt,
+        }),
+      },
+    );
+
+  if (!response.ok) {
+    console.error(
+      "ad-secret-save-failed",
+      response.status,
+    );
+
+    throw new HttpError(
+      500,
+      "Không thể lưu Access Token.",
+    );
+  }
+}
+
+async function removeEncryptedSecret(
+  env: AdsFunctionEnv,
+  sourceId: string,
+) {
+  const query =
+    "/rest/v1/ad_data_source_secrets" +
+    "?ad_data_source_id=eq." +
+    encodeURIComponent(sourceId);
+  const response =
+    await supabaseServerFetch(
+      env,
+      query,
+      {
+        method: "DELETE",
+        headers: {
+          Prefer: "return=minimal",
+        },
+      },
+    );
+
+  if (!response.ok) {
+    console.error(
+      "ad-secret-delete-failed",
+      response.status,
+    );
+
+    throw new HttpError(
+      500,
+      "Không thể xóa Access Token.",
     );
   }
 }
@@ -89,12 +183,12 @@ export async function onRequestPut(
   try {
     const sourceId =
       sourceIdFromContext(context);
-    const {
-      supabase,
-    } = await requireAdmin(
+
+    await requireAdmin(
       context.request,
       context.env,
     );
+
     const body =
       await readJsonObject(context.request);
     const accessToken =
@@ -117,7 +211,7 @@ export async function onRequestPut(
     }
 
     await ensureSourceExists(
-      supabase,
+      context.env,
       sourceId,
     );
 
@@ -128,31 +222,15 @@ export async function onRequestPut(
       );
     const updatedAt =
       new Date().toISOString();
-    const {
-      error,
-    } = await supabase
-      .from("ad_data_source_secrets")
-      .upsert(
-        {
-          ad_data_source_id: sourceId,
-          ciphertext:
-            encrypted.ciphertext,
-          initialization_vector:
-            encrypted.initializationVector,
-          algorithm: encrypted.algorithm,
-          updated_at: updatedAt,
-        },
-        {
-          onConflict: "ad_data_source_id",
-        },
-      );
 
-    if (error) {
-      throw new HttpError(
-        500,
-        "Không thể lưu Access Token.",
-      );
-    }
+    await saveEncryptedSecret(
+      context.env,
+      sourceId,
+      encrypted.ciphertext,
+      encrypted.initializationVector,
+      encrypted.algorithm,
+      updatedAt,
+    );
 
     return jsonResponse({
       success: true,
@@ -172,31 +250,19 @@ export async function onRequestDelete(
   try {
     const sourceId =
       sourceIdFromContext(context);
-    const {
-      supabase,
-    } = await requireAdmin(
+
+    await requireAdmin(
       context.request,
       context.env,
     );
-
     await ensureSourceExists(
-      supabase,
+      context.env,
       sourceId,
     );
-
-    const {
-      error,
-    } = await supabase
-      .from("ad_data_source_secrets")
-      .delete()
-      .eq("ad_data_source_id", sourceId);
-
-    if (error) {
-      throw new HttpError(
-        500,
-        "Không thể xóa Access Token.",
-      );
-    }
+    await removeEncryptedSecret(
+      context.env,
+      sourceId,
+    );
 
     return jsonResponse({
       success: true,
