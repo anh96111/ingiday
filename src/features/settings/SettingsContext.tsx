@@ -1,0 +1,382 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import type { ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "../../lib/supabase";
+import type { StoreSettings } from "../../types/store";
+
+const LEGACY_STORAGE_KEY = "ingiday-settings";
+
+const initialSettings: StoreSettings = {
+  storeName: "InGiDay",
+  phone: "",
+  email: "",
+  address: "",
+  messengerUrl: "",
+  footerDescription:
+    "Những sản phẩm in 3D nhỏ xinh, độc đáo và được tạo ra để làm ngày của bạn vui hơn.",
+  shippingFee: 15000,
+  freeShippingThreshold: 200000,
+  couponEnabled: true,
+  stockEnabled: true,
+  customPrintTitle: "Biến ý tưởng thành món đồ thật",
+  customPrintDescription:
+    "Gửi hình ảnh hoặc mô tả qua Messenger. Shop sẽ trao đổi mẫu, kích thước, màu sắc, giá và thời gian hoàn thiện.",
+  customPrintButtonText: "Va ngay với chủ shop để yêu cầu",
+  customPrintStep1Title: "Gửi ý tưởng",
+  customPrintStep1Description:
+    "Gửi hình ảnh, mô tả hoặc kích thước mong muốn qua Messenger.",
+  customPrintStep2Title: "Shop tư vấn",
+  customPrintStep2Description:
+    "Shop trao đổi về mẫu, màu sắc, kích thước, giá và thời gian hoàn thiện.",
+  customPrintStep3Title: "Xác nhận và in",
+  customPrintStep3Description:
+    "Sau khi chốt yêu cầu, shop tiến hành in và cập nhật tiến độ cho bạn.",
+  currency: "VND",
+};
+
+type StoreSettingsRow = {
+  id: number;
+  shop_name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  messenger_url: string | null;
+  footer_text: string | null;
+  shipping_fee: number | string;
+  free_shipping_threshold: number | string;
+  currency: string;
+  enable_coupons: boolean;
+  enable_inventory: boolean;
+  custom_print_title: string;
+  custom_print_description: string;
+  custom_print_button_text: string;
+  custom_print_step_1_title: string;
+  custom_print_step_1_description: string;
+  custom_print_step_2_title: string;
+  custom_print_step_2_description: string;
+  custom_print_step_3_title: string;
+  custom_print_step_3_description: string;
+  updated_at: string;
+};
+
+type SettingsActionResult = {
+  success: boolean;
+  message: string;
+  data?: StoreSettings;
+};
+
+type SettingsContextValue = {
+  settings: StoreSettings;
+  loading: boolean;
+  error: string;
+  refresh: () => Promise<void>;
+  updateSettings: (
+    value: StoreSettings,
+  ) => Promise<SettingsActionResult>;
+};
+
+const SettingsContext = createContext<SettingsContextValue | null>(
+  null,
+);
+
+const settingsSelect = `
+  id,
+  shop_name,
+  phone,
+  email,
+  address,
+  messenger_url,
+  footer_text,
+  shipping_fee,
+  free_shipping_threshold,
+  currency,
+  enable_coupons,
+  enable_inventory,
+  custom_print_title,
+  custom_print_description,
+  custom_print_button_text,
+  custom_print_step_1_title,
+  custom_print_step_1_description,
+  custom_print_step_2_title,
+  custom_print_step_2_description,
+  custom_print_step_3_title,
+  custom_print_step_3_description,
+  updated_at
+`;
+
+function settingsFromRow(row: StoreSettingsRow): StoreSettings {
+  return {
+    storeName: row.shop_name || initialSettings.storeName,
+    phone: row.phone ?? "",
+    email: row.email ?? "",
+    address: row.address ?? "",
+    messengerUrl: row.messenger_url ?? "",
+    footerDescription:
+      row.footer_text ?? initialSettings.footerDescription,
+    shippingFee: Number(row.shipping_fee),
+    freeShippingThreshold: Number(row.free_shipping_threshold),
+    couponEnabled: row.enable_coupons,
+    stockEnabled: row.enable_inventory,
+    customPrintTitle:
+      row.custom_print_title || initialSettings.customPrintTitle,
+    customPrintDescription:
+      row.custom_print_description ||
+      initialSettings.customPrintDescription,
+    customPrintButtonText:
+      row.custom_print_button_text ||
+      initialSettings.customPrintButtonText,
+    customPrintStep1Title:
+      row.custom_print_step_1_title ||
+      initialSettings.customPrintStep1Title,
+    customPrintStep1Description:
+      row.custom_print_step_1_description ||
+      initialSettings.customPrintStep1Description,
+    customPrintStep2Title:
+      row.custom_print_step_2_title ||
+      initialSettings.customPrintStep2Title,
+    customPrintStep2Description:
+      row.custom_print_step_2_description ||
+      initialSettings.customPrintStep2Description,
+    customPrintStep3Title:
+      row.custom_print_step_3_title ||
+      initialSettings.customPrintStep3Title,
+    customPrintStep3Description:
+      row.custom_print_step_3_description ||
+      initialSettings.customPrintStep3Description,
+    currency: "VND",
+  };
+}
+
+function settingsToRow(value: StoreSettings) {
+  return {
+    shop_name: value.storeName.trim() || "InGiDay",
+    phone: value.phone.trim() || null,
+    email: value.email.trim() || null,
+    address: value.address.trim() || null,
+    messenger_url: value.messengerUrl.trim() || null,
+    footer_text:
+      value.footerDescription.trim() ||
+      initialSettings.footerDescription,
+    shipping_fee: Math.max(0, Math.round(value.shippingFee)),
+    free_shipping_threshold: Math.max(
+      0,
+      Math.round(value.freeShippingThreshold),
+    ),
+    currency: "VND",
+    enable_coupons: value.couponEnabled,
+    enable_inventory: value.stockEnabled,
+    custom_print_title:
+      value.customPrintTitle.trim() ||
+      initialSettings.customPrintTitle,
+    custom_print_description:
+      value.customPrintDescription.trim() ||
+      initialSettings.customPrintDescription,
+    custom_print_button_text:
+      value.customPrintButtonText.trim() ||
+      initialSettings.customPrintButtonText,
+    custom_print_step_1_title:
+      value.customPrintStep1Title.trim() ||
+      initialSettings.customPrintStep1Title,
+    custom_print_step_1_description:
+      value.customPrintStep1Description.trim() ||
+      initialSettings.customPrintStep1Description,
+    custom_print_step_2_title:
+      value.customPrintStep2Title.trim() ||
+      initialSettings.customPrintStep2Title,
+    custom_print_step_2_description:
+      value.customPrintStep2Description.trim() ||
+      initialSettings.customPrintStep2Description,
+    custom_print_step_3_title:
+      value.customPrintStep3Title.trim() ||
+      initialSettings.customPrintStep3Title,
+    custom_print_step_3_description:
+      value.customPrintStep3Description.trim() ||
+      initialSettings.customPrintStep3Description,
+  };
+}
+
+function readLegacySettings(): StoreSettings | null {
+  try {
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoreSettings>;
+
+    return {
+      ...initialSettings,
+      ...parsed,
+      currency: "VND",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function SettingsProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [settings, setSettings] =
+    useState<StoreSettings>(initialSettings);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadSettings = useCallback(
+    async (session?: Session | null) => {
+      const activeSession =
+        session === undefined
+          ? (await supabase.auth.getSession()).data.session
+          : session;
+
+      setLoading(true);
+
+      const { data, error: queryError } = await supabase
+        .from("store_settings")
+        .select(settingsSelect)
+        .eq("id", 1)
+        .single();
+
+      if (queryError) {
+        setSettings(initialSettings);
+        setError(queryError.message);
+        setLoading(false);
+        return;
+      }
+
+      let row = data as unknown as StoreSettingsRow;
+      const legacySettings = activeSession
+        ? readLegacySettings()
+        : null;
+
+      if (legacySettings) {
+        const { data: migratedData, error: migrationError } =
+          await supabase
+            .from("store_settings")
+            .update(settingsToRow(legacySettings))
+            .eq("id", 1)
+            .select(settingsSelect)
+            .single();
+
+        if (migrationError) {
+          setError(
+            `Không thể chuyển cài đặt cũ lên Supabase: ${migrationError.message}`,
+          );
+        } else {
+          row = migratedData as unknown as StoreSettingsRow;
+          localStorage.removeItem(LEGACY_STORAGE_KEY);
+          setError("");
+        }
+      } else {
+        setError("");
+      }
+
+      setSettings(settingsFromRow(row));
+      setLoading(false);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (mounted) void loadSettings(data.session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => {
+        if (mounted) void loadSettings(session);
+      }, 0);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [loadSettings]);
+
+  const value = useMemo<SettingsContextValue>(
+    () => ({
+      settings,
+      loading,
+      error,
+      refresh: () => loadSettings(),
+
+      async updateSettings(nextSettings) {
+        const normalized: StoreSettings = {
+          ...nextSettings,
+          storeName:
+            nextSettings.storeName.trim() ||
+            initialSettings.storeName,
+          shippingFee: Math.max(
+            0,
+            Math.round(nextSettings.shippingFee),
+          ),
+          freeShippingThreshold: Math.max(
+            0,
+            Math.round(nextSettings.freeShippingThreshold),
+          ),
+          currency: "VND",
+        };
+
+        const { data, error: updateError } = await supabase
+          .from("store_settings")
+          .update(settingsToRow(normalized))
+          .eq("id", 1)
+          .select(settingsSelect)
+          .single();
+
+        if (updateError) {
+          return {
+            success: false,
+            message: updateError.message,
+          };
+        }
+
+        const updated = settingsFromRow(
+          data as unknown as StoreSettingsRow,
+        );
+
+        setSettings(updated);
+        setError("");
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+
+        return {
+          success: true,
+          message: "Đã lưu cài đặt lên Supabase.",
+          data: updated,
+        };
+      },
+    }),
+    [error, loadSettings, loading, settings],
+  );
+
+  return (
+    <SettingsContext.Provider value={value}>
+      {children}
+    </SettingsContext.Provider>
+  );
+}
+
+export function useSettings() {
+  const context = useContext(SettingsContext);
+
+  if (!context) {
+    throw new Error(
+      "useSettings phải được dùng trong SettingsProvider.",
+    );
+  }
+
+  return context;
+}
