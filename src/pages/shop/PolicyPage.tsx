@@ -76,16 +76,16 @@ export default function PolicyPage({
 
   if (loading) {
     return (
-      <section className="mx-auto max-w-6xl px-5 py-10 lg:px-8">
-        <div className="h-64 animate-pulse rounded-[34px] bg-[#eaf0f6]" />
-        <div className="mt-8 grid gap-8 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <div className="hidden h-72 animate-pulse rounded-3xl bg-[#eaf0f6] lg:block" />
-          <div className="space-y-5">
+      <section className="mx-auto max-w-6xl px-5 py-8 lg:px-8">
+        <div className="h-56 animate-pulse rounded-[30px] bg-[#eaf0f6]" />
+        <div className="mt-7 grid gap-7 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="hidden h-64 animate-pulse rounded-3xl bg-[#eaf0f6] lg:block" />
+          <div className="space-y-4">
             {Array.from({ length: 4 }).map(
               (_item, index) => (
                 <div
                   key={index}
-                  className="h-52 animate-pulse rounded-[28px] bg-[#eaf0f6]"
+                  className="h-44 animate-pulse rounded-[24px] bg-[#eaf0f6]"
                 />
               ),
             )}
@@ -98,10 +98,7 @@ export default function PolicyPage({
   if (error) {
     return (
       <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <div className="mx-auto grid h-24 w-24 place-items-center rounded-[34%] bg-[#fff0e8] text-5xl">
-          😵‍💫
-        </div>
-        <h1 className="mt-6 text-3xl font-black">
+        <h1 className="text-3xl font-black">
           Không thể tải chính sách
         </h1>
         <p className="mt-4 text-[#a43c12]">
@@ -125,10 +122,7 @@ export default function PolicyPage({
   if (!policy) {
     return (
       <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <div className="mx-auto grid h-24 w-24 place-items-center rounded-[34%] bg-[#dff4ff] text-5xl">
-          📭
-        </div>
-        <h1 className="mt-6 text-3xl font-black">
+        <h1 className="text-3xl font-black">
           Chính sách chưa được công bố
         </h1>
         <Link
@@ -147,26 +141,27 @@ export default function PolicyPage({
     );
 
   return (
-    <section className="mx-auto max-w-6xl px-5 py-8 sm:py-10 lg:px-8">
-      <nav className="mb-5 text-sm text-[#707881]">
+    <section className="mx-auto max-w-6xl px-5 py-7 sm:py-9 lg:px-8">
+      <nav className="mb-5 flex items-center gap-2 text-sm text-[#74808a]">
         <Link
           to="/"
           className="font-bold text-[#006397]"
         >
           Trang chủ
         </Link>
-        <span> / {policy.title}</span>
+        <span>/</span>
+        <span>{policy.title}</span>
       </nav>
 
       <PolicyArticle policy={policy} />
 
-      <section className="mt-12">
+      <section className="mt-12 border-t border-[#dfe6ec] pt-9">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-[#006397]">
-              Đọc thêm
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#006397]">
+              Tham khảo thêm
             </p>
-            <h2 className="mt-2 text-2xl font-black text-[#091d2e] sm:text-3xl">
+            <h2 className="mt-2 text-2xl font-black text-[#10283a]">
               Các chính sách khác
             </h2>
           </div>
@@ -179,7 +174,7 @@ export default function PolicyPage({
           </Link>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {relatedPolicies.map((item) => {
             const visual = getPolicyVisual(
               item.slug,
@@ -189,31 +184,25 @@ export default function PolicyPage({
               <Link
                 key={item.slug}
                 to={`/${item.slug}`}
-                className="group rounded-[24px] border border-[#e3eaf0] bg-white p-5 shadow-[0_14px_36px_-30px_rgba(0,99,151,0.5)] transition hover:-translate-y-1"
+                className="group rounded-2xl border border-[#e1e8ee] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#c8d8e4]"
               >
-                <div
-                  className="grid h-12 w-12 place-items-center rounded-2xl text-2xl"
-                  style={{
-                    backgroundColor:
-                      visual.accentSoft,
-                  }}
-                >
-                  {visual.icon}
+                <div className="flex items-center gap-3">
+                  <div
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xl"
+                    style={{
+                      backgroundColor:
+                        visual.accentSoft,
+                    }}
+                  >
+                    {visual.icon}
+                  </div>
+                  <h3 className="font-black leading-5 text-[#10283a]">
+                    {item.shortLabel}
+                  </h3>
                 </div>
-                <h3 className="mt-4 font-black text-[#091d2e]">
-                  {item.label}
-                </h3>
-                <p className="mt-2 text-sm text-[#707881]">
+                <p className="mt-3 text-sm leading-6 text-[#74808a]">
                   Xem thông tin chi tiết
                 </p>
-                <span
-                  className="mt-4 inline-block text-sm font-bold transition group-hover:translate-x-1"
-                  style={{
-                    color: visual.accent,
-                  }}
-                >
-                  Mở chính sách →
-                </span>
               </Link>
             );
           })}

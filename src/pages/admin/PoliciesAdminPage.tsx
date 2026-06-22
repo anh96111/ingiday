@@ -151,29 +151,17 @@ export default function PoliciesAdminPage() {
 
   return (
     <section className="p-4 sm:p-6 lg:p-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#006397]">
-            Nội dung website
-          </p>
-          <h1 className="mt-2 text-3xl font-black">
-            Chính sách
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#707881]">
-            Soạn nội dung và xem trước đúng giao
-            diện khách hàng trước khi lưu.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            void loadPolicies()
-          }
-          className="rounded-2xl bg-[#edf4ff] px-5 py-3 text-sm font-bold text-[#006397]"
-        >
-          Tải lại dữ liệu
-        </button>
+      <div>
+        <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#006397]">
+          Nội dung website
+        </p>
+        <h1 className="mt-2 text-3xl font-black">
+          Chính sách
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#707881]">
+          Soạn nội dung và xem trước trước khi
+          công bố.
+        </p>
       </div>
 
       {error && (
@@ -191,10 +179,10 @@ export default function PoliciesAdminPage() {
         </p>
       )}
 
-      <div className="mt-7 grid gap-6 xl:grid-cols-[250px_minmax(0,1fr)]">
+      <div className="mt-7 grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="h-fit rounded-3xl bg-white p-3 shadow-sm xl:sticky xl:top-5">
           <p className="px-3 pb-3 pt-2 text-xs font-black uppercase tracking-[0.18em] text-[#707881]">
-            Danh sách trang
+            Trang chính sách
           </p>
 
           <div className="space-y-2">
@@ -207,7 +195,7 @@ export default function PoliciesAdminPage() {
                 }
                 className={`w-full rounded-2xl px-4 py-3 text-left transition ${
                   selectedSlug === policy.slug
-                    ? "bg-[#006397] text-white shadow-md"
+                    ? "bg-[#006397] text-white"
                     : "hover:bg-[#edf4ff]"
                 }`}
               >
@@ -231,27 +219,26 @@ export default function PoliciesAdminPage() {
         </aside>
 
         {draft ? (
-          <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(430px,0.95fr)]">
+          <div className="grid min-w-0 gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)]">
             <form
               onSubmit={handleSubmit}
               className="min-w-0 rounded-3xl bg-white p-5 shadow-sm sm:p-7"
             >
-              <div className="rounded-2xl bg-[#f2f8ff] p-4 text-sm leading-6 text-[#42505c]">
+              <div className="rounded-2xl border border-[#dce8f2] bg-[#f4f9fd] p-4 text-sm leading-6 text-[#46525c]">
                 <p className="font-black text-[#006397]">
-                  Cách định dạng nội dung
+                  Quy tắc định dạng
                 </p>
                 <p className="mt-2">
-                  Dùng{" "}
+                  Mỗi mục bắt đầu bằng{" "}
                   <code className="rounded bg-white px-2 py-1 font-bold">
-                    ## Tiêu đề mục
-                  </code>{" "}
-                  để tạo từng thẻ nội dung. Để
-                  trống một dòng giữa các đoạn.
-                  Dùng{" "}
+                    ## Tiêu đề
+                  </code>
+                  . Để trống một dòng giữa các
+                  đoạn. Danh sách dùng{" "}
                   <code className="rounded bg-white px-2 py-1 font-bold">
                     - Nội dung
-                  </code>{" "}
-                  để tạo danh sách.
+                  </code>
+                  .
                 </p>
               </div>
 
@@ -293,7 +280,6 @@ export default function PoliciesAdminPage() {
                       )
                     }
                     className="mt-2 min-h-[520px] w-full resize-y rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] p-4 font-normal leading-7 outline-none focus:border-[#006397]"
-                    placeholder="## Tiêu đề mục&#10;&#10;Nội dung..."
                   />
                 </label>
 
@@ -357,40 +343,29 @@ export default function PoliciesAdminPage() {
                     }
                     className="h-5 w-5 accent-[#006397]"
                   />
-                  Hiển thị chính sách trên website
+                  Hiển thị trên website
                 </label>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="min-h-12 rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving
-                    ? "Đang lưu..."
-                    : "Lưu chính sách"}
-                </button>
-
-                <span className="text-xs text-[#707881]">
-                  Bản xem trước cập nhật ngay khi
-                  bạn nhập.
-                </span>
-              </div>
+              <button
+                type="submit"
+                disabled={saving}
+                className="mt-6 min-h-12 rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {saving
+                  ? "Đang lưu..."
+                  : "Lưu chính sách"}
+              </button>
             </form>
 
             <aside className="min-w-0 2xl:sticky 2xl:top-5 2xl:h-fit">
-              <div className="rounded-3xl bg-[#091d2e] px-5 py-4 text-white">
+              <div className="rounded-2xl bg-[#10283a] px-5 py-4 text-white">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#b9d9ee]">
-                  Xem trước
-                </p>
-                <p className="mt-1 text-sm text-[#dce8f2]">
-                  Giao diện gần giống trang khách
-                  hàng.
+                  Bản xem trước
                 </p>
               </div>
 
-              <div className="mt-3 max-h-[78vh] overflow-y-auto rounded-3xl border border-[#dfe7ed] bg-[#f7fbff] p-4 shadow-sm">
+              <div className="mt-3 max-h-[78vh] overflow-y-auto rounded-3xl border border-[#dfe7ed] bg-[#f7fbff] p-4">
                 <PolicyArticle
                   policy={draft}
                   preview

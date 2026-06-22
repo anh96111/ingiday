@@ -28,46 +28,117 @@ function createAnchor(
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-  return normalized || `muc-${index + 1}`;
+  return `${normalized || "muc"}-${index + 1}`;
 }
 
-function parseSections(
+function parsePolicyContent(
   content: string,
 ): PolicySection[] {
-  const blocks = content
-    .split(/\n{2,}/)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const lines = content
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
 
   const sections: PolicySection[] = [];
-  let current: PolicySection | null = null;
+  let currentTitle = "";
+  let currentLines: string[] = [];
 
-  blocks.forEach((block) => {
-    if (block.startsWith("## ")) {
-      const title = block.slice(3).trim();
-      current = {
-        id: createAnchor(
-          title,
-          sections.length,
-        ),
-        title,
-        blocks: [],
-      };
-      sections.push(current);
+  function flushSection() {
+    const blocks: string[] = [];
+    let paragraph: string[] = [];
+    let bullets: string[] = [];
+
+    function flushParagraph() {
+      if (paragraph.length === 0) {
+        return;
+      }
+
+      blocks.push(paragraph.join(" ").trim());
+      paragraph = [];
+    }
+
+    function flushBullets() {
+      if (bullets.length === 0) {
+        return;
+      }
+
+      blocks.push(bullets.join("\n"));
+      bullets = [];
+    }
+
+    currentLines.forEach((rawLine) => {
+      const line = rawLine.trim();
+
+      if (!line) {
+        flushParagraph();
+        flushBullets();
+        return;
+      }
+
+      if (/^[-•]\s+/.test(line)) {
+        flushParagraph();
+        bullets.push(line);
+        return;
+      }
+
+      flushBullets();
+      paragraph.push(line);
+    });
+
+    flushParagraph();
+    flushBullets();
+
+    if (!currentTitle && blocks.length === 0) {
+      currentLines = [];
       return;
     }
 
-    if (!current) {
-      current = {
-        id: "thong-tin-chung",
-        title: "Thông tin chung",
-        blocks: [],
-      };
-      sections.push(current);
+    const title =
+      currentTitle || "Thông tin chung";
+
+    sections.push({
+      id: createAnchor(
+        title,
+        sections.length,
+      ),
+      title,
+      blocks,
+    });
+
+    currentTitle = "";
+    currentLines = [];
+  }
+
+  lines.forEach((rawLine) => {
+    const line = rawLine.trim();
+    const headingMatch = line.match(
+      /^##\s+(.+?)\s*$/,
+    );
+
+    if (headingMatch) {
+      if (
+        currentTitle ||
+        currentLines.some(
+          (item) => item.trim() !== "",
+        )
+      ) {
+        flushSection();
+      }
+
+      currentTitle = headingMatch[1];
+      return;
     }
 
-    current.blocks.push(block);
+    currentLines.push(rawLine);
   });
+
+  if (
+    currentTitle ||
+    currentLines.some(
+      (item) => item.trim() !== "",
+    )
+  ) {
+    flushSection();
+  }
 
   return sections;
 }
@@ -81,24 +152,24 @@ function ContentBlock({
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
-  const bulletLines = lines.filter((line) =>
-    /^[-•]\s+/.test(line),
-  );
 
-  if (
-    bulletLines.length > 0 &&
-    bulletLines.length === lines.length
-  ) {
+  const isBulletList =
+    lines.length > 0 &&
+    lines.every((line) =>
+      /^[-•]\s+/.test(line),
+    );
+
+  if (isBulletList) {
     return (
       <ul className="space-y-3">
         {lines.map((line, index) => (
           <li
             key={`${line}-${index}`}
-            className="flex gap-3 leading-7 text-[#42505c]"
+            className="flex items-start gap-3 text-[15px] leading-7 text-[#46525c] sm:text-base"
           >
             <span
               aria-hidden="true"
-              className="mt-2.5 h-2 w-2 shrink-0 rounded-full bg-current opacity-55"
+              className="mt-[10px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#006397]"
             />
             <span>
               {line.replace(/^[-•]\s+/, "")}
@@ -110,13 +181,8 @@ function ContentBlock({
   }
 
   return (
-    <p className="leading-8 text-[#42505c]">
-      {lines.map((line, index) => (
-        <span key={`${line}-${index}`}>
-          {line}
-          {index < lines.length - 1 && <br />}
-        </span>
-      ))}
+    <p className="text-[15px] leading-8 text-[#46525c] sm:text-base">
+      {block}
     </p>
   );
 }
@@ -126,7 +192,7 @@ export default function PolicyArticle({
   preview = false,
 }: PolicyArticleProps) {
   const sections = useMemo(
-    () => parseSections(policy.content),
+    () => parsePolicyContent(policy.content),
     [policy.content],
   );
   const visual = getPolicyVisual(policy.slug);
@@ -138,45 +204,24 @@ export default function PolicyArticle({
   ).format(new Date(policy.updatedAt));
 
   return (
-    <div
-      className={
-        preview
-          ? "space-y-5"
-          : "space-y-8"
-      }
-    >
+    <div className="space-y-7">
       <header
-        className={`relative isolate overflow-hidden ${
+        className={`relative overflow-hidden border border-white/70 ${
           preview
-            ? "rounded-[26px] p-5"
-            : "rounded-[34px] px-6 py-8 sm:px-10 sm:py-10"
+            ? "rounded-3xl px-5 py-6"
+            : "rounded-[30px] px-6 py-8 sm:px-9 sm:py-10"
         }`}
         style={{
           background: visual.gradient,
         }}
       >
-        <div
-          className={`absolute -right-10 -top-14 rounded-full bg-white/35 blur-sm ${
-            preview
-              ? "h-36 w-36"
-              : "h-56 w-56"
-          }`}
-        />
-        <div
-          className={`absolute -bottom-16 left-[38%] rounded-full bg-white/25 ${
-            preview
-              ? "h-28 w-28"
-              : "h-44 w-44"
-          }`}
-        />
-
         <div className="relative z-10">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-4">
             <div
-              className={`grid place-items-center rounded-[30%] bg-white/80 shadow-sm ${
+              className={`grid shrink-0 place-items-center rounded-2xl border border-white/80 bg-white/85 shadow-sm ${
                 preview
-                  ? "h-14 w-14 text-3xl"
-                  : "h-20 w-20 text-4xl"
+                  ? "h-12 w-12 text-2xl"
+                  : "h-14 w-14 text-3xl"
               }`}
             >
               {visual.icon}
@@ -184,24 +229,24 @@ export default function PolicyArticle({
 
             <div>
               <p
-                className="text-xs font-black uppercase tracking-[0.2em]"
+                className="text-xs font-black uppercase tracking-[0.18em]"
                 style={{
                   color: visual.accent,
                 }}
               >
                 {visual.eyebrow}
               </p>
-              <p className="mt-1 text-sm font-semibold text-[#65717b]">
+              <p className="mt-1 text-sm font-medium text-[#64717b]">
                 Thông tin chính thức từ InGiDay
               </p>
             </div>
           </div>
 
           <h1
-            className={`font-black leading-tight tracking-[-0.03em] text-[#091d2e] ${
+            className={`font-black tracking-[-0.035em] text-[#0b2234] ${
               preview
-                ? "mt-5 text-2xl"
-                : "mt-7 text-3xl sm:text-5xl"
+                ? "mt-5 text-2xl leading-tight"
+                : "mt-6 text-3xl leading-tight sm:text-[42px]"
             }`}
           >
             {policy.title}
@@ -209,168 +254,167 @@ export default function PolicyArticle({
 
           {policy.seoDescription && (
             <p
-              className={`max-w-3xl leading-7 text-[#42505c] ${
+              className={`max-w-3xl text-[#4d5a64] ${
                 preview
-                  ? "mt-3 text-sm"
-                  : "mt-4 text-base sm:text-lg"
+                  ? "mt-3 text-sm leading-6"
+                  : "mt-4 text-base leading-7 sm:text-lg"
               }`}
             >
               {policy.seoDescription}
             </p>
           )}
 
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-[#65717b]">
-            <span className="rounded-full bg-white/75 px-4 py-2 font-semibold">
-              Cập nhật: {updatedAt}
+          <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-semibold text-[#65717a]">
+            <span className="rounded-full border border-white/80 bg-white/75 px-3 py-2">
+              Cập nhật {updatedAt}
             </span>
-            <span className="rounded-full bg-white/55 px-4 py-2 font-semibold">
-              {sections.length} mục thông tin
+            <span className="rounded-full border border-white/70 bg-white/60 px-3 py-2">
+              {sections.length} mục
             </span>
           </div>
         </div>
       </header>
 
-      {sections.length > 0 && (
+      <div
+        className={
+          preview
+            ? "space-y-4"
+            : "lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-7"
+        }
+      >
+        {!preview && sections.length > 0 && (
+          <>
+            <aside className="hidden lg:block">
+              <div className="sticky top-24 rounded-3xl border border-[#e3eaf0] bg-white p-3 shadow-[0_12px_34px_-28px_rgba(0,99,151,0.5)]">
+                <p className="px-3 pb-2 pt-2 text-[11px] font-black uppercase tracking-[0.18em] text-[#7a858e]">
+                  Nội dung chính
+                </p>
+
+                <nav className="space-y-1">
+                  {sections.map(
+                    (section, index) => (
+                      <a
+                        key={section.id}
+                        href={`#${section.id}`}
+                        className="flex items-start gap-3 rounded-2xl px-3 py-3 text-sm font-bold leading-5 text-[#46525c] transition hover:bg-[#eef7ff] hover:text-[#006397]"
+                      >
+                        <span
+                          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-black"
+                          style={{
+                            backgroundColor:
+                              visual.accentSoft,
+                            color: visual.accent,
+                          }}
+                        >
+                          {index + 1}
+                        </span>
+                        <span className="pt-1">
+                          {section.title}
+                        </span>
+                      </a>
+                    ),
+                  )}
+                </nav>
+              </div>
+            </aside>
+
+            <nav className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
+              {sections.map(
+                (section, index) => (
+                  <a
+                    key={section.id}
+                    href={`#${section.id}`}
+                    className="shrink-0 rounded-full border border-[#e0e7ed] bg-white px-4 py-2.5 text-sm font-bold text-[#46525c] shadow-sm"
+                  >
+                    {index + 1}.{" "}
+                    {section.title}
+                  </a>
+                ),
+              )}
+            </nav>
+          </>
+        )}
+
         <div
           className={
             preview
               ? "space-y-4"
-              : "lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-8"
+              : "space-y-4"
           }
         >
-          {!preview && (
-            <>
-              <aside className="hidden lg:block">
-                <div className="sticky top-24 rounded-3xl bg-white p-4 shadow-[0_16px_42px_-30px_rgba(0,99,151,0.5)]">
-                  <p className="px-3 pb-3 text-xs font-black uppercase tracking-[0.18em] text-[#65717b]">
-                    Nội dung chính
-                  </p>
-                  <nav className="space-y-1">
-                    {sections.map(
-                      (section, index) => (
-                        <a
-                          key={section.id}
-                          href={`#${section.id}`}
-                          className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-bold text-[#42505c] transition hover:bg-[#edf6ff] hover:text-[#006397]"
-                        >
-                          <span
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs"
-                            style={{
-                              backgroundColor:
-                                visual.accentSoft,
-                              color: visual.accent,
-                            }}
-                          >
-                            {index + 1}
-                          </span>
-                          <span>
-                            {section.title}
-                          </span>
-                        </a>
-                      ),
-                    )}
-                  </nav>
+          {sections.map((section, index) => (
+            <section
+              key={section.id}
+              id={
+                preview
+                  ? undefined
+                  : section.id
+              }
+              className={`scroll-mt-24 border border-[#e2e9ef] bg-white ${
+                preview
+                  ? "rounded-2xl px-4 py-5"
+                  : "rounded-[24px] px-5 py-6 shadow-[0_12px_36px_-31px_rgba(0,99,151,0.5)] sm:px-7 sm:py-7"
+              }`}
+            >
+              <div className="flex items-start gap-4">
+                <div
+                  className={`grid shrink-0 place-items-center rounded-xl font-black ${
+                    preview
+                      ? "h-9 w-9 text-xs"
+                      : "h-10 w-10 text-sm"
+                  }`}
+                  style={{
+                    backgroundColor:
+                      visual.accentSoft,
+                    color: visual.accent,
+                  }}
+                >
+                  {String(index + 1).padStart(
+                    2,
+                    "0",
+                  )}
                 </div>
-              </aside>
 
-              <nav className="mb-5 flex gap-2 overflow-x-auto pb-2 lg:hidden">
-                {sections.map(
-                  (section, index) => (
-                    <a
-                      key={section.id}
-                      href={`#${section.id}`}
-                      className="shrink-0 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-[#42505c] shadow-sm"
-                    >
-                      {index + 1}.{" "}
-                      {section.title}
-                    </a>
-                  ),
-                )}
-              </nav>
-            </>
-          )}
-
-          <div
-            className={
-              preview
-                ? "space-y-4"
-                : "space-y-5"
-            }
-          >
-            {sections.map((section, index) => (
-              <section
-                key={section.id}
-                id={
-                  preview
-                    ? undefined
-                    : section.id
-                }
-                className={`scroll-mt-24 border border-[#e4ebf1] bg-white ${
-                  preview
-                    ? "rounded-2xl p-4"
-                    : "rounded-[28px] p-6 shadow-[0_16px_44px_-34px_rgba(0,99,151,0.48)] sm:p-8"
-                }`}
-              >
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`grid shrink-0 place-items-center rounded-2xl font-black ${
+                <div className="min-w-0 flex-1">
+                  <h2
+                    className={`font-black leading-snug text-[#10283a] ${
                       preview
-                        ? "h-10 w-10 text-sm"
-                        : "h-12 w-12"
+                        ? "text-lg"
+                        : "text-xl sm:text-2xl"
                     }`}
-                    style={{
-                      backgroundColor:
-                        visual.accentSoft,
-                      color: visual.accent,
-                    }}
                   >
-                    {String(index + 1).padStart(
-                      2,
-                      "0",
+                    {section.title}
+                  </h2>
+
+                  <div
+                    className={`space-y-4 ${
+                      preview
+                        ? "mt-3"
+                        : "mt-4"
+                    }`}
+                  >
+                    {section.blocks.length > 0 ? (
+                      section.blocks.map(
+                        (block, blockIndex) => (
+                          <ContentBlock
+                            key={`${block}-${blockIndex}`}
+                            block={block}
+                          />
+                        ),
+                      )
+                    ) : (
+                      <p className="text-sm italic text-[#7b8790]">
+                        Nội dung đang được cập
+                        nhật.
+                      </p>
                     )}
                   </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h2
-                      className={`font-black leading-tight text-[#091d2e] ${
-                        preview
-                          ? "text-lg"
-                          : "text-2xl"
-                      }`}
-                    >
-                      {section.title}
-                    </h2>
-
-                    <div
-                      className={`space-y-5 ${
-                        preview
-                          ? "mt-3 text-sm"
-                          : "mt-5"
-                      }`}
-                    >
-                      {section.blocks.length > 0 ? (
-                        section.blocks.map(
-                          (block, blockIndex) => (
-                            <ContentBlock
-                              key={`${block}-${blockIndex}`}
-                              block={block}
-                            />
-                          ),
-                        )
-                      ) : (
-                        <p className="italic text-[#7c8790]">
-                          Chưa có nội dung cho mục
-                          này.
-                        </p>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              </section>
-            ))}
-          </div>
+              </div>
+            </section>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
