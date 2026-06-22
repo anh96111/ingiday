@@ -2,6 +2,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -12,6 +13,7 @@ import {
 
 import ProductDetailSkeleton from "../../components/shop/ProductDetailSkeleton";
 import ProductRecommendations from "../../components/shop/ProductRecommendations";
+import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import { useCart } from "../../features/cart/CartContext";
 import { usePageMeta } from "../../hooks/usePageMeta";
 import {
@@ -28,6 +30,11 @@ export default function ProductDetailPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const { addItem } = useCart();
+  const {
+    trackAddToCart,
+    trackPageView,
+    trackViewContent,
+  } = useAdTracking();
 
   const [product, setProduct] =
     useState<Product | null>(null);
@@ -43,6 +50,7 @@ export default function ProductDetailPage() {
   const [message, setMessage] = useState("");
   const [selectedImageId, setSelectedImageId] =
     useState("");
+  const trackedProductIdRef = useRef("");
 
   usePageMeta({
     title: product
@@ -62,6 +70,7 @@ export default function ProductDetailPage() {
     setSelections({});
     setMessage("");
     setSelectedImageId("");
+    trackedProductIdRef.current = "";
   }, [slug]);
 
   useEffect(() => {
@@ -167,6 +176,40 @@ export default function ProductDetailPage() {
       );
     }, [product, selections]);
 
+  useEffect(() => {
+    if (
+      !product ||
+      trackedProductIdRef.current === product.id
+    ) {
+      return;
+    }
+
+    trackedProductIdRef.current = product.id;
+    const initialUnitPrice =
+      product.price +
+      selectedVariants.reduce(
+        (sum, variant) => sum + variant.priceDelta,
+        0,
+      );
+    const path = `${window.location.pathname}${window.location.search}`;
+
+    void trackPageView({
+      path,
+      productId: product.id,
+    });
+    void trackViewContent({
+      product,
+      quantity: 1,
+      unitPrice: initialUnitPrice,
+      selectedVariants,
+    });
+  }, [
+    product,
+    selectedVariants,
+    trackPageView,
+    trackViewContent,
+  ]);
+
   if (loading && !product) {
     return <ProductDetailSkeleton />;
   }
@@ -258,11 +301,22 @@ export default function ProductDetailPage() {
       return;
     }
 
+    const cartQuantity = Math.min(
+      quantity,
+      availableStock,
+    );
+
     addItem(
       product,
-      Math.min(quantity, availableStock),
+      cartQuantity,
       selectedVariants,
     );
+    void trackAddToCart({
+      product,
+      quantity: cartQuantity,
+      unitPrice,
+      selectedVariants,
+    });
 
     if (goToCheckout) {
       navigate("/thanh-toan");

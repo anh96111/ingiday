@@ -12,6 +12,7 @@ export type CartItem = {
   productId: string;
   slug: string;
   name: string;
+  categoryName?: string;
   imageUrl?: string;
   emoji: string;
   background: string;

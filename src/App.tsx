@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { RouterProvider } from "react-router-dom";
 
 import NetworkNotice from "./components/common/NetworkNotice";
+import { AdTrackingProvider } from "./features/ads/AdTrackingContext";
 import { AdminAuthProvider } from "./features/admin/AdminAuthContext";
 import { BannersProvider } from "./features/banners/BannersContext";
 import { CartProvider } from "./features/cart/CartContext";
@@ -32,12 +33,14 @@ export default function App() {
           <BannersProvider>
             <OrdersProvider>
               <CustomersProvider>
-                <CartProvider>
-                  <NetworkNotice />
+                <AdTrackingProvider>
+                  <CartProvider>
+                    <NetworkNotice />
                   <Suspense fallback={<AppLoading />}>
                     <RouterProvider router={router} />
                   </Suspense>
-                </CartProvider>
+                  </CartProvider>
+                </AdTrackingProvider>
               </CustomersProvider>
             </OrdersProvider>
           </BannersProvider>
