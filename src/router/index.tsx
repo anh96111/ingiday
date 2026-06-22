@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { lazy } from "react";
-import { Navigate, createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import { StoreDataProvider } from "../features/admin/StoreDataContext";
@@ -34,6 +34,9 @@ const OrderDetailPage = lazy(
 const OrdersAdminPage = lazy(
   () => import("../pages/admin/OrdersAdminPage"),
 );
+const PoliciesAdminPage = lazy(
+  () => import("../pages/admin/PoliciesAdminPage"),
+);
 const ProductFormPage = lazy(
   () => import("../pages/admin/ProductFormPage"),
 );
@@ -55,8 +58,14 @@ const CustomPrintPage = lazy(
   () => import("../pages/shop/CustomPrintPage"),
 );
 const HomePage = lazy(() => import("../pages/shop/HomePage"));
+const NotFoundPage = lazy(
+  () => import("../pages/shop/NotFoundPage"),
+);
 const OrderSuccessPage = lazy(
   () => import("../pages/shop/OrderSuccessPage"),
+);
+const PolicyPage = lazy(
+  () => import("../pages/shop/PolicyPage"),
 );
 const ProductDetailPage = lazy(
   () => import("../pages/shop/ProductDetailPage"),
@@ -82,6 +91,37 @@ export const router = createBrowserRouter([
         element: <OrderSuccessPage />,
       },
       { path: "/in-rieng", element: <CustomPrintPage /> },
+      {
+        path: "/chinh-sach-giao-hang",
+        element: (
+          <PolicyPage policySlug="chinh-sach-giao-hang" />
+        ),
+      },
+      {
+        path: "/chinh-sach-doi-tra",
+        element: (
+          <PolicyPage policySlug="chinh-sach-doi-tra" />
+        ),
+      },
+      {
+        path: "/chinh-sach-bao-hanh",
+        element: (
+          <PolicyPage policySlug="chinh-sach-bao-hanh" />
+        ),
+      },
+      {
+        path: "/chinh-sach-bao-mat",
+        element: (
+          <PolicyPage policySlug="chinh-sach-bao-mat" />
+        ),
+      },
+      {
+        path: "/dieu-khoan-su-dung",
+        element: (
+          <PolicyPage policySlug="dieu-khoan-su-dung" />
+        ),
+      },
+      { path: "*", element: <NotFoundPage /> },
     ],
   },
   {
@@ -149,10 +189,13 @@ export const router = createBrowserRouter([
         element: <BannersAdminPage />,
       },
       {
+        path: "chinh-sach",
+        element: <PoliciesAdminPage />,
+      },
+      {
         path: "cai-dat",
         element: <SettingsAdminPage />,
       },
     ],
   },
-  { path: "*", element: <Navigate to="/" replace /> },
 ]);

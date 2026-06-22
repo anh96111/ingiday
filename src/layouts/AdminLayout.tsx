@@ -11,7 +11,7 @@ const navItems = [
   { label: "Khách hàng", to: "/admin/khach-hang", icon: "👥" },
   { label: "Mã giảm giá", to: "/admin/ma-giam-gia", icon: "🏷️" },
   { label: "Banner", to: "/admin/banner", icon: "🖼️" },
-  { label: "Cài đặt", to: "/admin/cai-dat", icon: "⚙️" },
+  { label: "Chính sách", to: "/admin/chinh-sach", icon: "§" }, { label: "Cài đặt", to: "/admin/cai-dat", icon: "⚙️" },
 ];
 
 export default function AdminLayout() {

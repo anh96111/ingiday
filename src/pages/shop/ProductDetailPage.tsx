@@ -12,10 +12,12 @@ import {
 
 import ProductDetailSkeleton from "../../components/shop/ProductDetailSkeleton";
 import { useCart } from "../../features/cart/CartContext";
+import { usePageMeta } from "../../hooks/usePageMeta";
 import {
   getCloudinarySrcSet,
   optimizeCloudinaryUrl,
 } from "../../lib/cloudinary";
+import { resolveProductSlugRedirect } from "../../services/productRedirects";
 import { fetchProductBySlug } from "../../services/products";
 import type { SelectedVariant } from "../../types/cart";
 import type { Product } from "../../types/product";
@@ -41,7 +43,20 @@ export default function ProductDetailPage() {
   const [selectedImageId, setSelectedImageId] =
     useState("");
 
+  usePageMeta({
+    title: product
+      ? `${product.name} | InGiDay`
+      : "Sản phẩm | InGiDay",
+    description: product?.description
+      ? product.description.slice(0, 160)
+      : "Chi tiết sản phẩm InGiDay.",
+    canonicalPath: product
+      ? `/san-pham/${product.slug}`
+      : `/san-pham/${slug}`,
+  });
+
   useEffect(() => {
+    setProduct(null);
     setQuantity(1);
     setSelections({});
     setMessage("");
@@ -50,19 +65,52 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     let active = true;
+    let redirecting = false;
 
     setLoading(true);
     setError("");
 
-    void fetchProductBySlug(slug, {
-      force: retryVersion > 0,
-    })
-      .then((nextProduct) => {
-        if (active) {
-          setProduct(nextProduct);
+    void (async () => {
+      try {
+        const nextProduct =
+          await fetchProductBySlug(slug, {
+            force: retryVersion > 0,
+          });
+
+        if (!active) {
+          return;
         }
-      })
-      .catch((loadError: unknown) => {
+
+        if (nextProduct) {
+          setProduct(nextProduct);
+          return;
+        }
+
+        const redirectSlug =
+          await resolveProductSlugRedirect(
+            slug,
+          );
+
+        if (!active) {
+          return;
+        }
+
+        if (
+          redirectSlug &&
+          redirectSlug !== slug
+        ) {
+          redirecting = true;
+          navigate(
+            `/san-pham/${redirectSlug}`,
+            {
+              replace: true,
+            },
+          );
+          return;
+        }
+
+        setProduct(null);
+      } catch (loadError) {
         if (active) {
           setError(
             loadError instanceof Error
@@ -70,17 +118,17 @@ export default function ProductDetailPage() {
               : "Không thể tải sản phẩm.",
           );
         }
-      })
-      .finally(() => {
-        if (active) {
+      } finally {
+        if (active && !redirecting) {
           setLoading(false);
         }
-      });
+      }
+    })();
 
     return () => {
       active = false;
     };
-  }, [retryVersion, slug]);
+  }, [navigate, retryVersion, slug]);
 
   const selectedVariants =
     useMemo<SelectedVariant[]>(() => {
@@ -149,9 +197,16 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <h1 className="text-3xl font-black">
+        <div className="mx-auto grid h-24 w-24 place-items-center rounded-[35%] bg-[#dff4ff] text-5xl">
+          🧩
+        </div>
+        <h1 className="mt-6 text-3xl font-black">
           Không tìm thấy sản phẩm
         </h1>
+        <p className="mt-3 text-[#707881]">
+          Sản phẩm có thể đã bị ẩn hoặc đường dẫn
+          không còn tồn tại.
+        </p>
         <Link
           to="/san-pham"
           className="mt-6 inline-flex rounded-2xl bg-[#006397] px-6 py-3 font-bold text-white"

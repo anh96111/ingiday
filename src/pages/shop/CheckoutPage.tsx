@@ -723,7 +723,31 @@ export default function CheckoutPage() {
             </div>
           </dl>
 
-          <button
+          <p className="mt-6 text-center text-xs leading-5 text-[#707881]">
+  Khi đặt hàng, bạn xác nhận đã đọc{" "}
+  <Link
+    to="/dieu-khoan-su-dung"
+    className="font-bold text-[#006397]"
+  >
+    Điều khoản sử dụng
+  </Link>
+  ,{" "}
+  <Link
+    to="/chinh-sach-giao-hang"
+    className="font-bold text-[#006397]"
+  >
+    Chính sách giao hàng
+  </Link>
+  {" "}và{" "}
+  <Link
+    to="/chinh-sach-doi-tra"
+    className="font-bold text-[#006397]"
+  >
+    Chính sách đổi trả
+  </Link>
+  .
+</p>
+<button
             type="submit"
             disabled={submitting || addressLoading || Boolean(addressLoadError)}
             className="mt-6 min-h-13 w-full rounded-2xl bg-[#fe7e4f] px-6 font-bold text-white shadow-lg shadow-[#fe7e4f]/20 disabled:cursor-not-allowed disabled:opacity-60"
