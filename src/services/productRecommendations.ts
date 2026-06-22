@@ -104,7 +104,7 @@ function mapProduct(row: RecommendationRow): Product {
     slug: row.product_slug,
     categoryId: row.category_id ?? "",
     categoryName:
-      row.category_name ?? "ChÆ°a phÃ¢n loáº¡i",
+      row.category_name ?? "Chưa phân loại",
     price: Number(row.price),
     compareAtPrice:
       row.compare_at_price === null

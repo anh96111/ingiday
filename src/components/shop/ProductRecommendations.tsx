@@ -129,7 +129,7 @@ export default function ProductRecommendations({
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "KhÃ´ng thá»ƒ táº£i gá»£i Ã½ sáº£n pháº©m.",
+              : "Không thể tải gợi ý sản phẩm.",
           );
         }
       })
@@ -152,10 +152,10 @@ export default function ProductRecommendations({
     return (
       <div className="mt-16 border-t border-[#dce3ea] pt-12">
         <p className="text-sm font-black uppercase tracking-[0.2em] text-[#006397]">
-          CÃ³ thá»ƒ báº¡n sáº½ thÃ­ch
+          Có thể bạn sẽ thích
         </p>
         <h2 className="mt-2 text-2xl font-black sm:text-3xl">
-          Äang táº£i sáº£n pháº©m gá»£i Ã½
+          Đang tải sản phẩm gợi ý
         </h2>
         <div className="mt-6">
           <CardsSkeleton />
@@ -179,7 +179,7 @@ export default function ProductRecommendations({
           }
           className="mt-4 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#006397] shadow-sm"
         >
-          Táº£i láº¡i gá»£i Ã½
+          Tải lại gợi ý
         </button>
       </div>
     );
@@ -195,16 +195,16 @@ export default function ProductRecommendations({
   return (
     <div className="mt-16 space-y-14 border-t border-[#dce3ea] pt-12">
       <RecommendationGroup
-        eyebrow="KhÃ¡m phÃ¡ thÃªm"
-        title="Sáº£n pháº©m tÆ°Æ¡ng tá»±"
-        description="Æ¯u tiÃªn sáº£n pháº©m cÃ¹ng danh má»¥c, cÃ²n hÃ ng vÃ  Ä‘ang Ä‘Æ°á»£c quan tÃ¢m."
+        eyebrow="Khám phá thêm"
+        title="Sản phẩm tương tự"
+        description="Ưu tiên sản phẩm cùng danh mục, còn hàng và đang được quan tâm."
         products={data.similar}
       />
 
       <RecommendationGroup
-        eyebrow="ÄÆ°á»£c chá»n nhiá»u"
-        title="Sáº£n pháº©m bÃ¡n cháº¡y"
-        description="Xáº¿p theo tá»•ng sá»‘ lÆ°á»£ng tá»« cÃ¡c Ä‘Æ¡n Ä‘Ã£ táº¡o thÃ nh cÃ´ng vÃ  chÆ°a bá»‹ há»§y."
+        eyebrow="Được chọn nhiều"
+        title="Sản phẩm bán chạy"
+        description="Xếp theo tổng số lượng từ các đơn đã tạo thành công và chưa bị hủy."
         products={data.bestselling}
       />
     </div>
