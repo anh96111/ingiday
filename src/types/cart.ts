@@ -1,4 +1,4 @@
-﻿export type SelectedVariant = {
+export type SelectedVariant = {
   groupId: string;
   groupName: string;
   optionId: string;
@@ -35,6 +35,7 @@ export type LocalOrder = {
   id?: string;
   code: string;
   createdAt: string;
+  clientRequestId?: string;
   paymentMethod: "COD";
   customer: CheckoutCustomer;
   items: CartItem[];

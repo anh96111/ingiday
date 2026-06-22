@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SearchableAddressSelect from "../../components/address/SearchableAddressSelect";
@@ -131,6 +131,7 @@ export default function CheckoutPage() {
   const [applyingCoupon, setApplyingCoupon] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
 
   const shipping = calculateShipping(
     subtotal,
@@ -308,7 +309,7 @@ export default function CheckoutPage() {
     event.preventDefault();
     setError("");
 
-    if (submitting) return;
+    if (submitting || submitLockRef.current) return;
 
     setPhoneTouched(true);
     setAddressTouched({
@@ -376,18 +377,33 @@ export default function CheckoutPage() {
       total,
     };
 
+    submitLockRef.current = true;
     setSubmitting(true);
-    const result = await createOrder(order);
-    setSubmitting(false);
 
-    if (!result.success || !result.data) {
-      setError(result.message);
-      return;
+    try {
+      const result = await createOrder(order);
+
+      if (!result.success || !result.data) {
+        setError(result.message);
+        return;
+      }
+
+      clearCart();
+      navigate(
+        `/dat-hang-thanh-cong?ma=${encodeURIComponent(
+          result.data.code,
+        )}`,
+      );
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "KhÃ´ng thá»ƒ táº¡o Ä‘Æ¡n hÃ ng. Vui lÃ²ng thá»­ láº¡i.",
+      );
+    } finally {
+      submitLockRef.current = false;
+      setSubmitting(false);
     }
-
-
-    clearCart();
-    navigate(`/dat-hang-thanh-cong?ma=${encodeURIComponent(result.data.code)}`);
   }
 
   if (items.length === 0) {

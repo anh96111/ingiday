@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import { submitStoreOrder } from "../../services/orders";
 import type { CartItem, CheckoutCustomer, LocalOrder, SelectedVariant } from "../../types/cart";
 import type { OrderStatus, StoreOrder } from "../../types/store";
 
@@ -256,36 +257,23 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       error,
       refresh: () => loadOrders(),
       async createOrder(order) {
-        const payloadItems = order.items.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          selectedVariants: item.selectedVariants,
-        }));
+      const submission = await submitStoreOrder(
+        order,
+      );
 
-        const { data, error: rpcError } = await supabase.rpc("create_store_order", {
-          p_customer: {
-            fullName: order.customer.fullName,
-            phone: order.customer.phone,
-            province: order.customer.province,
-            district: order.customer.district,
-            ward: order.customer.ward,
-            addressDetail: order.customer.addressDetail,
-            note: order.customer.note,
-          },
-          p_items: payloadItems,
-          p_coupon_code: order.couponCode ?? null,
-        });
+      if (
+        !submission.success ||
+        !submission.data
+      ) {
+        return {
+          success: false,
+          message: submission.message,
+        };
+      }
 
-        if (rpcError) {
-          return {
-            success: false,
-            message: rpcError.message || "Không thể tạo đơn hàng.",
-          };
-        }
-
-        const result = data as CreateOrderRpcResult | null;
-
-        if (!result?.id || !result.order_code) {
+      const result: CreateOrderRpcResult =
+        submission.data;
+      if (!result?.id || !result.order_code) {
           return {
             success: false,
             message: "Hệ thống không trả về mã đơn hàng.",
