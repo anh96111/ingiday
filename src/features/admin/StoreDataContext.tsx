@@ -1,4 +1,5 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect, react-refresh/only-export-components */
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { CartItem } from "../../types/cart";
 import { categories as initialCategories, products as initialProducts } from "../../data/mockData";

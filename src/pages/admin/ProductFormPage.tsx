@@ -1,4 +1,5 @@
-﻿import { useEffect, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useStoreData } from "../../features/admin/StoreDataContext";

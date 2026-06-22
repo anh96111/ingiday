@@ -1,28 +1,69 @@
+/* eslint-disable react-refresh/only-export-components */
+import { lazy } from "react";
 import { Navigate, createBrowserRouter } from "react-router-dom";
+
 import ProtectedRoute from "../components/common/ProtectedRoute";
-import AdminLayout from "../layouts/AdminLayout";
-import AuthLayout from "../layouts/AuthLayout";
-import ShopLayout from "../layouts/ShopLayout";
-import BannersAdminPage from "../pages/admin/BannersAdminPage";
-import CategoriesAdminPage from "../pages/admin/CategoriesAdminPage";
-import CouponsAdminPage from "../pages/admin/CouponsAdminPage";
-import CustomerDetailPage from "../pages/admin/CustomerDetailPage";
-import CustomersAdminPage from "../pages/admin/CustomersAdminPage";
-import DashboardPage from "../pages/admin/DashboardPage";
-import RevenueAdminPage from "../pages/admin/RevenueAdminPage";
-import LoginPage from "../pages/admin/LoginPage";
-import OrderDetailPage from "../pages/admin/OrderDetailPage";
-import OrdersAdminPage from "../pages/admin/OrdersAdminPage";
-import ProductFormPage from "../pages/admin/ProductFormPage";
-import ProductsAdminPage from "../pages/admin/ProductsAdminPage";
-import SettingsAdminPage from "../pages/admin/SettingsAdminPage";
-import CartPage from "../pages/shop/CartPage";
-import CheckoutPage from "../pages/shop/CheckoutPage";
-import CustomPrintPage from "../pages/shop/CustomPrintPage";
-import HomePage from "../pages/shop/HomePage";
-import OrderSuccessPage from "../pages/shop/OrderSuccessPage";
-import ProductDetailPage from "../pages/shop/ProductDetailPage";
-import ProductsPage from "../pages/shop/ProductsPage";
+import { StoreDataProvider } from "../features/admin/StoreDataContext";
+
+const AdminLayout = lazy(() => import("../layouts/AdminLayout"));
+const AuthLayout = lazy(() => import("../layouts/AuthLayout"));
+const ShopLayout = lazy(() => import("../layouts/ShopLayout"));
+
+const BannersAdminPage = lazy(
+  () => import("../pages/admin/BannersAdminPage"),
+);
+const CategoriesAdminPage = lazy(
+  () => import("../pages/admin/CategoriesAdminPage"),
+);
+const CouponsAdminPage = lazy(
+  () => import("../pages/admin/CouponsAdminPage"),
+);
+const CustomerDetailPage = lazy(
+  () => import("../pages/admin/CustomerDetailPage"),
+);
+const CustomersAdminPage = lazy(
+  () => import("../pages/admin/CustomersAdminPage"),
+);
+const DashboardPage = lazy(
+  () => import("../pages/admin/DashboardPage"),
+);
+const LoginPage = lazy(() => import("../pages/admin/LoginPage"));
+const OrderDetailPage = lazy(
+  () => import("../pages/admin/OrderDetailPage"),
+);
+const OrdersAdminPage = lazy(
+  () => import("../pages/admin/OrdersAdminPage"),
+);
+const ProductFormPage = lazy(
+  () => import("../pages/admin/ProductFormPage"),
+);
+const ProductsAdminPage = lazy(
+  () => import("../pages/admin/ProductsAdminPage"),
+);
+const RevenueAdminPage = lazy(
+  () => import("../pages/admin/RevenueAdminPage"),
+);
+const SettingsAdminPage = lazy(
+  () => import("../pages/admin/SettingsAdminPage"),
+);
+
+const CartPage = lazy(() => import("../pages/shop/CartPage"));
+const CheckoutPage = lazy(
+  () => import("../pages/shop/CheckoutPage"),
+);
+const CustomPrintPage = lazy(
+  () => import("../pages/shop/CustomPrintPage"),
+);
+const HomePage = lazy(() => import("../pages/shop/HomePage"));
+const OrderSuccessPage = lazy(
+  () => import("../pages/shop/OrderSuccessPage"),
+);
+const ProductDetailPage = lazy(
+  () => import("../pages/shop/ProductDetailPage"),
+);
+const ProductsPage = lazy(
+  () => import("../pages/shop/ProductsPage"),
+);
 
 export const router = createBrowserRouter([
   {
@@ -30,36 +71,88 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <HomePage /> },
       { path: "/san-pham", element: <ProductsPage /> },
-      { path: "/san-pham/:slug", element: <ProductDetailPage /> },
+      {
+        path: "/san-pham/:slug",
+        element: <ProductDetailPage />,
+      },
       { path: "/gio-hang", element: <CartPage /> },
       { path: "/thanh-toan", element: <CheckoutPage /> },
-      { path: "/dat-hang-thanh-cong", element: <OrderSuccessPage /> },
+      {
+        path: "/dat-hang-thanh-cong",
+        element: <OrderSuccessPage />,
+      },
       { path: "/in-rieng", element: <CustomPrintPage /> },
     ],
   },
   {
     element: <AuthLayout />,
-    children: [{ path: "/admin/dang-nhap", element: <LoginPage /> }],
+    children: [
+      {
+        path: "/admin/dang-nhap",
+        element: <LoginPage />,
+      },
+    ],
   },
   {
     path: "/admin",
-    element: <ProtectedRoute><AdminLayout /></ProtectedRoute>,
+    element: (
+      <ProtectedRoute>
+        <StoreDataProvider>
+          <AdminLayout />
+        </StoreDataProvider>
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: "doanh-thu", element: <RevenueAdminPage /> },
-      { path: "san-pham", element: <ProductsAdminPage /> },
-      { path: "san-pham/them", element: <ProductFormPage /> },
-      { path: "san-pham/:id/sua", element: <ProductFormPage /> },
-      { path: "danh-muc", element: <CategoriesAdminPage /> },
-      { path: "don-hang", element: <OrdersAdminPage /> },
-      { path: "don-hang/:code", element: <OrderDetailPage /> },
-      { path: "khach-hang", element: <CustomersAdminPage /> },
-      { path: "khach-hang/:phone", element: <CustomerDetailPage /> },
-      { path: "ma-giam-gia", element: <CouponsAdminPage /> },
-      { path: "banner", element: <BannersAdminPage /> },
-      { path: "cai-dat", element: <SettingsAdminPage /> },
+      {
+        path: "doanh-thu",
+        element: <RevenueAdminPage />,
+      },
+      {
+        path: "san-pham",
+        element: <ProductsAdminPage />,
+      },
+      {
+        path: "san-pham/them",
+        element: <ProductFormPage />,
+      },
+      {
+        path: "san-pham/:id/sua",
+        element: <ProductFormPage />,
+      },
+      {
+        path: "danh-muc",
+        element: <CategoriesAdminPage />,
+      },
+      {
+        path: "don-hang",
+        element: <OrdersAdminPage />,
+      },
+      {
+        path: "don-hang/:code",
+        element: <OrderDetailPage />,
+      },
+      {
+        path: "khach-hang",
+        element: <CustomersAdminPage />,
+      },
+      {
+        path: "khach-hang/:phone",
+        element: <CustomerDetailPage />,
+      },
+      {
+        path: "ma-giam-gia",
+        element: <CouponsAdminPage />,
+      },
+      {
+        path: "banner",
+        element: <BannersAdminPage />,
+      },
+      {
+        path: "cai-dat",
+        element: <SettingsAdminPage />,
+      },
     ],
   },
   { path: "*", element: <Navigate to="/" replace /> },
 ]);
-

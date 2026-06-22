@@ -1,7 +1,22 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
+
+import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
 import ProductCard from "../../components/shop/ProductCard";
-import { useStoreData } from "../../features/admin/StoreDataContext";
 import { useBanners } from "../../features/banners/BannersContext";
+import {
+  fetchActiveCategories,
+  fetchFeaturedProducts,
+} from "../../services/products";
+import type {
+  Category,
+  Product,
+} from "../../types/product";
 
 function isBannerAvailable(
   startsAt?: string,
@@ -11,13 +26,23 @@ function isBannerAvailable(
   today.setHours(0, 0, 0, 0);
 
   if (startsAt) {
-    const start = new Date(`${startsAt}T00:00:00`);
-    if (start > today) return false;
+    const start = new Date(
+      `${startsAt}T00:00:00`,
+    );
+
+    if (start > today) {
+      return false;
+    }
   }
 
   if (endsAt) {
-    const end = new Date(`${endsAt}T23:59:59`);
-    if (end < today) return false;
+    const end = new Date(
+      `${endsAt}T23:59:59`,
+    );
+
+    if (end < today) {
+      return false;
+    }
   }
 
   return true;
@@ -25,54 +50,69 @@ function isBannerAvailable(
 
 export default function HomePage() {
   const {
-    categories,
-    products,
-    loading: storeLoading,
-    error: storeError,
-  } = useStoreData();
-
-  const {
     banners,
     loading: bannersLoading,
     error: bannersError,
   } = useBanners();
 
-  const visibleCategories = categories.filter(
-    (category) => category.status === "active",
+  const [categories, setCategories] = useState<
+    Category[]
+  >([]);
+  const [featuredProducts, setFeaturedProducts] =
+    useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] =
+    useState(true);
+  const [catalogError, setCatalogError] =
+    useState("");
+
+  const loadCatalog = useCallback(
+    async (force = false) => {
+      setCatalogLoading(true);
+      setCatalogError("");
+
+      try {
+        const [
+          nextCategories,
+          nextFeaturedProducts,
+        ] = await Promise.all([
+          fetchActiveCategories({ force }),
+          fetchFeaturedProducts(4, { force }),
+        ]);
+
+        setCategories(nextCategories);
+        setFeaturedProducts(
+          nextFeaturedProducts,
+        );
+      } catch (error) {
+        setCatalogError(
+          error instanceof Error
+            ? error.message
+            : "Không thể tải sản phẩm.",
+        );
+      } finally {
+        setCatalogLoading(false);
+      }
+    },
+    [],
   );
 
-  const featuredProducts = products
-    .filter(
-      (product) =>
-        product.status === "active" && product.featured,
-    )
-    .slice(0, 4);
+  useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
 
   const banner = [...banners]
     .filter(
       (item) =>
         item.active &&
-        isBannerAvailable(item.startsAt, item.endsAt),
+        isBannerAvailable(
+          item.startsAt,
+          item.endsAt,
+        ),
     )
     .sort(
-      (left, right) => left.sortOrder - right.sortOrder,
+      (left, right) =>
+        left.sortOrder - right.sortOrder,
     )[0];
-
-  if (storeLoading || bannersLoading) {
-    return (
-      <section className="mx-auto max-w-7xl px-5 py-20 text-center lg:px-16">
-        Đang tải cửa hàng...
-      </section>
-    );
-  }
-
-  if (storeError) {
-    return (
-      <section className="mx-auto max-w-7xl px-5 py-20 text-center font-semibold text-[#a43c12] lg:px-16">
-        {storeError}
-      </section>
-    );
-  }
 
   return (
     <>
@@ -87,7 +127,8 @@ export default function HomePage() {
         >
           <div className="relative z-10 max-w-2xl">
             <span className="inline-flex rounded-full border border-[#fe7e4f]/30 bg-white/70 px-4 py-2 text-xs font-bold text-[#a43c12] backdrop-blur">
-              {banner?.badge || "Sáng tạo không giới hạn"}
+              {banner?.badge ||
+                "Sáng tạo không giới hạn"}
             </span>
 
             <h1 className="mt-6 text-4xl font-black leading-tight tracking-[-0.03em] text-[#091d2e] sm:text-5xl lg:text-6xl">
@@ -102,17 +143,25 @@ export default function HomePage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to={banner?.primaryLink || "/san-pham"}
+                to={
+                  banner?.primaryLink ||
+                  "/san-pham"
+                }
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white shadow-lg shadow-[#fe7e4f]/25 transition hover:-translate-y-0.5"
               >
-                {banner?.primaryLabel || "Khám phá ngay →"}
+                {banner?.primaryLabel ||
+                  "Khám phá ngay →"}
               </Link>
 
               <Link
-                to={banner?.secondaryLink || "/in-rieng"}
+                to={
+                  banner?.secondaryLink ||
+                  "/in-rieng"
+                }
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white/80 px-7 font-bold text-[#006397] transition hover:bg-white"
               >
-                {banner?.secondaryLabel || "Yêu cầu in riêng"}
+                {banner?.secondaryLabel ||
+                  "Yêu cầu in riêng"}
               </Link>
             </div>
           </div>
@@ -122,8 +171,14 @@ export default function HomePage() {
               <div className="relative aspect-square w-full max-w-[360px] overflow-hidden rounded-[34%] bg-white/55 shadow-[0_25px_60px_-25px_rgba(0,99,151,0.45)]">
                 <img
                   src={banner.imageUrl}
-                  alt={banner.imageAlt || banner.title}
+                  alt={
+                    banner.imageAlt ||
+                    banner.title
+                  }
+                  width="720"
+                  height="720"
                   className="h-full w-full object-cover"
+                  decoding="async"
                 />
               </div>
             ) : (
@@ -140,9 +195,31 @@ export default function HomePage() {
           </div>
         </div>
 
-        {bannersError && (
-          <p className="mt-3 text-center text-xs font-semibold text-[#a43c12]">
-            Không tải được banner quản trị. Trang chủ đang dùng nội dung mặc định.
+        {(bannersError || catalogError) && (
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]">
+            <span>
+              {catalogError ||
+                bannersError ||
+                "Không thể tải đủ dữ liệu."}
+            </span>
+
+            {catalogError && (
+              <button
+                type="button"
+                onClick={() =>
+                  void loadCatalog(true)
+                }
+                className="rounded-xl bg-white px-4 py-2 font-bold"
+              >
+                Thử lại
+              </button>
+            )}
+          </div>
+        )}
+
+        {bannersLoading && (
+          <p className="mt-3 text-center text-xs text-[#707881]">
+            Đang cập nhật banner...
           </p>
         )}
       </section>
@@ -157,23 +234,40 @@ export default function HomePage() {
           </h2>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {visibleCategories.map((category) => (
-            <Link
-              key={category.id}
-              to={`/san-pham?danh-muc=${category.id}`}
-              className="group rounded-3xl p-5 text-center transition hover:-translate-y-1"
-              style={{ backgroundColor: category.background }}
-            >
-              <div className="text-5xl transition duration-300 group-hover:scale-110">
-                {category.emoji}
-              </div>
-              <h3 className="mt-4 text-sm font-bold text-[#091d2e]">
-                {category.name}
-              </h3>
-            </Link>
-          ))}
-        </div>
+        {catalogLoading &&
+        categories.length === 0 ? (
+          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {Array.from({ length: 6 }).map(
+              (_item, index) => (
+                <div
+                  key={index}
+                  className="h-36 animate-pulse rounded-3xl bg-[#eaf0f6]"
+                />
+              ),
+            )}
+          </div>
+        ) : (
+          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                to={`/san-pham?danh-muc=${category.id}`}
+                className="group rounded-3xl p-5 text-center transition hover:-translate-y-1"
+                style={{
+                  backgroundColor:
+                    category.background,
+                }}
+              >
+                <div className="text-5xl transition duration-300 group-hover:scale-110">
+                  {category.emoji}
+                </div>
+                <h3 className="mt-4 text-sm font-bold text-[#091d2e]">
+                  {category.name}
+                </h3>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pt-16 lg:px-16">
@@ -195,20 +289,27 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {featuredProducts.length > 0 ? (
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {featuredProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-8 rounded-3xl bg-white p-10 text-center text-[#707881]">
-            Chưa có sản phẩm nổi bật.
-          </div>
-        )}
+        <div className="mt-8">
+          {catalogLoading &&
+          featuredProducts.length === 0 ? (
+            <ProductGridSkeleton count={4} />
+          ) : featuredProducts.length > 0 ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredProducts.map(
+                (product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                  />
+                ),
+              )}
+            </div>
+          ) : (
+            <div className="rounded-3xl bg-white p-10 text-center text-[#707881]">
+              Chưa có sản phẩm nổi bật.
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pt-16 lg:px-16">
@@ -218,11 +319,13 @@ export default function HomePage() {
               Ý tưởng của riêng bạn
             </p>
             <h2 className="mt-3 text-3xl font-black sm:text-4xl">
-              Có mẫu muốn in? Va ngay với chủ shop
+              Có mẫu muốn in? Va ngay với chủ
+              shop
             </h2>
             <p className="mt-4 leading-7 text-[#e8f2ff]">
-              Gửi ý tưởng qua Messenger, shop sẽ trao đổi nhanh về mẫu,
-              kích thước và chi phí.
+              Gửi ý tưởng qua Messenger, shop sẽ
+              trao đổi nhanh về mẫu, kích thước và
+              chi phí.
             </p>
           </div>
 

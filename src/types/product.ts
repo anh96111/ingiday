@@ -1,4 +1,8 @@
-﻿export type ProductStatus = "active" | "hidden" | "out_of_stock";
+export type ProductStatus =
+  | "active"
+  | "hidden"
+  | "out_of_stock";
+
 export type CategoryStatus = "active" | "hidden";
 
 export type ProductImage = {
@@ -40,6 +44,7 @@ export type Product = {
   images?: ProductImage[];
   variantGroups?: ProductVariantGroup[];
   status: ProductStatus;
+  soldQuantity?: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,5 +60,39 @@ export type Category = {
   updatedAt: string;
 };
 
-export type ProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">;
-export type CategoryInput = Omit<Category, "id" | "createdAt" | "updatedAt">;
+export type CatalogSort =
+  | "relevance"
+  | "newest"
+  | "bestselling"
+  | "price_asc"
+  | "price_desc";
+
+export type ProductSearchFilters = {
+  query?: string;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  inStock?: boolean;
+  featured?: boolean;
+  sort?: CatalogSort;
+  page?: number;
+  pageSize?: number;
+};
+
+export type ProductSearchResult = {
+  products: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export type ProductInput = Omit<
+  Product,
+  "id" | "createdAt" | "updatedAt" | "soldQuantity"
+>;
+
+export type CategoryInput = Omit<
+  Category,
+  "id" | "createdAt" | "updatedAt"
+>;
