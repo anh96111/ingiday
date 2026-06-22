@@ -430,3 +430,94 @@ export async function saveProductAdAssignments(
     );
   }
 }
+
+type AdSecretResponse = {
+  success?: boolean;
+  tokenConfigured?: boolean;
+  tokenUpdatedAt?: string;
+  message?: string;
+  error?: string;
+};
+
+async function adminAccessToken() {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error || !session?.access_token) {
+    throw new Error(
+      "Phiên đăng nhập quản trị đã hết hạn. Vui lòng đăng nhập lại.",
+    );
+  }
+
+  return session.access_token;
+}
+
+async function requestAdSecret(
+  sourceId: string,
+  method: "PUT" | "DELETE",
+  accessToken?: string,
+): Promise<AdSecretResponse> {
+  const token = await adminAccessToken();
+  const response = await fetch(
+    `/api/admin/ad-secrets/${encodeURIComponent(sourceId)}`,
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body:
+        method === "PUT"
+          ? JSON.stringify({
+              accessToken: accessToken?.trim() ?? "",
+            })
+          : undefined,
+    },
+  );
+
+  let payload: AdSecretResponse;
+
+  try {
+    payload =
+      (await response.json()) as AdSecretResponse;
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error ||
+        payload.message ||
+        "Không thể cập nhật Access Token.",
+    );
+  }
+
+  return payload;
+}
+
+export async function saveAdDataSourceToken(
+  sourceId: string,
+  accessToken: string,
+) {
+  const normalized = accessToken.trim();
+
+  if (!normalized) {
+    throw new Error(
+      "Vui lòng nhập Access Token.",
+    );
+  }
+
+  return requestAdSecret(
+    sourceId,
+    "PUT",
+    normalized,
+  );
+}
+
+export async function deleteAdDataSourceToken(
+  sourceId: string,
+) {
+  return requestAdSecret(sourceId, "DELETE");
+}

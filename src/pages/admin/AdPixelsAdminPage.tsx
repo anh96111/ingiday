@@ -10,7 +10,9 @@ import {
   countProductAdAssignments,
   createAdDataSource,
   deleteAdDataSource,
+  deleteAdDataSourceToken,
   listAdDataSources,
+  saveAdDataSourceToken,
   updateAdDataSource,
 } from "../../services/ads";
 import {
@@ -117,6 +119,9 @@ export default function AdPixelsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState("");
+  const [removingTokenId, setRemovingTokenId] =
+    useState("");
+  const [accessToken, setAccessToken] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editingId, setEditingId] = useState<
@@ -165,9 +170,14 @@ export default function AdPixelsAdminPage() {
     [sources],
   );
 
+  const editingSource = editingId
+    ? sources.find((source) => source.id === editingId)
+    : undefined;
+
   function openCreate(platform: AdPlatform) {
     setEditingId(null);
     setForm(defaultInput(platform));
+    setAccessToken("");
     setError("");
     setNotice("");
   }
@@ -175,6 +185,7 @@ export default function AdPixelsAdminPage() {
   function openEdit(source: AdDataSource) {
     setEditingId(source.id);
     setForm(inputFromSource(source));
+    setAccessToken("");
     setError("");
     setNotice("");
   }
@@ -183,6 +194,7 @@ export default function AdPixelsAdminPage() {
     if (!saving) {
       setEditingId(null);
       setForm(null);
+      setAccessToken("");
     }
   }
 
@@ -233,16 +245,33 @@ export default function AdPixelsAdminPage() {
     setNotice("");
 
     try {
-      if (editingId) {
-        await updateAdDataSource(editingId, form);
-        setNotice("Đã cập nhật Pixel quảng cáo.");
+      let sourceId = editingId;
+
+      if (sourceId) {
+        await updateAdDataSource(sourceId, form);
       } else {
-        await createAdDataSource(form);
-        setNotice("Đã thêm Pixel quảng cáo.");
+        sourceId = await createAdDataSource(form);
       }
 
+      if (accessToken.trim()) {
+        await saveAdDataSourceToken(
+          sourceId,
+          accessToken,
+        );
+      }
+
+      setNotice(
+        editingId
+          ? accessToken.trim()
+            ? "Đã cập nhật Pixel và Access Token."
+            : "Đã cập nhật Pixel quảng cáo."
+          : accessToken.trim()
+            ? "Đã thêm Pixel và Access Token."
+            : "Đã thêm Pixel quảng cáo.",
+      );
       setEditingId(null);
       setForm(null);
+      setAccessToken("");
       await loadSources();
     } catch (saveError) {
       setError(
@@ -295,6 +324,36 @@ export default function AdPixelsAdminPage() {
     }
   }
 
+  async function removeToken(
+    source: AdDataSource,
+  ) {
+    const confirmed = window.confirm(
+      `Xóa Access Token của “${source.name}”? CAPI / Events API sẽ không gửi được cho đến khi token mới được thiết lập.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setRemovingTokenId(source.id);
+    setError("");
+    setNotice("");
+
+    try {
+      await deleteAdDataSourceToken(source.id);
+      setNotice("Đã xóa Access Token.");
+      await loadSources();
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : "Không thể xóa Access Token.",
+      );
+    } finally {
+      setRemovingTokenId("");
+    }
+  }
+
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -306,7 +365,7 @@ export default function AdPixelsAdminPage() {
             Pixel quảng cáo
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#707881]">
-            Quản lý Meta Pixel và TikTok Pixel mà không cần sửa mã nguồn. Access Token sẽ được cấu hình an toàn ở bước 15.1C.
+            Quản lý Meta Pixel, TikTok Pixel và Access Token mã hóa mà không cần sửa mã nguồn.
           </p>
         </div>
       </div>
@@ -438,6 +497,39 @@ export default function AdPixelsAdminPage() {
                 </option>
               </select>
             </label>
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-[#dce3ea] bg-[#f7f9ff] p-5">
+            <label className="block text-sm font-bold">
+              Access Token
+              <input
+                type="password"
+                value={accessToken}
+                onChange={(event) =>
+                  setAccessToken(event.target.value)
+                }
+                autoComplete="new-password"
+                className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-white px-4 font-normal outline-none focus:border-[#006397]"
+                placeholder={
+                  editingSource?.tokenConfigured
+                    ? "Để trống để giữ token hiện tại"
+                    : "Nhập Access Token"
+                }
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#707881]">
+              <p>
+                Token được gửi thẳng tới Cloudflare Function, mã hóa AES-GCM và không thể đọc lại trong admin.
+              </p>
+              {editingSource && (
+                <p className="font-bold text-[#3f4850]">
+                  Trạng thái:{" "}
+                  {editingSource.tokenConfigured
+                    ? "Đã thiết lập"
+                    : "Chưa thiết lập"}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -630,12 +722,40 @@ export default function AdPixelsAdminPage() {
                           </p>
                         </div>
                         <div className="rounded-2xl bg-[#f7f9ff] p-4 text-sm">
-                          <p className="font-bold">Access Token</p>
-                          <p className="mt-1 text-[#707881]">
-                            {source.tokenConfigured
-                              ? "Đã thiết lập"
-                              : "Chưa thiết lập — cấu hình ở 15.1C"}
-                          </p>
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold">Access Token</p>
+                              <p className="mt-1 text-[#707881]">
+                                {source.tokenConfigured
+                                  ? "Đã thiết lập và mã hóa"
+                                  : "Chưa thiết lập"}
+                              </p>
+                              {source.tokenUpdatedAt && (
+                                <p className="mt-1 text-xs text-[#8a929a]">
+                                  Cập nhật:{" "}
+                                  {new Date(
+                                    source.tokenUpdatedAt,
+                                  ).toLocaleString("vi-VN")}
+                                </p>
+                              )}
+                            </div>
+                            {source.tokenConfigured && (
+                              <button
+                                type="button"
+                                disabled={
+                                  removingTokenId === source.id
+                                }
+                                onClick={() =>
+                                  void removeToken(source)
+                                }
+                                className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-[#a43c12] shadow-sm disabled:opacity-60"
+                              >
+                                {removingTokenId === source.id
+                                  ? "Đang xóa..."
+                                  : "Xóa token"}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
