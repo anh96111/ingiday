@@ -16,11 +16,15 @@ import {
   sendBrowserAdEvent,
   warmAdRuntime,
 } from "../../services/adRuntime";
+import {
+  sendServerAdEvent,
+} from "../../services/adServerEvents";
 import type {
   TrackCheckoutInput,
   TrackPageViewInput,
   TrackProductInput,
   TrackPurchaseInput,
+  RuntimeAdSource,
 } from "../../types/adTracking";
 import type { AdPlatform } from "../../types/ads";
 import type { CartItem } from "../../types/cart";
@@ -60,6 +64,31 @@ function contentFromItem(item: CartItem) {
     price: item.unitPrice,
     item_price: item.unitPrice,
   };
+}
+
+function dispatchAdEvent(
+  source: RuntimeAdSource,
+  eventName: Parameters<typeof sendBrowserAdEvent>[1],
+  eventId: string,
+  payload: Record<string, unknown>,
+  productIds: string[] = [],
+  orderCode?: string,
+) {
+  sendBrowserAdEvent(
+    source,
+    eventName,
+    eventId,
+    payload,
+  );
+
+  void sendServerAdEvent({
+    source,
+    eventName,
+    eventId,
+    payload,
+    productIds,
+    orderCode,
+  });
 }
 
 function cartFingerprint(items: CartItem[]) {
@@ -235,13 +264,14 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          sendBrowserAdEvent(
+          dispatchAdEvent(
             source,
             "PageView",
             `${baseEventId}:${platform}:${source.id}`,
             {
               page_path: input.path,
             },
+            input.productId ? [input.productId] : [],
           );
         }
       } catch (error) {
@@ -279,7 +309,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          sendBrowserAdEvent(
+          dispatchAdEvent(
             source,
             "ViewContent",
             `${baseEventId}:${platform}:${source.id}`,
@@ -292,6 +322,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
               currency: "VND",
               value: input.unitPrice * input.quantity,
             },
+            [input.product.id],
           );
         }
       } catch (error) {
@@ -319,7 +350,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
           continue;
         }
 
-        sendBrowserAdEvent(
+        dispatchAdEvent(
           source,
           "Search",
           `${baseEventId}:${platform}:${source.id}`,
@@ -359,7 +390,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
             continue;
           }
 
-          sendBrowserAdEvent(
+          dispatchAdEvent(
             source,
             "AddToCart",
             `${baseEventId}:${platform}:${source.id}`,
@@ -381,6 +412,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
               currency: "VND",
               value: input.unitPrice * input.quantity,
             },
+            [input.product.id],
           );
         }
       } catch (error) {
@@ -417,7 +449,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
             0,
           );
 
-          sendBrowserAdEvent(
+          dispatchAdEvent(
             source,
             "InitiateCheckout",
             `${baseEventId}:${group.platform}:${source.id}`,
@@ -432,6 +464,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
               ),
               value: groupValue,
             },
+            group.items.map((item) => item.productId),
           );
         }
       });
@@ -471,7 +504,11 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
             platformGroups.set(source.id, groupItems);
           }
 
-          const entries = Array.from(platformGroups.entries());
+          const entries = Array.from(
+            platformGroups.entries(),
+          ).sort(([left], [right]) =>
+            left.localeCompare(right),
+          );
           const groupSubtotals = entries.map(([, items]) =>
             items.reduce(
               (sum, item) => sum + item.unitPrice * item.quantity,
@@ -493,7 +530,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
               shippingParts[index];
             const eventId = `purchase:${input.orderCode}:${platform}:${source.id}`;
 
-            sendBrowserAdEvent(source, "Purchase", eventId, {
+            dispatchAdEvent(source, "Purchase", eventId, {
               content_ids: items.map((item) => item.productId),
               content_type: "product",
               contents: items.map(contentFromItem),
@@ -506,7 +543,7 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
               shipping: shippingParts[index],
               discount: discounts[index],
               value: groupValue,
-            });
+            }, items.map((item) => item.productId), input.orderCode);
           });
         }
 

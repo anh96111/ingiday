@@ -6,6 +6,7 @@ export type AdsFunctionEnv = {
   SUPABASE_URL?: string;
   SUPABASE_SERVER_KEY?: string;
   ADS_TOKEN_ENCRYPTION_KEY?: string;
+  ADS_SERVER_DRY_RUN?: string;
 };
 
 type SupabaseServerConfig = {

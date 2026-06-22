@@ -16,7 +16,8 @@ type RuntimeRpcSource = {
   isDefault?: unknown;
   testMode?: unknown;
   purchaseTrigger?: unknown;
-  enabledEvents?: unknown;
+  browserEvents?: unknown;
+  serverEvents?: unknown;
 };
 
 type RuntimeRpcAssignment = {
@@ -104,7 +105,8 @@ function parseSource(value: unknown): RuntimeAdSource | null {
     typeof row.isDefault !== "boolean" ||
     typeof row.testMode !== "boolean" ||
     !isPurchaseTrigger(row.purchaseTrigger) ||
-    !Array.isArray(row.enabledEvents)
+    !Array.isArray(row.browserEvents) ||
+    !Array.isArray(row.serverEvents)
   ) {
     return null;
   }
@@ -116,7 +118,8 @@ function parseSource(value: unknown): RuntimeAdSource | null {
     isDefault: row.isDefault,
     testMode: row.testMode,
     purchaseTrigger: row.purchaseTrigger,
-    enabledEvents: row.enabledEvents.filter(isAdEventName),
+    browserEvents: row.browserEvents.filter(isAdEventName),
+    serverEvents: row.serverEvents.filter(isAdEventName),
   };
 }
 
@@ -262,16 +265,43 @@ export async function warmAdRuntime() {
   }
 }
 
+export type AdDeliveryChannel =
+  | "browser"
+  | "server"
+  | "any";
+
+export function sourceSupportsEvent(
+  source: RuntimeAdSource,
+  eventName: AdEventName,
+  channel: AdDeliveryChannel = "any",
+) {
+  const browserEnabled =
+    source.browserEvents.includes(eventName);
+  const serverEnabled =
+    source.serverEvents.includes(eventName);
+
+  if (channel === "browser") {
+    return browserEnabled;
+  }
+
+  if (channel === "server") {
+    return serverEnabled;
+  }
+
+  return browserEnabled || serverEnabled;
+}
+
 export function resolveAdSource(
   snapshot: AdRuntimeSnapshot,
   platform: AdPlatform,
   eventName: AdEventName,
   productId?: string,
+  channel: AdDeliveryChannel = "any",
 ) {
   const platformSources = snapshot.sources.filter(
     (source) =>
       source.platform === platform &&
-      source.enabledEvents.includes(eventName) &&
+      sourceSupportsEvent(source, eventName, channel) &&
       (eventName !== "Purchase" ||
         source.purchaseTrigger === "order_created"),
   );
@@ -412,6 +442,10 @@ export function sendBrowserAdEvent(
   eventId: string,
   payload: Record<string, unknown>,
 ) {
+  if (!sourceSupportsEvent(source, eventName, "browser")) {
+    return;
+  }
+
   if (DEBUG_ENABLED) {
     console.info("[InGiDay Ads Debug]", {
       platform: source.platform,

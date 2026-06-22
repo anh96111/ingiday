@@ -9,7 +9,8 @@ export type RuntimeAdSource = {
   isDefault: boolean;
   testMode: boolean;
   purchaseTrigger: PurchaseTrigger;
-  enabledEvents: AdEventName[];
+  browserEvents: AdEventName[];
+  serverEvents: AdEventName[];
 };
 
 export type RuntimeAdAssignment = {
