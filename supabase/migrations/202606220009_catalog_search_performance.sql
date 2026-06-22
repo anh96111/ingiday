@@ -315,9 +315,15 @@ as $$
     catalog.created_at desc,
     catalog.product_id
   offset (
-    normalized.page_number - 1
-  ) * normalized.page_size
-  limit normalized.page_size;
+    greatest(coalesce(p_page, 1), 1) - 1
+  ) * least(
+    greatest(coalesce(p_page_size, 12), 1),
+    48
+  )
+  limit least(
+    greatest(coalesce(p_page_size, 12), 1),
+    48
+  );
 $$;
 
 revoke all on function
