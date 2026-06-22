@@ -57,6 +57,7 @@ export async function supabaseServerFetch(
   env: AdsFunctionEnv,
   path: string,
   init: RequestInit = {},
+  userAccessToken?: string,
 ) {
   const config =
     getSupabaseServerConfig(env);
@@ -65,6 +66,13 @@ export async function supabaseServerFetch(
 
   headers.set("apikey", config.key);
   headers.set("Accept", "application/json");
+
+  if (userAccessToken) {
+    headers.set(
+      "Authorization",
+      `Bearer ${userAccessToken}`,
+    );
+  }
 
   return fetch(
     `${config.url}${path}`,

@@ -26,10 +26,6 @@ type RouteContext = {
   };
 };
 
-type AdDataSourceRow = {
-  id: string;
-};
-
 function sourceIdFromContext(
   context: RouteContext,
 ) {
@@ -54,81 +50,33 @@ function sourceIdFromContext(
   return sourceId;
 }
 
-async function ensureSourceExists(
-  env: AdsFunctionEnv,
-  sourceId: string,
-) {
-  const query =
-    "/rest/v1/ad_data_sources" +
-    `?id=eq.${encodeURIComponent(sourceId)}` +
-    "&select=id" +
-    "&limit=1";
-  const response =
-    await supabaseServerFetch(
-      env,
-      query,
-    );
-
-  if (!response.ok) {
-    console.error(
-      "ad-source-check-failed",
-      response.status,
-    );
-
-    throw new HttpError(
-      500,
-      "Không thể kiểm tra cấu hình Pixel.",
-    );
-  }
-
-  const payload =
-    (await response.json()) as unknown;
-
-  if (!Array.isArray(payload)) {
-    throw new HttpError(
-      500,
-      "Phản hồi cấu hình Pixel không hợp lệ.",
-    );
-  }
-
-  if (!(payload[0] as AdDataSourceRow | undefined)) {
-    throw new HttpError(
-      404,
-      "Không tìm thấy cấu hình Pixel.",
-    );
-  }
-}
-
 async function saveEncryptedSecret(
   env: AdsFunctionEnv,
+  accessToken: string,
   sourceId: string,
   ciphertext: string,
   initializationVector: string,
   algorithm: string,
-  updatedAt: string,
 ) {
   const response =
     await supabaseServerFetch(
       env,
-      "/rest/v1/ad_data_source_secrets" +
-        "?on_conflict=ad_data_source_id",
+      "/rest/v1/rpc/admin_save_ad_secret",
       {
         method: "POST",
         headers: {
           "Content-Type":
             "application/json",
-          Prefer:
-            "resolution=merge-duplicates,return=minimal",
         },
         body: JSON.stringify({
-          ad_data_source_id: sourceId,
-          ciphertext,
-          initialization_vector:
+          p_ad_data_source_id: sourceId,
+          p_ciphertext: ciphertext,
+          p_initialization_vector:
             initializationVector,
-          algorithm,
-          updated_at: updatedAt,
+          p_algorithm: algorithm,
         }),
       },
+      accessToken,
     );
 
   if (!response.ok) {
@@ -137,31 +85,52 @@ async function saveEncryptedSecret(
       response.status,
     );
 
+    if (response.status === 403) {
+      throw new HttpError(
+        403,
+        "Tài khoản không có quyền quản trị.",
+      );
+    }
+
     throw new HttpError(
       500,
       "Không thể lưu Access Token.",
     );
   }
+
+  const updatedAt =
+    (await response.json()) as unknown;
+
+  if (typeof updatedAt !== "string") {
+    throw new HttpError(
+      500,
+      "Phản hồi lưu Access Token không hợp lệ.",
+    );
+  }
+
+  return updatedAt;
 }
 
 async function removeEncryptedSecret(
   env: AdsFunctionEnv,
+  accessToken: string,
   sourceId: string,
 ) {
-  const query =
-    "/rest/v1/ad_data_source_secrets" +
-    "?ad_data_source_id=eq." +
-    encodeURIComponent(sourceId);
   const response =
     await supabaseServerFetch(
       env,
-      query,
+      "/rest/v1/rpc/admin_delete_ad_secret",
       {
-        method: "DELETE",
+        method: "POST",
         headers: {
-          Prefer: "return=minimal",
+          "Content-Type":
+            "application/json",
         },
+        body: JSON.stringify({
+          p_ad_data_source_id: sourceId,
+        }),
       },
+      accessToken,
     );
 
   if (!response.ok) {
@@ -169,6 +138,13 @@ async function removeEncryptedSecret(
       "ad-secret-delete-failed",
       response.status,
     );
+
+    if (response.status === 403) {
+      throw new HttpError(
+        403,
+        "Tài khoản không có quyền quản trị.",
+      );
+    }
 
     throw new HttpError(
       500,
@@ -183,12 +159,11 @@ export async function onRequestPut(
   try {
     const sourceId =
       sourceIdFromContext(context);
-
-    await requireAdmin(
-      context.request,
-      context.env,
-    );
-
+    const admin =
+      await requireAdmin(
+        context.request,
+        context.env,
+      );
     const body =
       await readJsonObject(context.request);
     const accessToken =
@@ -210,27 +185,21 @@ export async function onRequestPut(
       );
     }
 
-    await ensureSourceExists(
-      context.env,
-      sourceId,
-    );
-
     const encrypted =
       await encryptAccessToken(
         accessToken,
         requireEncryptionKey(context.env),
       );
-    const updatedAt =
-      new Date().toISOString();
 
-    await saveEncryptedSecret(
-      context.env,
-      sourceId,
-      encrypted.ciphertext,
-      encrypted.initializationVector,
-      encrypted.algorithm,
-      updatedAt,
-    );
+    const updatedAt =
+      await saveEncryptedSecret(
+        context.env,
+        admin.accessToken,
+        sourceId,
+        encrypted.ciphertext,
+        encrypted.initializationVector,
+        encrypted.algorithm,
+      );
 
     return jsonResponse({
       success: true,
@@ -250,17 +219,15 @@ export async function onRequestDelete(
   try {
     const sourceId =
       sourceIdFromContext(context);
+    const admin =
+      await requireAdmin(
+        context.request,
+        context.env,
+      );
 
-    await requireAdmin(
-      context.request,
-      context.env,
-    );
-    await ensureSourceExists(
-      context.env,
-      sourceId,
-    );
     await removeEncryptedSecret(
       context.env,
+      admin.accessToken,
       sourceId,
     );
 

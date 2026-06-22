@@ -13,12 +13,6 @@ type VerifiedUser = {
   email?: string;
 };
 
-type AdminProfileRow = {
-  id: string;
-  role: "admin" | "super_admin";
-  active: boolean;
-};
-
 async function verifyUser(
   accessToken: string,
   env: AdsFunctionEnv,
@@ -27,12 +21,8 @@ async function verifyUser(
     await supabaseServerFetch(
       env,
       "/auth/v1/user",
-      {
-        headers: {
-          Authorization:
-            `Bearer ${accessToken}`,
-        },
-      },
+      {},
+      accessToken,
     );
 
   if (!response.ok) {
@@ -60,25 +50,28 @@ async function verifyUser(
   return payload as VerifiedUser;
 }
 
-async function readAdminProfile(
-  userId: string,
+async function verifyAdminPermission(
+  accessToken: string,
   env: AdsFunctionEnv,
-): Promise<AdminProfileRow | null> {
-  const query =
-    "/rest/v1/admin_profiles" +
-    `?id=eq.${encodeURIComponent(userId)}` +
-    "&select=id,role,active" +
-    "&limit=1";
-
+) {
   const response =
     await supabaseServerFetch(
       env,
-      query,
+      "/rest/v1/rpc/admin_can_manage_ads",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: "{}",
+      },
+      accessToken,
     );
 
   if (!response.ok) {
     console.error(
-      "admin-profile-check-failed",
+      "admin-permission-check-failed",
       response.status,
     );
 
@@ -88,22 +81,15 @@ async function readAdminProfile(
     );
   }
 
-  const payload =
+  const allowed =
     (await response.json()) as unknown;
 
-  if (!Array.isArray(payload)) {
+  if (allowed !== true) {
     throw new HttpError(
-      500,
-      "Phản hồi quyền quản trị không hợp lệ.",
+      403,
+      "Tài khoản không có quyền quản trị.",
     );
   }
-
-  const profile =
-    payload[0] as
-      | AdminProfileRow
-      | undefined;
-
-  return profile ?? null;
 }
 
 export async function requireAdmin(
@@ -111,6 +97,7 @@ export async function requireAdmin(
   env: AdsFunctionEnv,
 ): Promise<{
   user: VerifiedUser;
+  accessToken: string;
 }> {
   const authorization =
     request.headers.get("Authorization") ?? "";
@@ -131,27 +118,14 @@ export async function requireAdmin(
       accessToken,
       env,
     );
-  const adminProfile =
-    await readAdminProfile(
-      user.id,
-      env,
-    );
 
-  if (
-    !adminProfile ||
-    !adminProfile.active ||
-    (
-      adminProfile.role !== "admin" &&
-      adminProfile.role !== "super_admin"
-    )
-  ) {
-    throw new HttpError(
-      403,
-      "Tài khoản không có quyền quản trị.",
-    );
-  }
+  await verifyAdminPermission(
+    accessToken,
+    env,
+  );
 
   return {
     user,
+    accessToken,
   };
 }
