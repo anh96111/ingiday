@@ -8,6 +8,8 @@ import type {
   AdEventName,
   AdEventSetting,
   AdPlatform,
+  MetaDomainVerificationCheck,
+  MetaDomainVerificationConfig,
   ProductAdAssignments,
   PurchaseTrigger,
 } from "../types/ads";
@@ -520,4 +522,155 @@ export async function deleteAdDataSourceToken(
   sourceId: string,
 ) {
   return requestAdSecret(sourceId, "DELETE");
+}
+type MetaDomainVerificationApiResponse = {
+  success?: boolean;
+  configured?: boolean;
+  code?: string | null;
+  tag?: string | null;
+  message?: string;
+  error?: string;
+};
+
+function normalizeMetaDomainVerificationResponse(
+  payload: MetaDomainVerificationApiResponse,
+): MetaDomainVerificationConfig {
+  return {
+    configured: payload.configured === true,
+    code:
+      typeof payload.code === "string"
+        ? payload.code
+        : null,
+    tag:
+      typeof payload.tag === "string"
+        ? payload.tag
+        : null,
+    message:
+      typeof payload.message === "string"
+        ? payload.message
+        : undefined,
+  };
+}
+
+async function requestMetaDomainVerification(
+  method: "GET" | "PUT" | "DELETE",
+  value?: string,
+): Promise<MetaDomainVerificationConfig> {
+  const token = await adminAccessToken();
+  const response = await fetch(
+    "/api/admin/ads/domain-verification",
+    {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body:
+        method === "PUT"
+          ? JSON.stringify({ value: value ?? "" })
+          : undefined,
+    },
+  );
+
+  let payload: MetaDomainVerificationApiResponse;
+
+  try {
+    payload =
+      (await response.json()) as MetaDomainVerificationApiResponse;
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error ||
+        payload.message ||
+        "Không thể cập nhật xác minh tên miền Meta.",
+    );
+  }
+
+  return normalizeMetaDomainVerificationResponse(
+    payload,
+  );
+}
+
+export async function loadMetaDomainVerification() {
+  return requestMetaDomainVerification("GET");
+}
+
+export async function saveMetaDomainVerification(
+  value: string,
+) {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    throw new Error(
+      "Vui lòng nhập thẻ Meta hoặc mã xác minh.",
+    );
+  }
+
+  return requestMetaDomainVerification(
+    "PUT",
+    normalized,
+  );
+}
+
+export async function deleteMetaDomainVerification() {
+  return requestMetaDomainVerification("DELETE");
+}
+
+export async function checkMetaDomainVerificationOnHomepage(
+  expectedCode: string,
+): Promise<MetaDomainVerificationCheck> {
+  const normalizedExpectedCode = expectedCode.trim();
+
+  if (!normalizedExpectedCode) {
+    throw new Error(
+      "Chưa có mã xác minh tên miền Meta để kiểm tra.",
+    );
+  }
+
+  const url = new URL("/", window.location.origin);
+  url.searchParams.set(
+    "meta_domain_verification_check",
+    Date.now().toString(),
+  );
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      Accept: "text/html",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Không thể tải HTML trang chủ (${response.status}).`,
+    );
+  }
+
+  const html = await response.text();
+  const document = new DOMParser().parseFromString(
+    html,
+    "text/html",
+  );
+  const foundCode =
+    document.head
+      .querySelector<HTMLMetaElement>(
+        'meta[name="facebook-domain-verification"]',
+      )
+      ?.getAttribute("content")
+      ?.trim() ?? null;
+  const verified = foundCode === normalizedExpectedCode;
+
+  return {
+    verified,
+    foundCode,
+    message: verified
+      ? "Thẻ xác minh đã nằm trong <head> của HTML trang chủ."
+      : foundCode
+        ? "HTML trang chủ đang chứa một mã xác minh khác."
+        : "Chưa tìm thấy thẻ xác minh trong <head> của HTML trang chủ.",
+  };
 }
