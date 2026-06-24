@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import type { CartItem } from "../../types/cart";
 import { categories as initialCategories, products as initialProducts } from "../../data/mockData";
 import { supabase } from "../../lib/supabase";
@@ -19,12 +20,38 @@ type StoreActionResult<T = undefined> = {
 
 type DeleteResult = StoreActionResult;
 
+type ProductPageFilters = {
+  page: number;
+  pageSize: number;
+  keyword: string;
+  categoryId: string;
+  status: ProductStatus | "";
+};
+
+type ProductPageResult = {
+  products: Product[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+type AdminPageIdsResult = {
+  ids: string[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 type StoreDataContextValue = {
   products: Product[];
   categories: Category[];
   loading: boolean;
   error: string;
   refresh: () => Promise<void>;
+  loadProductPage: (filters: ProductPageFilters) => Promise<StoreActionResult<ProductPageResult>>;
+  bulkDeleteProducts: (ids: string[]) => Promise<DeleteResult>;
+  bulkUpdateProductStatus: (ids: string[], status: ProductStatus) => Promise<StoreActionResult>;
   createProduct: (input: ProductInput) => Promise<StoreActionResult<Product>>;
   updateProduct: (id: string, input: ProductInput) => Promise<StoreActionResult<Product>>;
   deleteProduct: (id: string) => Promise<DeleteResult>;
@@ -305,13 +332,24 @@ async function seedInitialData() {
   localStorage.removeItem(LEGACY_CATEGORIES_KEY);
 }
 
-async function fetchStoreData() {
-  const [categoryResult, productResult, imageResult] = await Promise.all([
-    supabase
-      .from("categories")
-      .select("id,name,slug,description,sort_order,active,created_at,updated_at")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
+async function fetchStoreData(includeProducts = true) {
+  const categoryResult = await supabase
+    .from("categories")
+    .select("id,name,slug,description,sort_order,active,created_at,updated_at")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (categoryResult.error) throw categoryResult.error;
+
+  if (!includeProducts) {
+    return {
+      categoryRows: (categoryResult.data ?? []) as CategoryRow[],
+      productRows: [] as ProductRow[],
+      imageRows: [] as ProductImageRow[],
+    };
+  }
+
+  const [productResult, imageResult] = await Promise.all([
     supabase
       .from("products")
       .select(
@@ -324,7 +362,6 @@ async function fetchStoreData() {
       .order("sort_order", { ascending: true }),
   ]);
 
-  if (categoryResult.error) throw categoryResult.error;
   if (productResult.error) throw productResult.error;
   if (imageResult.error) throw imageResult.error;
 
@@ -332,6 +369,36 @@ async function fetchStoreData() {
     categoryRows: (categoryResult.data ?? []) as CategoryRow[],
     productRows: (productResult.data ?? []) as ProductRow[],
     imageRows: (imageResult.data ?? []) as ProductImageRow[],
+  };
+}
+
+function parseAdminPageIds(
+  value: unknown,
+  fallbackPage: number,
+  fallbackPageSize: number,
+): AdminPageIdsResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      ids: [],
+      total: 0,
+      page: fallbackPage,
+      pageSize: fallbackPageSize,
+    };
+  }
+
+  const object = value as Record<string, unknown>;
+  const ids = Array.isArray(object.ids)
+    ? object.ids.filter((id): id is string => typeof id === "string")
+    : [];
+  const total = Number(object.total ?? 0);
+  const page = Number(object.page ?? fallbackPage);
+  const pageSize = Number(object.page_size ?? fallbackPageSize);
+
+  return {
+    ids,
+    total: Number.isFinite(total) ? Math.max(0, total) : 0,
+    page: Number.isFinite(page) ? Math.max(1, page) : fallbackPage,
+    pageSize: Number.isFinite(pageSize) ? Math.max(1, pageSize) : fallbackPageSize,
   };
 }
 
@@ -345,6 +412,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function StoreDataProvider({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -355,7 +423,8 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     setError("");
 
     try {
-      let { categoryRows, productRows, imageRows } = await fetchStoreData();
+      const includeProducts = location.pathname !== "/admin/san-pham";
+      let { categoryRows, productRows, imageRows } = await fetchStoreData(includeProducts);
 
       const canSeed =
         categoryRows.length === 0 &&
@@ -365,7 +434,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
       if (canSeed) {
         await seedInitialData();
-        ({ categoryRows, productRows, imageRows } = await fetchStoreData());
+        ({ categoryRows, productRows, imageRows } = await fetchStoreData(includeProducts));
       }
 
       setCategories(categoryRows.map(categoryFromRow));
@@ -375,7 +444,11 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         list.push(productImageFromRow(imageRow));
         imagesByProduct.set(imageRow.product_id, list);
       }
-      setProducts(productRows.map((row) => productFromRow(row, undefined, imagesByProduct.get(row.id) ?? [])));
+      setProducts(
+        productRows.map((row) =>
+          productFromRow(row, undefined, imagesByProduct.get(row.id) ?? []),
+        ),
+      );
     } catch (loadError) {
       setError(errorMessage(loadError, "Không thể tải sản phẩm và danh mục từ Supabase."));
       setCategories([]);
@@ -383,7 +456,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
     void refresh();
@@ -403,6 +476,144 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     loading,
     error,
     refresh,
+
+    async loadProductPage(filters) {
+      const page = Math.max(1, filters.page);
+      const pageSize = Math.min(50, Math.max(1, filters.pageSize));
+
+      try {
+        const { data: pageData, error: pageError } = await supabase.rpc(
+          "admin_search_product_ids",
+          {
+            p_query: filters.keyword.trim(),
+            p_category_id: filters.categoryId || null,
+            p_status: filters.status || null,
+            p_page: page,
+            p_page_size: pageSize,
+          },
+        );
+
+        if (pageError) throw pageError;
+
+        const parsed = parseAdminPageIds(pageData, page, pageSize);
+        let pageProducts: Product[] = [];
+
+        if (parsed.ids.length > 0) {
+          const { data: productData, error: productError } = await supabase
+            .from("products")
+            .select(
+              "id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
+            )
+            .in("id", parsed.ids);
+
+          if (productError) throw productError;
+
+          const { data: imageData, error: imageError } = await supabase
+            .from("product_images")
+            .select("id,product_id,image_url,public_id,alt_text,sort_order,is_primary")
+            .in("product_id", parsed.ids)
+            .order("sort_order", { ascending: true });
+
+          if (imageError) throw imageError;
+
+          const imagesByProduct = new Map<string, ProductImage[]>();
+          for (const row of (imageData ?? []) as ProductImageRow[]) {
+            const list = imagesByProduct.get(row.product_id) ?? [];
+            list.push(productImageFromRow(row));
+            imagesByProduct.set(row.product_id, list);
+          }
+
+          const productsById = new Map(
+            ((productData ?? []) as ProductRow[]).map((row) => [
+              row.id,
+              productFromRow(row, undefined, imagesByProduct.get(row.id) ?? []),
+            ]),
+          );
+
+          pageProducts = parsed.ids
+            .map((id) => productsById.get(id))
+            .filter((product): product is Product => Boolean(product));
+        }
+
+        setProducts(pageProducts);
+
+        return {
+          success: true,
+          message: "Đã tải danh sách sản phẩm.",
+          data: {
+            products: pageProducts,
+            total: parsed.total,
+            page: parsed.page,
+            pageSize: parsed.pageSize,
+            totalPages: Math.max(1, Math.ceil(parsed.total / parsed.pageSize)),
+          },
+        };
+      } catch (loadError) {
+        setProducts([]);
+        return {
+          success: false,
+          message: errorMessage(loadError, "Không thể tải danh sách sản phẩm."),
+        };
+      }
+    },
+
+    async bulkDeleteProducts(ids) {
+      try {
+        const uniqueIds = [...new Set(ids)].slice(0, 50);
+        if (uniqueIds.length === 0) {
+          return { success: false, message: "Chưa chọn sản phẩm." };
+        }
+
+        const { error: rpcError } = await supabase.rpc(
+          "admin_bulk_delete_products",
+          {
+            p_product_ids: uniqueIds,
+          },
+        );
+
+        if (rpcError) throw rpcError;
+        setProducts((current) =>
+          current.filter((product) => !uniqueIds.includes(product.id)),
+        );
+        return {
+          success: true,
+          message: `Đã xóa ${uniqueIds.length} sản phẩm.`,
+        };
+      } catch (actionError) {
+        return {
+          success: false,
+          message: errorMessage(actionError, "Không thể xóa các sản phẩm đã chọn."),
+        };
+      }
+    },
+
+    async bulkUpdateProductStatus(ids, status) {
+      try {
+        const uniqueIds = [...new Set(ids)].slice(0, 50);
+        if (uniqueIds.length === 0) {
+          return { success: false, message: "Chưa chọn sản phẩm." };
+        }
+
+        const { error: rpcError } = await supabase.rpc(
+          "admin_bulk_update_product_status",
+          {
+            p_product_ids: uniqueIds,
+            p_status: status,
+          },
+        );
+
+        if (rpcError) throw rpcError;
+        return {
+          success: true,
+          message: `Đã cập nhật ${uniqueIds.length} sản phẩm.`,
+        };
+      } catch (actionError) {
+        return {
+          success: false,
+          message: errorMessage(actionError, "Không thể cập nhật các sản phẩm đã chọn."),
+        };
+      }
+    },
 
     async createProduct(input) {
       try {
