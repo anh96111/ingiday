@@ -32,3 +32,6 @@ ingiday-step-*.ps1
 ingiday-fix-*.ps1
 lint-*.txt
 ingiday-rollback-*.ps1
+.dev.vars
+
+.wrangler/

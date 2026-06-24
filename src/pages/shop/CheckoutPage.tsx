@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SearchableAddressSelect from "../../components/address/SearchableAddressSelect";
+import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import { useCart } from "../../features/cart/CartContext";
 import { useCoupons } from "../../features/coupons/CouponsContext";
 import { useOrders } from "../../features/orders/OrdersContext";
@@ -113,6 +114,10 @@ const initialAddressTouched: AddressTouched = {
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, subtotal, clearCart } = useCart();
+  const {
+    trackInitiateCheckout,
+    trackPurchase,
+  } = useAdTracking();
   const { createOrder } = useOrders();
   const { validateCoupon } = useCoupons();
   const { settings } = useSettings();
@@ -132,6 +137,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const submitLockRef = useRef(false);
+  const checkoutTrackingKeyRef = useRef("");
 
   const shipping = calculateShipping(
     subtotal,
@@ -140,6 +146,30 @@ export default function CheckoutPage() {
   );
   const total = Math.max(0, subtotal - discount) + shipping;
   const phoneError = getPhoneError(customer.phone);
+
+  useEffect(() => {
+    if (items.length === 0) {
+      return;
+    }
+
+    const trackingKey = items
+      .map(
+        (item) =>
+          `${item.key}:${item.quantity}:${item.unitPrice}`,
+      )
+      .sort()
+      .join("|");
+
+    if (checkoutTrackingKeyRef.current === trackingKey) {
+      return;
+    }
+
+    checkoutTrackingKeyRef.current = trackingKey;
+    void trackInitiateCheckout({
+      items,
+      subtotal,
+    });
+  }, [items, subtotal, trackInitiateCheckout]);
 
   useEffect(() => {
     try {
@@ -388,6 +418,14 @@ export default function CheckoutPage() {
         return;
       }
 
+      void trackPurchase({
+        orderCode: result.data.code,
+        items,
+        subtotal,
+        discount,
+        shipping,
+        total,
+      });
       clearCart();
       navigate(
         `/dat-hang-thanh-cong?ma=${encodeURIComponent(

@@ -70,6 +70,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           productId: product.id,
           slug: product.slug,
           name: product.name,
+          categoryName: product.categoryName,
           imageUrl: primaryImage?.url,
           emoji: product.emoji,
           background: product.background,

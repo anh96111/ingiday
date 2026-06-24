@@ -1,11 +1,13 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
+import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import ProductCard from "../../components/shop/ProductCard";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useProductSearch } from "../../hooks/useProductSearch";
@@ -36,6 +38,8 @@ function numberParam(
 export default function ProductsPage() {
   const [searchParams, setSearchParams] =
     useSearchParams();
+  const { trackSearch } = useAdTracking();
+  const lastTrackedSearchRef = useRef("");
 
   const keyword = searchParams.get("q") ?? "";
   const categoryId =
@@ -63,6 +67,25 @@ export default function ProductsPage() {
     keyword,
     400,
   );
+
+  useEffect(() => {
+    const normalizedKeyword = debouncedKeyword.trim();
+
+    if (normalizedKeyword.length < 2) {
+      lastTrackedSearchRef.current = "";
+      return;
+    }
+
+    const trackingKey =
+      normalizedKeyword.toLocaleLowerCase("vi");
+
+    if (lastTrackedSearchRef.current === trackingKey) {
+      return;
+    }
+
+    lastTrackedSearchRef.current = trackingKey;
+    void trackSearch(normalizedKeyword);
+  }, [debouncedKeyword, trackSearch]);
 
   const [categories, setCategories] = useState<
     Category[]
