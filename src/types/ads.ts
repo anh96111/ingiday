@@ -62,3 +62,15 @@ export type ProductAdAssignments = {
   meta: string | null;
   tiktok: string | null;
 };
+export type MetaDomainVerificationConfig = {
+  configured: boolean;
+  code: string | null;
+  tag: string | null;
+  message?: string;
+};
+
+export type MetaDomainVerificationCheck = {
+  verified: boolean;
+  foundCode: string | null;
+  message: string;
+};

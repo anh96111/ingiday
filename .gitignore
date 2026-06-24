@@ -35,3 +35,5 @@ ingiday-rollback-*.ps1
 .dev.vars
 
 .wrangler/
+
+supabase/.temp/

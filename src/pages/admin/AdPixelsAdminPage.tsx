@@ -9,10 +9,14 @@ import type { FormEvent } from "react";
 import {
   countProductAdAssignments,
   createAdDataSource,
+  checkMetaDomainVerificationOnHomepage,
   deleteAdDataSource,
   deleteAdDataSourceToken,
+  deleteMetaDomainVerification,
   listAdDataSources,
+  loadMetaDomainVerification,
   saveAdDataSourceToken,
+  saveMetaDomainVerification,
   updateAdDataSource,
 } from "../../services/ads";
 import {
@@ -23,6 +27,8 @@ import type {
   AdDataSourceInput,
   AdEventName,
   AdPlatform,
+  MetaDomainVerificationCheck,
+  MetaDomainVerificationConfig,
 } from "../../types/ads";
 
 const platformInfo: Record<
@@ -122,6 +128,38 @@ export default function AdPixelsAdminPage() {
   const [removingTokenId, setRemovingTokenId] =
     useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [
+    domainVerification,
+    setDomainVerification,
+  ] = useState<MetaDomainVerificationConfig | null>(
+    null,
+  );
+  const [
+    domainVerificationValue,
+    setDomainVerificationValue,
+  ] = useState("");
+  const [
+    domainVerificationCheck,
+    setDomainVerificationCheck,
+  ] = useState<MetaDomainVerificationCheck | null>(
+    null,
+  );
+  const [
+    domainVerificationLoading,
+    setDomainVerificationLoading,
+  ] = useState(true);
+  const [
+    domainVerificationSaving,
+    setDomainVerificationSaving,
+  ] = useState(false);
+  const [
+    domainVerificationChecking,
+    setDomainVerificationChecking,
+  ] = useState(false);
+  const [
+    domainVerificationRemoving,
+    setDomainVerificationRemoving,
+  ] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editingId, setEditingId] = useState<
@@ -148,15 +186,42 @@ export default function AdPixelsAdminPage() {
     }
   }, []);
 
+  const loadDomainVerification = useCallback(
+    async () => {
+      setDomainVerificationLoading(true);
+
+      try {
+        const config =
+          await loadMetaDomainVerification();
+
+        setDomainVerification(config);
+        setDomainVerificationValue(
+          config.tag ?? config.code ?? "",
+        );
+        setDomainVerificationCheck(null);
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Không thể tải cấu hình xác minh tên miền Meta.",
+        );
+      } finally {
+        setDomainVerificationLoading(false);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const timerId = window.setTimeout(() => {
       void loadSources();
+      void loadDomainVerification();
     }, 0);
 
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [loadSources]);
+  }, [loadDomainVerification, loadSources]);
 
   const groupedSources = useMemo(
     () => ({
@@ -354,6 +419,152 @@ export default function AdPixelsAdminPage() {
     }
   }
 
+  async function runDomainVerificationCheck(
+    code: string,
+  ) {
+    setDomainVerificationChecking(true);
+    setDomainVerificationCheck(null);
+
+    try {
+      const result =
+        await checkMetaDomainVerificationOnHomepage(
+          code,
+        );
+
+      setDomainVerificationCheck(result);
+
+      return result;
+    } finally {
+      setDomainVerificationChecking(false);
+    }
+  }
+
+  async function submitDomainVerification(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+    setDomainVerificationSaving(true);
+    setError("");
+    setNotice("");
+    setDomainVerificationCheck(null);
+
+    try {
+      const saved =
+        await saveMetaDomainVerification(
+          domainVerificationValue,
+        );
+
+      setDomainVerification(saved);
+      setDomainVerificationValue(
+        saved.tag ?? saved.code ?? "",
+      );
+
+      if (!saved.code) {
+        throw new Error(
+          "Không nhận được mã xác minh sau khi lưu.",
+        );
+      }
+
+      try {
+        const checked =
+          await runDomainVerificationCheck(
+            saved.code,
+          );
+
+        setNotice(
+          checked.verified
+            ? "Đã lưu và xác nhận thẻ Meta trong HTML trang chủ."
+            : "Đã lưu mã xác minh, nhưng HTML trang chủ chưa hiển thị đúng thẻ.",
+        );
+      } catch (checkError) {
+        setNotice(
+          "Đã lưu mã xác minh, nhưng chưa thể kiểm tra HTML trang chủ.",
+        );
+        setDomainVerificationCheck({
+          verified: false,
+          foundCode: null,
+          message:
+            checkError instanceof Error
+              ? checkError.message
+              : "Không thể kiểm tra HTML trang chủ.",
+        });
+      }
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Không thể lưu xác minh tên miền Meta.",
+      );
+    } finally {
+      setDomainVerificationSaving(false);
+    }
+  }
+
+  async function checkDomainVerification() {
+    if (!domainVerification?.code) {
+      setError(
+        "Chưa có mã xác minh tên miền Meta để kiểm tra.",
+      );
+      return;
+    }
+
+    setError("");
+    setNotice("");
+
+    try {
+      const checked =
+        await runDomainVerificationCheck(
+          domainVerification.code,
+        );
+
+      setNotice(
+        checked.verified
+          ? "Đã xác nhận thẻ Meta trong HTML trang chủ."
+          : "HTML trang chủ chưa hiển thị đúng thẻ Meta.",
+      );
+    } catch (checkError) {
+      setError(
+        checkError instanceof Error
+          ? checkError.message
+          : "Không thể kiểm tra HTML trang chủ.",
+      );
+    }
+  }
+
+  async function removeDomainVerification() {
+    const confirmed = window.confirm(
+      "Xóa mã xác minh tên miền Meta khỏi website?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDomainVerificationRemoving(true);
+    setError("");
+    setNotice("");
+    setDomainVerificationCheck(null);
+
+    try {
+      const removed =
+        await deleteMetaDomainVerification();
+
+      setDomainVerification(removed);
+      setDomainVerificationValue("");
+      setNotice(
+        "Đã xóa mã xác minh tên miền Meta.",
+      );
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : "Không thể xóa xác minh tên miền Meta.",
+      );
+    } finally {
+      setDomainVerificationRemoving(false);
+    }
+  }
+
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -381,6 +592,153 @@ export default function AdPixelsAdminPage() {
           {notice}
         </p>
       )}
+
+      <form
+        onSubmit={submitDomainVerification}
+        className="mt-7 rounded-3xl border border-[#dbe5ef] bg-white p-6 shadow-sm"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="inline-flex rounded-full bg-[#e8f2ff] px-3 py-1 text-xs font-black text-[#1769aa]">
+              Meta
+            </p>
+            <h2 className="mt-3 text-2xl font-black">
+              Xác minh tên miền Meta
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#707881]">
+              Dán nguyên thẻ Meta hoặc chỉ mã trong thuộc tính content. Hệ thống chỉ lưu mã an toàn và chèn thẻ vào phần &lt;head&gt; của HTML trang chủ.
+            </p>
+          </div>
+
+          <span className={`rounded-full px-3 py-1 text-xs font-black ${
+            domainVerification?.configured
+              ? "bg-[#ecf8f1] text-[#23734d]"
+              : "bg-[#f1f3f5] text-[#707881]"
+          }`}>
+            {domainVerificationLoading
+              ? "Đang tải..."
+              : domainVerification?.configured
+                ? "Đã thiết lập"
+                : "Chưa thiết lập"}
+          </span>
+        </div>
+
+        <label className="mt-6 block text-sm font-bold">
+          Thẻ Meta hoặc mã xác minh
+          <textarea
+            value={domainVerificationValue}
+            onChange={(event) => {
+              setDomainVerificationValue(
+                event.target.value,
+              );
+              setDomainVerificationCheck(null);
+            }}
+            disabled={
+              domainVerificationLoading ||
+              domainVerificationSaving ||
+              domainVerificationRemoving
+            }
+            rows={4}
+            className="mt-2 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 py-3 font-mono text-sm font-normal leading-6 outline-none focus:border-[#006397] disabled:opacity-60"
+            placeholder={'<meta name="facebook-domain-verification" content="mã_xác_minh_của_bạn" />'}
+          />
+        </label>
+
+        {domainVerification?.code && (
+          <div className="mt-4 rounded-2xl bg-[#f7f9ff] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#707881]">
+              Thẻ đang lưu
+            </p>
+            <code className="mt-2 block break-all text-sm text-[#39434c]">
+              {domainVerification.tag}
+            </code>
+          </div>
+        )}
+
+        {domainVerificationCheck && (
+          <div className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${
+            domainVerificationCheck.verified
+              ? "bg-[#ecf8f1] text-[#23734d]"
+              : "bg-[#fff7e8] text-[#8a5a00]"
+          }`}>
+            <p>
+              {domainVerificationCheck.verified
+                ? "Đã hiển thị trong HTML"
+                : "Chưa hiển thị đúng trong HTML"}
+            </p>
+            <p className="mt-1 font-normal leading-6">
+              {domainVerificationCheck.message}
+            </p>
+            {domainVerificationCheck.foundCode && (
+              <p className="mt-1 break-all font-mono text-xs font-normal">
+                Mã tìm thấy:{" "}
+                {domainVerificationCheck.foundCode}
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <button
+            type="submit"
+            disabled={
+              domainVerificationLoading ||
+              domainVerificationSaving ||
+              domainVerificationChecking ||
+              domainVerificationRemoving
+            }
+            className="rounded-2xl bg-[#006397] px-5 py-3 text-sm font-bold text-white disabled:opacity-60"
+          >
+            {domainVerificationSaving
+              ? "Đang lưu..."
+              : domainVerificationChecking
+                ? "Đang kiểm tra..."
+                : "Lưu và kiểm tra"}
+          </button>
+
+          {domainVerification?.configured && (
+            <button
+              type="button"
+              onClick={() =>
+                void checkDomainVerification()
+              }
+              disabled={
+                domainVerificationChecking ||
+                domainVerificationSaving ||
+                domainVerificationRemoving
+              }
+              className="rounded-2xl bg-[#edf4ff] px-5 py-3 text-sm font-bold text-[#006397] disabled:opacity-60"
+            >
+              {domainVerificationChecking
+                ? "Đang kiểm tra..."
+                : "Kiểm tra lại"}
+            </button>
+          )}
+
+          {domainVerification?.configured && (
+            <button
+              type="button"
+              onClick={() =>
+                void removeDomainVerification()
+              }
+              disabled={
+                domainVerificationRemoving ||
+                domainVerificationSaving ||
+                domainVerificationChecking
+              }
+              className="rounded-2xl bg-[#fff0eb] px-5 py-3 text-sm font-bold text-[#a43c12] disabled:opacity-60"
+            >
+              {domainVerificationRemoving
+                ? "Đang xóa..."
+                : "Xóa mã xác minh"}
+            </button>
+          )}
+        </div>
+
+        <p className="mt-4 text-xs leading-5 text-[#707881]">
+          Sau khi trạng thái báo “Đã hiển thị trong HTML”, mở Meta Business Manager và bấm xác minh tên miền.
+        </p>
+      </form>
 
       {form && (
         <form
