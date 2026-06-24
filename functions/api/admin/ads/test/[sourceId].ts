@@ -126,11 +126,15 @@ export async function onRequestPost(
   const sourceId =
     sourceIdFromContext(context);
 
+  let adminAuthorized = false;
+
   try {
     await requireAdmin(
       context.request,
       context.env,
     );
+    adminAuthorized = true;
+
     const source = await loadSource(
       context.env,
       sourceId,
@@ -182,14 +186,16 @@ export async function onRequestPost(
       result,
     });
   } catch (error) {
-    await updateTestStatus(
-      context.env,
-      sourceId,
-      "failed",
-      error instanceof Error
-        ? error.message
-        : "Kiểm tra kết nối thất bại.",
-    );
+    if (adminAuthorized) {
+      await updateTestStatus(
+        context.env,
+        sourceId,
+        "failed",
+        error instanceof Error
+          ? error.message
+          : "Kiểm tra kết nối thất bại.",
+      );
+    }
 
     return errorResponse(error);
   }
