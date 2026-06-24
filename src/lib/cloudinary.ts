@@ -11,7 +11,18 @@ export type CloudinaryUploadResult = {
   bytes: number;
 };
 
+export type SiteBrandImageKind =
+  | "favicon"
+  | "social-share";
+
 type ImageSource = ImageBitmap | HTMLImageElement;
+
+const MAX_SITE_BRAND_IMAGE_BYTES = 12 * 1024 * 1024;
+const SITE_BRAND_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 
 function ensureCloudinaryConfig() {
   if (!cloudName || !uploadPreset) {
@@ -60,115 +71,59 @@ function sourceSize(source: ImageSource) {
       };
 }
 
-export async function prepareSquareWebp(
-  file: File,
-  size = 1200,
-  quality = 0.82,
-) {
-  if (!file.type.startsWith("image/")) {
-    throw new Error(
-      `${file.name} không phải là file ảnh.`,
-    );
-  }
 
-  const source = await loadImageSource(file);
-  const { width, height } = sourceSize(source);
-
-  if (!width || !height) {
-    if (source instanceof ImageBitmap) {
-      source.close();
-    }
-
-    throw new Error(
-      `Không thể xác định kích thước ảnh ${file.name}.`,
-    );
-  }
-
-  const cropSize = Math.min(width, height);
-  const sx = Math.max(0, (width - cropSize) / 2);
-  const sy = Math.max(0, (height - cropSize) / 2);
-  const outputSize = Math.min(
-    size,
-    Math.max(1, cropSize),
-  );
-
-  const canvas = document.createElement("canvas");
-  canvas.width = outputSize;
-  canvas.height = outputSize;
-
-  const context = canvas.getContext("2d", {
-    alpha: false,
-  });
-
-  if (!context) {
-    if (source instanceof ImageBitmap) {
-      source.close();
-    }
-
-    throw new Error(
-      "Trình duyệt không hỗ trợ xử lý ảnh.",
-    );
-  }
-
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.fillStyle = "#ffffff";
-  context.fillRect(0, 0, outputSize, outputSize);
-  context.drawImage(
-    source,
-    sx,
-    sy,
-    cropSize,
-    cropSize,
-    0,
-    0,
-    outputSize,
-    outputSize,
-  );
-
+function closeImageSource(source: ImageSource) {
   if (source instanceof ImageBitmap) {
     source.close();
   }
+}
 
-  const blob = await new Promise<Blob>(
-    (resolve, reject) => {
-      canvas.toBlob(
-        (result) =>
-          result
-            ? resolve(result)
-            : reject(
-                new Error("Không thể tối ưu ảnh."),
-              ),
-        "image/webp",
-        quality,
-      );
-    },
-  );
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: "image/jpeg" | "image/png" | "image/webp",
+  quality?: number,
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) =>
+        result
+          ? resolve(result)
+          : reject(new Error("Không thể tối ưu ảnh.")),
+      type,
+      quality,
+    );
+  });
+}
 
-  const safeBaseName =
+function safeImageBaseName(file: File, fallback: string) {
+  return (
     file.name
       .replace(/\.[^.]+$/, "")
-      .replace(/[^a-zA-Z0-9-_]+/g, "-") ||
-    "san-pham";
-
-  return new File(
-    [blob],
-    `${safeBaseName}.webp`,
-    {
-      type: "image/webp",
-    },
+      .replace(/[^a-zA-Z0-9-_]+/g, "-") || fallback
   );
 }
 
-export async function uploadProductImage(
+function assertSiteBrandImage(file: File) {
+  if (!SITE_BRAND_IMAGE_TYPES.has(file.type)) {
+    throw new Error(
+      "Chỉ hỗ trợ ảnh JPG, PNG hoặc WebP.",
+    );
+  }
+
+  if (file.size > MAX_SITE_BRAND_IMAGE_BYTES) {
+    throw new Error(
+      "Ảnh không được vượt quá 12 MB.",
+    );
+  }
+}
+
+async function uploadPreparedImage(
   file: File,
 ): Promise<CloudinaryUploadResult> {
   ensureCloudinaryConfig();
 
-  const optimizedFile = await prepareSquareWebp(file);
   const formData = new FormData();
-
-  formData.append("file", optimizedFile);
+  formData.append("file", file);
   formData.append("upload_preset", uploadPreset);
 
   const response = await fetch(
@@ -204,10 +159,263 @@ export async function uploadProductImage(
   return {
     url: payload.secure_url,
     publicId: payload.public_id,
-    width: payload.width ?? 1200,
-    height: payload.height ?? 1200,
-    bytes: payload.bytes ?? optimizedFile.size,
+    width: payload.width ?? 0,
+    height: payload.height ?? 0,
+    bytes: payload.bytes ?? file.size,
   };
+}
+
+export async function prepareSquareWebp(
+  file: File,
+  size = 1200,
+  quality = 0.82,
+) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error(
+      `${file.name} không phải là file ảnh.`,
+    );
+  }
+
+  const source = await loadImageSource(file);
+  const { width, height } = sourceSize(source);
+
+  if (!width || !height) {
+    closeImageSource(source);
+
+    throw new Error(
+      `Không thể xác định kích thước ảnh ${file.name}.`,
+    );
+  }
+
+  const cropSize = Math.min(width, height);
+  const sx = Math.max(0, (width - cropSize) / 2);
+  const sy = Math.max(0, (height - cropSize) / 2);
+  const outputSize = Math.min(
+    size,
+    Math.max(1, cropSize),
+  );
+
+  const canvas = document.createElement("canvas");
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+
+  const context = canvas.getContext("2d", {
+    alpha: false,
+  });
+
+  if (!context) {
+    closeImageSource(source);
+
+    throw new Error(
+      "Trình duyệt không hỗ trợ xử lý ảnh.",
+    );
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, outputSize, outputSize);
+  context.drawImage(
+    source,
+    sx,
+    sy,
+    cropSize,
+    cropSize,
+    0,
+    0,
+    outputSize,
+    outputSize,
+  );
+
+  closeImageSource(source);
+
+  const blob = await canvasToBlob(
+    canvas,
+    "image/webp",
+    quality,
+  );
+
+  const safeBaseName = safeImageBaseName(
+    file,
+    "san-pham",
+  );
+
+  return new File(
+    [blob],
+    `${safeBaseName}.webp`,
+    {
+      type: "image/webp",
+    },
+  );
+}
+
+export async function uploadProductImage(
+  file: File,
+): Promise<CloudinaryUploadResult> {
+  const optimizedFile = await prepareSquareWebp(file);
+  return uploadPreparedImage(optimizedFile);
+}
+
+async function prepareFaviconPng(file: File) {
+  assertSiteBrandImage(file);
+
+  const source = await loadImageSource(file);
+  const { width, height } = sourceSize(source);
+
+  if (!width || !height) {
+    closeImageSource(source);
+    throw new Error(
+      `Không thể xác định kích thước ảnh ${file.name}.`,
+    );
+  }
+
+  const cropSize = Math.min(width, height);
+  const sx = Math.max(0, (width - cropSize) / 2);
+  const sy = Math.max(0, (height - cropSize) / 2);
+  const canvas = document.createElement("canvas");
+
+  canvas.width = 512;
+  canvas.height = 512;
+
+  const context = canvas.getContext("2d", {
+    alpha: true,
+  });
+
+  if (!context) {
+    closeImageSource(source);
+    throw new Error(
+      "Trình duyệt không hỗ trợ xử lý ảnh.",
+    );
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.clearRect(0, 0, 512, 512);
+  context.drawImage(
+    source,
+    sx,
+    sy,
+    cropSize,
+    cropSize,
+    0,
+    0,
+    512,
+    512,
+  );
+
+  closeImageSource(source);
+
+  const blob = await canvasToBlob(
+    canvas,
+    "image/png",
+  );
+  const safeBaseName = safeImageBaseName(
+    file,
+    "ingiday-favicon",
+  );
+
+  return new File(
+    [blob],
+    `${safeBaseName}-favicon.png`,
+    {
+      type: "image/png",
+    },
+  );
+}
+
+async function prepareSocialShareJpeg(file: File) {
+  assertSiteBrandImage(file);
+
+  const source = await loadImageSource(file);
+  const { width, height } = sourceSize(source);
+
+  if (!width || !height) {
+    closeImageSource(source);
+    throw new Error(
+      `Không thể xác định kích thước ảnh ${file.name}.`,
+    );
+  }
+
+  const targetWidth = 1200;
+  const targetHeight = 630;
+  const targetRatio = targetWidth / targetHeight;
+  const sourceRatio = width / height;
+
+  let sx = 0;
+  let sy = 0;
+  let cropWidth = width;
+  let cropHeight = height;
+
+  if (sourceRatio > targetRatio) {
+    cropWidth = height * targetRatio;
+    sx = Math.max(0, (width - cropWidth) / 2);
+  } else {
+    cropHeight = width / targetRatio;
+    sy = Math.max(0, (height - cropHeight) / 2);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d", {
+    alpha: false,
+  });
+
+  if (!context) {
+    closeImageSource(source);
+    throw new Error(
+      "Trình duyệt không hỗ trợ xử lý ảnh.",
+    );
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, targetWidth, targetHeight);
+  context.drawImage(
+    source,
+    sx,
+    sy,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
+
+  closeImageSource(source);
+
+  const blob = await canvasToBlob(
+    canvas,
+    "image/jpeg",
+    0.9,
+  );
+  const safeBaseName = safeImageBaseName(
+    file,
+    "ingiday-share",
+  );
+
+  return new File(
+    [blob],
+    `${safeBaseName}-share.jpg`,
+    {
+      type: "image/jpeg",
+    },
+  );
+}
+
+export async function uploadSiteBrandImage(
+  file: File,
+  kind: SiteBrandImageKind,
+): Promise<CloudinaryUploadResult> {
+  const preparedFile =
+    kind === "favicon"
+      ? await prepareFaviconPng(file)
+      : await prepareSocialShareJpeg(file);
+
+  return uploadPreparedImage(preparedFile);
 }
 
 type CloudinaryImageOptions = {

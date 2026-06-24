@@ -13,6 +13,10 @@ import { supabase } from "../../lib/supabase";
 import type { StoreSettings } from "../../types/store";
 
 const LEGACY_STORAGE_KEY = "ingiday-settings";
+const DEFAULT_SOCIAL_SHARE_TITLE =
+  "InGiDay | Sản phẩm in 3D đáng yêu";
+const DEFAULT_SOCIAL_SHARE_DESCRIPTION =
+  "Khám phá móc khóa, mô hình mini và các sản phẩm in 3D độc đáo từ InGiDay.";
 
 const initialSettings: StoreSettings = {
   storeName: "InGiDay",
@@ -39,6 +43,12 @@ const initialSettings: StoreSettings = {
   customPrintStep3Title: "Xác nhận và in",
   customPrintStep3Description:
     "Sau khi chốt yêu cầu, shop tiến hành in và cập nhật tiến độ cho bạn.",
+  faviconUrl: "",
+  faviconPublicId: "",
+  socialShareImageUrl: "",
+  socialShareImagePublicId: "",
+  socialShareTitle: DEFAULT_SOCIAL_SHARE_TITLE,
+  socialShareDescription: DEFAULT_SOCIAL_SHARE_DESCRIPTION,
   currency: "VND",
 };
 
@@ -64,6 +74,12 @@ type StoreSettingsRow = {
   custom_print_step_2_description: string;
   custom_print_step_3_title: string;
   custom_print_step_3_description: string;
+  favicon_url: string | null;
+  favicon_public_id: string | null;
+  social_share_image_url: string | null;
+  social_share_image_public_id: string | null;
+  social_share_title: string;
+  social_share_description: string;
   updated_at: string;
 };
 
@@ -109,6 +125,12 @@ const settingsSelect = `
   custom_print_step_2_description,
   custom_print_step_3_title,
   custom_print_step_3_description,
+  favicon_url,
+  favicon_public_id,
+  social_share_image_url,
+  social_share_image_public_id,
+  social_share_title,
+  social_share_description,
   updated_at
 `;
 
@@ -151,11 +173,27 @@ function settingsFromRow(row: StoreSettingsRow): StoreSettings {
     customPrintStep3Description:
       row.custom_print_step_3_description ||
       initialSettings.customPrintStep3Description,
+    faviconUrl: row.favicon_url ?? "",
+    faviconPublicId: row.favicon_public_id ?? "",
+    socialShareImageUrl:
+      row.social_share_image_url ?? "",
+    socialShareImagePublicId:
+      row.social_share_image_public_id ?? "",
+    socialShareTitle:
+      row.social_share_title ||
+      initialSettings.socialShareTitle,
+    socialShareDescription:
+      row.social_share_description ||
+      initialSettings.socialShareDescription,
     currency: "VND",
   };
 }
 
 function settingsToRow(value: StoreSettings) {
+  const faviconUrl = value.faviconUrl.trim();
+  const socialShareImageUrl =
+    value.socialShareImageUrl.trim();
+
   return {
     shop_name: value.storeName.trim() || "InGiDay",
     phone: value.phone.trim() || null,
@@ -200,6 +238,23 @@ function settingsToRow(value: StoreSettings) {
     custom_print_step_3_description:
       value.customPrintStep3Description.trim() ||
       initialSettings.customPrintStep3Description,
+    favicon_url: faviconUrl || null,
+    favicon_public_id:
+      faviconUrl
+        ? value.faviconPublicId.trim() || null
+        : null,
+    social_share_image_url:
+      socialShareImageUrl || null,
+    social_share_image_public_id:
+      socialShareImageUrl
+        ? value.socialShareImagePublicId.trim() || null
+        : null,
+    social_share_title:
+      value.socialShareTitle.trim() ||
+      initialSettings.socialShareTitle,
+    social_share_description:
+      value.socialShareDescription.trim() ||
+      initialSettings.socialShareDescription,
   };
 }
 
@@ -219,6 +274,24 @@ function readLegacySettings(): StoreSettings | null {
   } catch {
     return null;
   }
+}
+
+function applyClientFavicon(url: string) {
+  const faviconUrl = url.trim() || "/favicon.svg";
+  let element = document.querySelector(
+    'link[rel="icon"]',
+  ) as HTMLLinkElement | null;
+
+  if (!element) {
+    element = document.createElement("link");
+    element.rel = "icon";
+    document.head.appendChild(element);
+  }
+
+  element.href = faviconUrl;
+  element.type = url.trim()
+    ? "image/png"
+    : "image/svg+xml";
 }
 
 export function SettingsProvider({
@@ -307,6 +380,10 @@ export function SettingsProvider({
     };
   }, [loadSettings]);
 
+  useEffect(() => {
+    applyClientFavicon(settings.faviconUrl);
+  }, [settings.faviconUrl]);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       settings,
@@ -328,6 +405,19 @@ export function SettingsProvider({
             0,
             Math.round(nextSettings.freeShippingThreshold),
           ),
+          faviconUrl: nextSettings.faviconUrl.trim(),
+          faviconPublicId:
+            nextSettings.faviconPublicId.trim(),
+          socialShareImageUrl:
+            nextSettings.socialShareImageUrl.trim(),
+          socialShareImagePublicId:
+            nextSettings.socialShareImagePublicId.trim(),
+          socialShareTitle:
+            nextSettings.socialShareTitle.trim() ||
+            initialSettings.socialShareTitle,
+          socialShareDescription:
+            nextSettings.socialShareDescription.trim() ||
+            initialSettings.socialShareDescription,
           currency: "VND",
         };
 

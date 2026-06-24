@@ -1,8 +1,12 @@
 import {
   buildMetaDomainVerificationTag,
-  loadMetaDomainVerificationCode,
   META_DOMAIN_VERIFICATION_NAME,
 } from "./_lib/meta-domain-verification";
+import {
+  buildSiteMetadataTags,
+  loadSiteMetadata,
+} from "./_lib/site-metadata";
+import type { SiteMetadata } from "./_lib/site-metadata";
 import type { AdsFunctionEnv } from "./_lib/supabase-server";
 
 type HtmlContentOptions = {
@@ -39,14 +43,43 @@ type MiddlewareContext = {
   next(): Promise<Response>;
 };
 
-function isHomepageRequest(request: Request) {
-  if (request.method !== "GET") {
-    return false;
-  }
+const REMOVE_HANDLER: HtmlRewriterHandler = {
+  element(element) {
+    element.remove();
+  },
+};
 
+const DYNAMIC_HEAD_SELECTORS = [
+  "title",
+  'link[rel="icon"]',
+  'link[rel="shortcut icon"]',
+  'link[rel="apple-touch-icon"]',
+  'meta[name="description"]',
+  'meta[property="og:type"]',
+  'meta[property="og:locale"]',
+  'meta[property="og:site_name"]',
+  'meta[property="og:title"]',
+  'meta[property="og:description"]',
+  'meta[property="og:url"]',
+  'meta[property="og:image"]',
+  'meta[property="og:image:width"]',
+  'meta[property="og:image:height"]',
+  'meta[property="og:image:alt"]',
+  'meta[name="twitter:card"]',
+  'meta[name="twitter:title"]',
+  'meta[name="twitter:description"]',
+  'meta[name="twitter:image"]',
+  `meta[name="${META_DOMAIN_VERIFICATION_NAME}"]`,
+];
+
+function isHomepageRequest(request: Request) {
   const pathname = new URL(request.url).pathname;
 
   return pathname === "/" || pathname === "/index.html";
+}
+
+function isHtmlGetRequest(request: Request) {
+  return request.method === "GET";
 }
 
 function isHtmlResponse(response: Response) {
@@ -62,11 +95,36 @@ function isHtmlResponse(response: Response) {
   );
 }
 
-async function safelyLoadVerificationCode(
+async function safelyLoadSiteMetadata(
   env: AdsFunctionEnv,
 ) {
   try {
-    return await loadMetaDomainVerificationCode(env);
+    return await loadSiteMetadata(env);
+  } catch (error) {
+    console.error(
+      "site-metadata-middleware-failed",
+      error,
+    );
+
+    return null;
+  }
+}
+
+function safelyBuildVerificationTag(
+  metadata: SiteMetadata,
+  request: Request,
+) {
+  if (
+    !isHomepageRequest(request) ||
+    !metadata.metaDomainVerificationCode
+  ) {
+    return null;
+  }
+
+  try {
+    return buildMetaDomainVerificationTag(
+      metadata.metaDomainVerificationCode,
+    );
   } catch (error) {
     console.error(
       "meta-domain-verification-middleware-failed",
@@ -83,34 +141,45 @@ export async function onRequest(
   const response = await context.next();
 
   if (
-    !isHomepageRequest(context.request) ||
+    !isHtmlGetRequest(context.request) ||
     !isHtmlResponse(response)
   ) {
     return response;
   }
 
-  const code = await safelyLoadVerificationCode(
+  const metadata = await safelyLoadSiteMetadata(
     context.env,
   );
 
-  if (!code) {
+  if (!metadata) {
     return response;
   }
 
-  const tag = buildMetaDomainVerificationTag(code);
+  const metadataTags = buildSiteMetadataTags(
+    metadata,
+    context.request.url,
+  );
+  const verificationTag = safelyBuildVerificationTag(
+    metadata,
+    context.request,
+  );
+  const headContent = verificationTag
+    ? `${metadataTags}\n    ${verificationTag}`
+    : metadataTags;
 
-  return new HTMLRewriter()
-    .on(
-      `meta[name="${META_DOMAIN_VERIFICATION_NAME}"]`,
-      {
-        element(element) {
-          element.remove();
-        },
-      },
-    )
+  let rewriter = new HTMLRewriter();
+
+  for (const selector of DYNAMIC_HEAD_SELECTORS) {
+    rewriter = rewriter.on(
+      selector,
+      REMOVE_HANDLER,
+    );
+  }
+
+  return rewriter
     .on("head", {
       element(element) {
-        element.append(`\n    ${tag}`, {
+        element.append(`\n    ${headContent}`, {
           html: true,
         });
       },
