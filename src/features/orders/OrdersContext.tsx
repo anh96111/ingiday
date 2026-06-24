@@ -13,6 +13,23 @@ type OrdersActionResult<T = undefined> = {
   data?: T;
 };
 
+type OrderPageFilters = {
+  page: number;
+  pageSize: number;
+  keyword: string;
+  status: OrderStatus | "";
+  dateFrom: string;
+  dateTo: string;
+};
+
+type OrderPageResult = {
+  orders: StoreOrder[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 type OrderItemRow = {
   id: string;
   product_id: string | null;
@@ -67,17 +84,66 @@ type CreateOrderRpcResult = {
   inventory_reserved: boolean;
 };
 
+type AdminPageIdsResult = {
+  ids: string[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 type OrdersContextValue = {
   orders: StoreOrder[];
   loading: boolean;
   error: string;
   refresh: () => Promise<void>;
+  loadOrderPage: (filters: OrderPageFilters) => Promise<OrdersActionResult<OrderPageResult>>;
+  bulkUpdateOrderStatus: (ids: string[], status: OrderStatus) => Promise<OrdersActionResult>;
+  bulkDeleteOrders: (ids: string[]) => Promise<OrdersActionResult>;
   createOrder: (order: LocalOrder) => Promise<OrdersActionResult<StoreOrder>>;
   updateOrderStatus: (code: string, status: OrderStatus) => Promise<OrdersActionResult<StoreOrder>>;
   getOrder: (code: string) => StoreOrder | undefined;
 };
 
 const OrdersContext = createContext<OrdersContextValue | null>(null);
+
+const ORDER_SELECT = `
+  id,
+  order_code,
+  customer_name,
+  customer_phone,
+  customer_email,
+  province,
+  district,
+  ward,
+  address_line,
+  note,
+  subtotal,
+  discount_amount,
+  shipping_fee,
+  total_amount,
+  coupon_code,
+  payment_method,
+  status,
+  inventory_reserved,
+  created_at,
+  updated_at,
+  order_items (
+    id,
+    product_id,
+    product_slug,
+    product_name,
+    product_image_url,
+    product_background,
+    product_emoji,
+    unit_price,
+    quantity,
+    selected_variants
+  ),
+  order_status_history (
+    to_status,
+    created_at
+  )
+`;
 
 function parseSelectedVariants(value: unknown): SelectedVariant[] {
   if (!Array.isArray(value)) return [];
@@ -152,6 +218,47 @@ function orderFromRow(row: OrderRow): StoreOrder {
   };
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message) return message;
+  }
+  return fallback;
+}
+
+function parseAdminPageIds(value: unknown, fallbackPage: number, fallbackPageSize: number): AdminPageIdsResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ids: [], total: 0, page: fallbackPage, pageSize: fallbackPageSize };
+  }
+
+  const object = value as Record<string, unknown>;
+  const ids = Array.isArray(object.ids)
+    ? object.ids.filter((id): id is string => typeof id === "string")
+    : [];
+  const total = Number(object.total ?? 0);
+  const page = Number(object.page ?? fallbackPage);
+  const pageSize = Number(object.page_size ?? fallbackPageSize);
+
+  return {
+    ids,
+    total: Number.isFinite(total) ? Math.max(0, total) : 0,
+    page: Number.isFinite(page) ? Math.max(1, page) : fallbackPage,
+    pageSize: Number.isFinite(pageSize) ? Math.max(1, pageSize) : fallbackPageSize,
+  };
+}
+
+function currentOrderCodeFromPath() {
+  const match = window.location.pathname.match(/^\/admin\/don-hang\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function dateBoundary(value: string, endOfDay: boolean) {
+  if (!value) return null;
+  const time = endOfDay ? "23:59:59.999" : "00:00:00.000";
+  return new Date(`${value}T${time}`).toISOString();
+}
+
 export function OrdersProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -170,49 +277,22 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    const orderCode = currentOrderCodeFromPath();
+
+    if (!orderCode) {
+      setOrders([]);
+      setError("");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     const { data, error: queryError } = await supabase
       .from("orders")
-      .select(`
-        id,
-        order_code,
-        customer_name,
-        customer_phone,
-        customer_email,
-        province,
-        district,
-        ward,
-        address_line,
-        note,
-        subtotal,
-        discount_amount,
-        shipping_fee,
-        total_amount,
-        coupon_code,
-        payment_method,
-        status,
-        inventory_reserved,
-        created_at,
-        updated_at,
-        order_items (
-          id,
-          product_id,
-          product_slug,
-          product_name,
-          product_image_url,
-          product_background,
-          product_emoji,
-          unit_price,
-          quantity,
-          selected_variants
-        ),
-        order_status_history (
-          to_status,
-          created_at
-        )
-      `)
-      .order("created_at", { ascending: false });
+      .select(ORDER_SELECT)
+      .eq("order_code", orderCode)
+      .maybeSingle();
 
     if (queryError) {
       setOrders([]);
@@ -221,7 +301,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setOrders(((data ?? []) as unknown as OrderRow[]).map(orderFromRow));
+    setOrders(data ? [orderFromRow(data as unknown as OrderRow)] : []);
     setError("");
     setLoading(false);
   }, []);
@@ -256,24 +336,142 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       refresh: () => loadOrders(),
+
+      async loadOrderPage(filters) {
+        const page = Math.max(1, filters.page);
+        const pageSize = Math.min(50, Math.max(1, filters.pageSize));
+
+        setLoading(true);
+        setError("");
+
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session) {
+            throw new Error("Phiên đăng nhập quản trị đã hết hạn.");
+          }
+
+          const { data: pageData, error: pageError } = await supabase.rpc(
+            "admin_search_order_ids",
+            {
+              p_query: filters.keyword.trim(),
+              p_status: filters.status || null,
+              p_date_from: dateBoundary(filters.dateFrom, false),
+              p_date_to: dateBoundary(filters.dateTo, true),
+              p_page: page,
+              p_page_size: pageSize,
+            },
+          );
+
+          if (pageError) throw pageError;
+
+          const parsed = parseAdminPageIds(pageData, page, pageSize);
+          let pageOrders: StoreOrder[] = [];
+
+          if (parsed.ids.length > 0) {
+            const { data, error: queryError } = await supabase
+              .from("orders")
+              .select(ORDER_SELECT)
+              .in("id", parsed.ids);
+
+            if (queryError) throw queryError;
+
+            const orderById = new Map(
+              ((data ?? []) as unknown as OrderRow[]).map((row) => [row.id, orderFromRow(row)]),
+            );
+
+            pageOrders = parsed.ids
+              .map((id) => orderById.get(id))
+              .filter((order): order is StoreOrder => Boolean(order));
+          }
+
+          setOrders(pageOrders);
+          setError("");
+
+          return {
+            success: true,
+            message: "Đã tải danh sách đơn hàng.",
+            data: {
+              orders: pageOrders,
+              total: parsed.total,
+              page: parsed.page,
+              pageSize: parsed.pageSize,
+              totalPages: Math.max(1, Math.ceil(parsed.total / parsed.pageSize)),
+            },
+          };
+        } catch (loadError) {
+          const message = errorMessage(loadError, "Không thể tải danh sách đơn hàng.");
+          setOrders([]);
+          setError(message);
+          return { success: false, message };
+        } finally {
+          setLoading(false);
+        }
+      },
+
+      async bulkUpdateOrderStatus(ids, status) {
+        try {
+          const uniqueIds = [...new Set(ids)].slice(0, 50);
+          if (uniqueIds.length === 0) {
+            return { success: false, message: "Chưa chọn đơn hàng." };
+          }
+
+          const { error: rpcError } = await supabase.rpc(
+            "admin_bulk_update_order_status",
+            {
+              p_order_ids: uniqueIds,
+              p_status: status,
+            },
+          );
+
+          if (rpcError) throw rpcError;
+          return { success: true, message: `Đã cập nhật ${uniqueIds.length} đơn hàng.` };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(actionError, "Không thể cập nhật các đơn hàng đã chọn."),
+          };
+        }
+      },
+
+      async bulkDeleteOrders(ids) {
+        try {
+          const uniqueIds = [...new Set(ids)].slice(0, 50);
+          if (uniqueIds.length === 0) {
+            return { success: false, message: "Chưa chọn đơn hàng." };
+          }
+
+          const { error: rpcError } = await supabase.rpc(
+            "admin_bulk_delete_orders",
+            {
+              p_order_ids: uniqueIds,
+            },
+          );
+
+          if (rpcError) throw rpcError;
+          return { success: true, message: `Đã xóa ${uniqueIds.length} đơn hàng.` };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(actionError, "Không thể xóa các đơn hàng đã chọn."),
+          };
+        }
+      },
+
       async createOrder(order) {
-      const submission = await submitStoreOrder(
-        order,
-      );
+        const submission = await submitStoreOrder(order);
 
-      if (
-        !submission.success ||
-        !submission.data
-      ) {
-        return {
-          success: false,
-          message: submission.message,
-        };
-      }
+        if (!submission.success || !submission.data) {
+          return {
+            success: false,
+            message: submission.message,
+          };
+        }
 
-      const result: CreateOrderRpcResult =
-        submission.data;
-      if (!result?.id || !result.order_code) {
+        const result: CreateOrderRpcResult = submission.data;
+        if (!result?.id || !result.order_code) {
           return {
             success: false,
             message: "Hệ thống không trả về mã đơn hàng.",
@@ -301,7 +499,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           data: { session },
         } = await supabase.auth.getSession();
 
-        if (session) {
+        if (session && currentOrderCodeFromPath()) {
           await loadOrders(session);
         }
 
@@ -311,6 +509,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           data: created,
         };
       },
+
       async updateOrderStatus(code, status) {
         const currentOrder = orders.find((order) => order.code === code);
 
@@ -334,15 +533,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           };
         }
 
-        await loadOrders();
-        const updated = orders.find((order) => order.code === code);
+        if (currentOrderCodeFromPath()) {
+          await loadOrders();
+        }
 
         return {
           success: true,
           message: "Đã cập nhật trạng thái đơn hàng.",
-          data: updated,
         };
       },
+
       getOrder(code) {
         return orders.find((order) => order.code === code);
       },
