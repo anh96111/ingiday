@@ -1,7 +1,9 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { useSettings } from "../../features/settings/SettingsContext";
+import { uploadSiteBrandImage } from "../../lib/cloudinary";
+import type { SiteBrandImageKind } from "../../lib/cloudinary";
 import type { StoreSettings } from "../../types/store";
 
 type MessageType = "success" | "error";
@@ -20,6 +22,11 @@ export default function SettingsAdminPage() {
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] =
     useState<MessageType>("success");
+  const [uploadingImage, setUploadingImage] =
+    useState<SiteBrandImageKind | null>(null);
+  const faviconInputRef = useRef<HTMLInputElement>(null);
+  const socialImageInputRef =
+    useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setForm(settings);
@@ -29,6 +36,92 @@ export default function SettingsAdminPage() {
     setMessage(text);
     setMessageType(type);
   }
+
+  async function handleBrandImage(
+    kind: SiteBrandImageKind,
+    event: ChangeEvent<HTMLInputElement>,
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    setMessage("");
+    setUploadingImage(kind);
+
+    try {
+      const uploaded = await uploadSiteBrandImage(
+        file,
+        kind,
+      );
+
+      setForm((current) =>
+        kind === "favicon"
+          ? {
+              ...current,
+              faviconUrl: uploaded.url,
+              faviconPublicId: uploaded.publicId,
+            }
+          : {
+              ...current,
+              socialShareImageUrl: uploaded.url,
+              socialShareImagePublicId:
+                uploaded.publicId,
+            },
+      );
+
+      showMessage(
+        kind === "favicon"
+          ? "Đã tải favicon. Bấm Lưu cài đặt để áp dụng."
+          : "Đã tải ảnh chia sẻ. Bấm Lưu cài đặt để áp dụng.",
+        "success",
+      );
+    } catch (uploadError) {
+      showMessage(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Không thể tải ảnh.",
+        "error",
+      );
+    } finally {
+      setUploadingImage(null);
+    }
+  }
+
+  function clearBrandImage(kind: SiteBrandImageKind) {
+    const label =
+      kind === "favicon"
+        ? "favicon"
+        : "ảnh thumbnail chia sẻ";
+
+    if (
+      !window.confirm(
+        `Bỏ ${label} hiện tại và dùng cấu hình mặc định?`,
+      )
+    ) {
+      return;
+    }
+
+    setForm((current) =>
+      kind === "favicon"
+        ? {
+            ...current,
+            faviconUrl: "",
+            faviconPublicId: "",
+          }
+        : {
+            ...current,
+            socialShareImageUrl: "",
+            socialShareImagePublicId: "",
+          },
+    );
+
+    showMessage(
+      `Đã bỏ ${label}. Bấm Lưu cài đặt để áp dụng.`,
+      "success",
+    );
+  }
+
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +146,30 @@ export default function SettingsAdminPage() {
     ) {
       showMessage(
         "Link Messenger phải bắt đầu bằng http:// hoặc https://.",
+        "error",
+      );
+      return;
+    }
+
+
+
+    if (
+      !form.socialShareTitle.trim() ||
+      form.socialShareTitle.trim().length > 120
+    ) {
+      showMessage(
+        "Tiêu đề chia sẻ phải có từ 1 đến 120 ký tự.",
+        "error",
+      );
+      return;
+    }
+
+    if (
+      !form.socialShareDescription.trim() ||
+      form.socialShareDescription.trim().length > 200
+    ) {
+      showMessage(
+        "Mô tả chia sẻ phải có từ 1 đến 200 ký tự.",
         "error",
       );
       return;
@@ -224,6 +341,232 @@ export default function SettingsAdminPage() {
               />
             </label>
           </div>
+        </article>
+
+        <article className="rounded-3xl bg-white p-6 shadow-sm">
+          <div>
+            <h2 className="text-xl font-black">
+              Nhận diện website và chia sẻ liên kết
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#707881]">
+              Favicon hiển thị trên tab trình duyệt. Ảnh chia sẻ
+              được tự cắt thành 1200 × 630 px để dùng cho
+              Facebook, Messenger, Zalo và các nền tảng hỗ trợ
+              Open Graph.
+            </p>
+          </div>
+
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            <section className="rounded-3xl border border-[#dce3ea] bg-[#f7f9ff] p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="font-black">Favicon</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#707881]">
+                    Ảnh được cắt vuông và chuyển thành PNG
+                    512 × 512 px.
+                  </p>
+                </div>
+
+                <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-2xl border border-[#d7dee6] bg-white p-2">
+                  <img
+                    src={form.faviconUrl || "/favicon.svg"}
+                    alt="Xem trước favicon"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() =>
+                    faviconInputRef.current?.click()
+                  }
+                  className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploadingImage === "favicon"
+                    ? "Đang tải..."
+                    : form.faviconUrl
+                      ? "Thay favicon"
+                      : "Tải favicon"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    !form.faviconUrl ||
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() => clearBrandImage("favicon")}
+                  className="rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-bold text-[#a43c12] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Dùng mặc định
+                </button>
+              </div>
+
+              <input
+                ref={faviconInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) =>
+                  void handleBrandImage("favicon", event)
+                }
+              />
+            </section>
+
+            <section className="rounded-3xl border border-[#dce3ea] bg-[#f7f9ff] p-5">
+              <div>
+                <h3 className="font-black">
+                  Ảnh thumbnail khi chia sẻ link
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-[#707881]">
+                  Nên chọn ảnh ngang, chủ thể nằm gần trung tâm.
+                </p>
+              </div>
+
+              <div className="mt-4 aspect-[1200/630] overflow-hidden rounded-2xl border border-[#d7dee6] bg-white">
+                {form.socialShareImageUrl ? (
+                  <img
+                    src={form.socialShareImageUrl}
+                    alt="Xem trước thumbnail chia sẻ"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center px-5 text-center text-sm font-semibold text-[#707881]">
+                    Chưa có ảnh chia sẻ
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() =>
+                    socialImageInputRef.current?.click()
+                  }
+                  className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploadingImage === "social-share"
+                    ? "Đang tải..."
+                    : form.socialShareImageUrl
+                      ? "Thay thumbnail"
+                      : "Tải thumbnail"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    !form.socialShareImageUrl ||
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() =>
+                    clearBrandImage("social-share")
+                  }
+                  className="rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-bold text-[#a43c12] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Xóa thumbnail
+                </button>
+              </div>
+
+              <input
+                ref={socialImageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) =>
+                  void handleBrandImage(
+                    "social-share",
+                    event,
+                  )
+                }
+              />
+            </section>
+          </div>
+
+          <div className="mt-5 grid gap-4">
+            <label className="text-sm font-bold">
+              Tiêu đề khi chia sẻ
+              <input
+                value={form.socialShareTitle}
+                maxLength={120}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    socialShareTitle: event.target.value,
+                  })
+                }
+                className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] px-3 font-normal outline-none focus:border-[#006397]"
+              />
+              <span className="mt-1 block text-right text-xs font-normal text-[#707881]">
+                {form.socialShareTitle.length}/120
+              </span>
+            </label>
+
+            <label className="text-sm font-bold">
+              Mô tả khi chia sẻ
+              <textarea
+                value={form.socialShareDescription}
+                maxLength={200}
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    socialShareDescription:
+                      event.target.value,
+                  })
+                }
+                className="mt-2 min-h-24 w-full rounded-xl border border-[#d7dee6] p-3 font-normal outline-none focus:border-[#006397]"
+              />
+              <span className="mt-1 block text-right text-xs font-normal text-[#707881]">
+                {form.socialShareDescription.length}/200
+              </span>
+            </label>
+          </div>
+
+          <section className="mt-5 overflow-hidden rounded-3xl border border-[#dce3ea] bg-white">
+            {form.socialShareImageUrl && (
+              <div className="aspect-[1200/630] overflow-hidden bg-[#edf4ff]">
+                <img
+                  src={form.socialShareImageUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            )}
+            <div className="p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#707881]">
+                Xem trước thẻ chia sẻ
+              </p>
+              <p className="mt-2 text-lg font-black text-[#091d2e]">
+                {form.socialShareTitle ||
+                  "Tiêu đề khi chia sẻ"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#59636d]">
+                {form.socialShareDescription ||
+                  "Mô tả khi chia sẻ liên kết."}
+              </p>
+            </div>
+          </section>
+
+          <p className="mt-4 text-xs leading-5 text-[#707881]">
+            Sau khi lưu và deploy, nền tảng mạng xã hội có thể
+            giữ ảnh cũ trong bộ nhớ đệm. Cần yêu cầu nền tảng
+            quét lại liên kết khi kiểm thử.
+          </p>
         </article>
 
         <article className="rounded-3xl bg-white p-6 shadow-sm">
@@ -453,7 +796,7 @@ export default function SettingsAdminPage() {
 
         <button
           type="submit"
-          disabled={saving || loading}
+          disabled={saving || loading || uploadingImage !== null}
           className="min-h-12 rounded-2xl bg-[#006397] px-7 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? "Đang lưu..." : "Lưu cài đặt"}

@@ -79,6 +79,12 @@ export type StoreSettings = {
   customPrintStep2Description: string;
   customPrintStep3Title: string;
   customPrintStep3Description: string;
+  faviconUrl: string;
+  faviconPublicId: string;
+  socialShareImageUrl: string;
+  socialShareImagePublicId: string;
+  socialShareTitle: string;
+  socialShareDescription: string;
   currency: "VND";
 };
 
