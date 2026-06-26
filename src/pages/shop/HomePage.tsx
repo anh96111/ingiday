@@ -1,34 +1,24 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-
-import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
 import ProductCard from "../../components/shop/ProductCard";
+import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
 import { useBanners } from "../../features/banners/BannersContext";
+import { useSettings } from "../../features/settings/SettingsContext";
 import {
   fetchActiveCategories,
   fetchFeaturedProducts,
+  searchProducts,
 } from "../../services/products";
-import type {
-  Category,
-  Product,
-} from "../../types/product";
+import type { Category, Product } from "../../types/product";
+import "./HomePage.css";
 
-function isBannerAvailable(
-  startsAt?: string,
-  endsAt?: string,
-) {
+function isBannerAvailable(startsAt?: string, endsAt?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   if (startsAt) {
-    const start = new Date(
-      `${startsAt}T00:00:00`,
-    );
+    const start = new Date(`${startsAt}T00:00:00`);
 
     if (start > today) {
       return false;
@@ -36,9 +26,7 @@ function isBannerAvailable(
   }
 
   if (endsAt) {
-    const end = new Date(
-      `${endsAt}T23:59:59`,
-    );
+    const end = new Date(`${endsAt}T23:59:59`);
 
     if (end < today) {
       return false;
@@ -48,53 +36,180 @@ function isBannerAvailable(
   return true;
 }
 
+function primaryImage(product?: Product) {
+  if (!product) {
+    return undefined;
+  }
+
+  return (
+    (product.images ?? []).find((image) => image.isPrimary) ??
+    (product.images ?? [])[0]
+  );
+}
+
+function CollectionProduct({
+  product,
+  fallback,
+  className,
+}: {
+  product?: Product;
+  fallback: string;
+  className: string;
+}) {
+  const image = primaryImage(product);
+
+  return (
+    <span
+      className={`home-rebel__stack-item ${className}`}
+      style={{
+        background: product?.background || undefined,
+      }}
+      aria-hidden="true"
+    >
+      {image ? (
+        <img
+          src={image.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <span>{product?.emoji || fallback}</span>
+      )}
+    </span>
+  );
+}
+
 export default function HomePage() {
   const {
     banners,
     loading: bannersLoading,
     error: bannersError,
   } = useBanners();
+  const { settings } = useSettings();
 
-  const [categories, setCategories] = useState<
-    Category[]
-  >([]);
-  const [featuredProducts, setFeaturedProducts] =
-    useState<Product[]>([]);
-  const [catalogLoading, setCatalogLoading] =
-    useState(true);
-  const [catalogError, setCatalogError] =
-    useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [heroProducts, setHeroProducts] = useState<{
+    bestselling?: Product;
+    featured?: Product;
+    newest?: Product;
+  }>({});
+  const [collectionProducts, setCollectionProducts] = useState<
+    Record<string, Product[]>
+  >({});
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const collectionTrackRef = useRef<HTMLDivElement>(null);
 
-  const loadCatalog = useCallback(
-    async (force = false) => {
-      setCatalogLoading(true);
-      setCatalogError("");
+  const loadCatalog = useCallback(async (force = false) => {
+    setCatalogLoading(true);
+    setCatalogError("");
 
-      try {
-        const [
-          nextCategories,
-          nextFeaturedProducts,
-        ] = await Promise.all([
-          fetchActiveCategories({ force }),
-          fetchFeaturedProducts(4, { force }),
-        ]);
+    try {
+      const [
+        nextCategories,
+        nextFeaturedProducts,
+        bestsellingResult,
+        heroFeaturedResult,
+        newestResult,
+      ] = await Promise.all([
+        fetchActiveCategories({ force }),
+        fetchFeaturedProducts(4, { force }),
+        searchProducts(
+          {
+            sort: "bestselling",
+            page: 1,
+            pageSize: 6,
+          },
+          { force },
+        ),
+        searchProducts(
+          {
+            featured: true,
+            sort: "bestselling",
+            page: 1,
+            pageSize: 6,
+          },
+          { force },
+        ),
+        searchProducts(
+          {
+            sort: "newest",
+            page: 1,
+            pageSize: 6,
+          },
+          { force },
+        ),
+      ]);
 
-        setCategories(nextCategories);
-        setFeaturedProducts(
-          nextFeaturedProducts,
+      setCategories(nextCategories);
+      setFeaturedProducts(nextFeaturedProducts);
+
+      const usedHeroProductIds = new Set<string>();
+      const pickUniqueProduct = (products: Product[]) => {
+        const product = products.find(
+          (item) => !usedHeroProductIds.has(item.id),
         );
-      } catch (error) {
-        setCatalogError(
-          error instanceof Error
-            ? error.message
-            : "Không thể tải sản phẩm.",
-        );
-      } finally {
-        setCatalogLoading(false);
-      }
-    },
-    [],
-  );
+
+        if (product) {
+          usedHeroProductIds.add(product.id);
+        }
+
+        return product;
+      };
+
+      const bestselling = pickUniqueProduct(
+        bestsellingResult.products,
+      );
+      const featured = pickUniqueProduct([
+        ...heroFeaturedResult.products,
+        ...nextFeaturedProducts,
+        ...bestsellingResult.products,
+      ]);
+      const newest = pickUniqueProduct([
+        ...newestResult.products,
+        ...nextFeaturedProducts,
+        ...bestsellingResult.products,
+      ]);
+
+      setHeroProducts({
+        bestselling,
+        featured,
+        newest,
+      });
+
+      const previewEntries = await Promise.all(
+        nextCategories.slice(0, 4).map(async (category) => {
+          try {
+            const result = await searchProducts(
+              {
+                categoryId: category.id,
+                sort: "bestselling",
+                page: 1,
+                pageSize: 3,
+              },
+              { force },
+            );
+
+            return [category.id, result.products] as const;
+          } catch {
+            return [category.id, []] as const;
+          }
+        }),
+      );
+
+      setCollectionProducts(Object.fromEntries(previewEntries));
+    } catch (error) {
+      setCatalogError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải sản phẩm.",
+      );
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadCatalog();
@@ -104,99 +219,213 @@ export default function HomePage() {
     .filter(
       (item) =>
         item.active &&
-        isBannerAvailable(
-          item.startsAt,
-          item.endsAt,
-        ),
+        isBannerAvailable(item.startsAt, item.endsAt),
     )
-    .sort(
-      (left, right) =>
-        left.sortOrder - right.sortOrder,
-    )[0];
+    .sort((left, right) => left.sortOrder - right.sortOrder)[0];
+
+  const visibleCollections = categories;
+  const customShowcase = featuredProducts.slice(0, 3);
+  const messengerUrl = settings.messengerUrl.trim();
+
+  const scrollCollections = (direction: "left" | "right") => {
+    const track = collectionTrackRef.current;
+
+    if (!track) {
+      return;
+    }
+
+    const firstCard = track.querySelector<HTMLElement>(
+      ".home-rebel__collection-card",
+    );
+    const cardWidth = firstCard?.offsetWidth ?? 280;
+    const styles = window.getComputedStyle(track);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 16;
+    const distance = (cardWidth + gap) * 2;
+
+    track.scrollBy({
+      left: direction === "right" ? distance : -distance,
+      behavior: "smooth",
+    });
+  };
 
   return (
-    <>
-      <section className="mx-auto max-w-7xl px-5 pt-6 lg:px-16">
-        <div
-          className="relative isolate min-h-[500px] overflow-hidden rounded-[32px] px-7 py-12 shadow-[0_20px_60px_-30px_rgba(0,99,151,0.45)] sm:px-12 lg:flex lg:items-center lg:px-16"
-          style={{
-            background:
-              banner?.background ??
-              "linear-gradient(135deg, #d9eaff 0%, #edf4ff 55%, #ffe1ef 100%)",
-          }}
-        >
-          <div className="relative z-10 max-w-2xl">
-            <span className="inline-flex rounded-full border border-[#fe7e4f]/30 bg-white/70 px-4 py-2 text-xs font-bold text-[#a43c12] backdrop-blur">
-              {banner?.badge ||
-                "Sáng tạo không giới hạn"}
+    <main className="home-rebel">
+      <section className="home-rebel__hero">
+        <div className="home-rebel__container home-rebel__hero-grid">
+          <div className="home-rebel__hero-copy">
+            <span className="home-rebel__eyebrow">
+              ✦ {banner?.badge || "Đồ nhỏ xinh, mood không nhỏ"}
             </span>
 
-            <h1 className="mt-6 text-4xl font-black leading-tight tracking-[-0.03em] text-[#091d2e] sm:text-5xl lg:text-6xl">
-              {banner?.title ||
-                "Những món đồ nhỏ xíu nhưng vui cả ngày"}
+            <h1>
+              {banner?.title ? (
+                banner.title
+              ) : (
+                <>
+                  Dễ thương,{" "}
+                  <span className="home-rebel__title-accent">
+                    nhưng không ngoan.
+                  </span>{" "}
+                  <span className="home-rebel__title-blue">
+                    Đúng chất bạn.
+                  </span>
+                </>
+              )}
             </h1>
 
-            <p className="mt-6 max-w-xl text-base leading-8 text-[#3f4850] sm:text-lg">
+            <p>
               {banner?.description ||
-                "Khám phá thế giới sản phẩm in 3D đầy màu sắc, độc đáo và mang dấu ấn riêng của bạn."}
+                "Móc khóa, mô hình mini và những món decor in 3D dành cho người thích đẹp, thích vui và không muốn góc sống của mình trông giống tất cả mọi người."}
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="home-rebel__hero-actions">
               <Link
-                to={
-                  banner?.primaryLink ||
-                  "/san-pham"
-                }
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white shadow-lg shadow-[#fe7e4f]/25 transition hover:-translate-y-0.5"
+                className="home-rebel__button home-rebel__button--dark"
+                to={banner?.primaryLink || "/san-pham"}
               >
-                {banner?.primaryLabel ||
-                  "Khám phá ngay →"}
+                {banner?.primaryLabel || "Xem sản phẩm nổi bật →"}
               </Link>
 
               <Link
-                to={
-                  banner?.secondaryLink ||
-                  "/in-rieng"
-                }
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white/80 px-7 font-bold text-[#006397] transition hover:bg-white"
+                className="home-rebel__button home-rebel__button--light"
+                to={banner?.secondaryLink || "/in-rieng"}
               >
                 {banner?.secondaryLabel ||
-                  "Yêu cầu in riêng"}
+                  "Tạo một món của riêng bạn"}
               </Link>
+            </div>
+
+            <div className="home-rebel__benefits">
+              <span>✓ In sắc nét</span>
+              <span>✓ Đóng gói cẩn thận</span>
+              <span>✓ Có gu, có mood</span>
             </div>
           </div>
 
-          <div className="pointer-events-none mt-10 grid place-items-center lg:absolute lg:inset-y-0 lg:right-8 lg:mt-0 lg:w-[42%]">
-            {banner?.imageUrl ? (
-              <div className="relative aspect-square w-full max-w-[360px] overflow-hidden rounded-[34%] bg-white/55 shadow-[0_25px_60px_-25px_rgba(0,99,151,0.45)]">
-                <img
-                  src={banner.imageUrl}
-                  alt={
-                    banner.imageAlt ||
-                    banner.title
-                  }
-                  width="720"
-                  height="720"
-                  className="h-full w-full object-cover"
-                  decoding="async"
-                />
-              </div>
+          <div
+            className="home-rebel__hero-art"
+            style={{
+              background:
+                banner?.background ||
+                "linear-gradient(145deg, #dff4ff, #fff0f5)",
+            }}
+          >
+            <div className="home-rebel__hero-grid-lines" />
+            <div className="home-rebel__hero-orb home-rebel__hero-orb--yellow" />
+            <div className="home-rebel__hero-orb home-rebel__hero-orb--mint" />
+
+            {heroProducts.bestselling ? (
+              <Link
+                className="home-rebel__hero-image-card"
+                to={`/san-pham/${heroProducts.bestselling.slug}`}
+                aria-label={`Xem sản phẩm bán chạy ${heroProducts.bestselling.name}`}
+              >
+                {primaryImage(heroProducts.bestselling) ? (
+                  <img
+                    src={primaryImage(heroProducts.bestselling)?.url}
+                    alt={
+                      primaryImage(heroProducts.bestselling)?.altText ||
+                      heroProducts.bestselling.name
+                    }
+                    fetchPriority="high"
+                  />
+                ) : (
+                  <span>
+                    {heroProducts.bestselling.emoji ||
+                      banner?.emoji ||
+                      "🦖"}
+                  </span>
+                )}
+
+                <strong className="home-rebel__hero-product-label">
+                  Bán chạy
+                </strong>
+              </Link>
             ) : (
-              <div className="relative grid h-72 w-72 place-items-center rounded-[40%] bg-white/55 text-[120px] shadow-[0_25px_60px_-25px_rgba(0,99,151,0.45)] backdrop-blur sm:h-80 sm:w-80 sm:text-[150px]">
-                {banner?.emoji || "🐲"}
-                <span className="absolute -left-4 top-6 text-5xl">
-                  ✨
-                </span>
-                <span className="absolute -bottom-3 right-4 text-6xl">
-                  🤖
-                </span>
+              <div className="home-rebel__hero-main-card">
+                {banner?.emoji || "🦖"}
+                <strong className="home-rebel__hero-product-label">
+                  Bán chạy
+                </strong>
               </div>
             )}
+
+            {heroProducts.featured ? (
+              <Link
+                className="home-rebel__hero-mini-card home-rebel__hero-mini-card--one"
+                to={`/san-pham/${heroProducts.featured.slug}`}
+                aria-label={`Xem sản phẩm nổi bật ${heroProducts.featured.name}`}
+              >
+                {primaryImage(heroProducts.featured) ? (
+                  <img
+                    src={primaryImage(heroProducts.featured)?.url}
+                    alt={
+                      primaryImage(heroProducts.featured)?.altText ||
+                      heroProducts.featured.name
+                    }
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span>{heroProducts.featured.emoji || "🐱"}</span>
+                )}
+
+                <strong className="home-rebel__hero-product-label">
+                  Nổi bật
+                </strong>
+              </Link>
+            ) : (
+              <div className="home-rebel__hero-mini-card home-rebel__hero-mini-card--one">
+                🐱
+              </div>
+            )}
+
+            {heroProducts.newest ? (
+              <Link
+                className="home-rebel__hero-mini-card home-rebel__hero-mini-card--two"
+                to={`/san-pham/${heroProducts.newest.slug}`}
+                aria-label={`Xem sản phẩm mới ${heroProducts.newest.name}`}
+              >
+                {primaryImage(heroProducts.newest) ? (
+                  <img
+                    src={primaryImage(heroProducts.newest)?.url}
+                    alt={
+                      primaryImage(heroProducts.newest)?.altText ||
+                      heroProducts.newest.name
+                    }
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <span>{heroProducts.newest.emoji || "🐰"}</span>
+                )}
+
+                <strong className="home-rebel__hero-product-label">
+                  Mới
+                </strong>
+              </Link>
+            ) : (
+              <div className="home-rebel__hero-mini-card home-rebel__hero-mini-card--two">
+                🐰
+              </div>
+            )}
+
+            <div className="home-rebel__hero-sticker">
+              New mood
+              <br />
+              drop
+            </div>
+
+            <div className="home-rebel__scribble">
+              đừng sống nhạt.
+            </div>
           </div>
         </div>
+      </section>
 
-        {(bannersError || catalogError) && (
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]">
+      {(bannersError || catalogError) && (
+        <div className="home-rebel__container">
+          <div className="home-rebel__error">
             <span>
               {catalogError ||
                 bannersError ||
@@ -204,139 +433,291 @@ export default function HomePage() {
             </span>
 
             {catalogError && (
-              <button
-                type="button"
-                onClick={() =>
-                  void loadCatalog(true)
-                }
-                className="rounded-xl bg-white px-4 py-2 font-bold"
-              >
+              <button type="button" onClick={() => void loadCatalog(true)}>
                 Thử lại
               </button>
             )}
           </div>
-        )}
+        </div>
+      )}
 
-        {bannersLoading && (
-          <p className="mt-3 text-center text-xs text-[#707881]">
+      {bannersLoading && (
+        <div className="home-rebel__container">
+          <p className="home-rebel__loading">
             Đang cập nhật banner...
           </p>
-        )}
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 pt-16 lg:px-16">
-        <div className="text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">
-            Danh mục
-          </p>
-          <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-            Khám phá theo sở thích
-          </h2>
         </div>
+      )}
 
-        {catalogLoading &&
-        categories.length === 0 ? (
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {Array.from({ length: 6 }).map(
-              (_item, index) => (
-                <div
-                  key={index}
-                  className="h-36 animate-pulse rounded-3xl bg-[#eaf0f6]"
-                />
-              ),
-            )}
-          </div>
-        ) : (
-          <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {categories.map((category) => (
-              <Link
-                key={category.id}
-                to={`/san-pham?danh-muc=${category.id}`}
-                className="group rounded-3xl p-5 text-center transition hover:-translate-y-1"
-                style={{
-                  backgroundColor:
-                    category.background,
-                }}
+      <section
+        id="collections"
+        className="home-rebel__section home-rebel__collections-section"
+      >
+        <div className="home-rebel__container">
+          <div className="home-rebel__section-head">
+            <div>
+              <span className="home-rebel__section-kicker">
+                Bộ sưu tập
+              </span>
+              <h2>Chọn theo mood hôm nay</h2>
+              <p>
+                Không cần lý do quá nghiêm túc. Thấy hợp gu là đủ.
+              </p>
+            </div>
+
+            <div className="home-rebel__collection-actions">
+              <button
+                type="button"
+                className="home-rebel__collection-arrow"
+                onClick={() => scrollCollections("left")}
+                aria-label="Xem bộ sưu tập phía trước"
               >
-                <div className="text-5xl transition duration-300 group-hover:scale-110">
-                  {category.emoji}
-                </div>
-                <h3 className="mt-4 text-sm font-bold text-[#091d2e]">
-                  {category.name}
-                </h3>
+                ←
+              </button>
+
+              <button
+                type="button"
+                className="home-rebel__collection-arrow"
+                onClick={() => scrollCollections("right")}
+                aria-label="Xem bộ sưu tập tiếp theo"
+              >
+                →
+              </button>
+
+              <Link className="home-rebel__section-link" to="/san-pham">
+                Xem tất cả →
               </Link>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 pt-16 lg:px-16">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">
-              Nổi bật
-            </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-              Được yêu thích nhất
-            </h2>
+            </div>
           </div>
 
-          <Link
-            to="/san-pham"
-            className="font-bold text-[#006397] hover:text-[#a43c12]"
-          >
-            Xem tất cả →
-          </Link>
-        </div>
-
-        <div className="mt-8">
-          {catalogLoading &&
-          featuredProducts.length === 0 ? (
-            <ProductGridSkeleton count={4} />
-          ) : featuredProducts.length > 0 ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredProducts.map(
-                (product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                  />
-                ),
-              )}
+          {catalogLoading && visibleCollections.length === 0 ? (
+            <div className="home-rebel__collection-grid">
+              {Array.from({ length: 4 }).map((_item, index) => (
+                <div
+                  className="home-rebel__collection-skeleton"
+                  key={index}
+                />
+              ))}
             </div>
           ) : (
-            <div className="rounded-3xl bg-white p-10 text-center text-[#707881]">
+            <div
+              className="home-rebel__collection-grid"
+              ref={collectionTrackRef}
+            >
+              {visibleCollections.map((category, index) => {
+                const previews =
+                  collectionProducts[category.id] ?? [];
+
+                return (
+                  <Link
+                    className={`home-rebel__collection-card home-rebel__collection-card--${
+                      index + 1
+                    }`}
+                    to={`/san-pham?danh-muc=${encodeURIComponent(
+                      category.slug,
+                    )}`}
+                    key={category.id}
+                  >
+                    <span className="home-rebel__collection-number">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+
+                    <div className="home-rebel__collection-art">
+                      <span className="home-rebel__stack-shadow" />
+
+                      <CollectionProduct
+                        product={previews[1]}
+                        fallback={index === 0 ? "🐰" : "⚡"}
+                        className="home-rebel__stack-item--left"
+                      />
+
+                      <CollectionProduct
+                        product={previews[2]}
+                        fallback={index === 0 ? "👻" : "🌸"}
+                        className="home-rebel__stack-item--right"
+                      />
+
+                      <CollectionProduct
+                        product={previews[0]}
+                        fallback={category.emoji || "🦖"}
+                        className="home-rebel__stack-item--main"
+                      />
+
+                      <span className="home-rebel__stack-badge">
+                        {index === 1 ? "IGD" : index === 3 ? "1/1" : "✦"}
+                      </span>
+                    </div>
+
+                    <h3>{category.name}</h3>
+                    <small>
+                      {previews.length > 0
+                        ? `${previews.length} món đang nổi bật`
+                        : "Khám phá những món hợp mood"}
+                    </small>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section
+        id="featured"
+        className="home-rebel__section home-rebel__featured-section"
+      >
+        <div className="home-rebel__container">
+          <div className="home-rebel__section-head">
+            <div>
+              <span className="home-rebel__section-kicker">
+                Nổi bật
+              </span>
+              <h2>Đang được mê nhất</h2>
+              <p>
+                Những món đang khiến người ta phải hỏi:
+                “Ủa, mua ở đâu vậy?”
+              </p>
+            </div>
+
+            <Link className="home-rebel__section-link" to="/san-pham">
+              Xem tất cả →
+            </Link>
+          </div>
+
+          {catalogLoading && featuredProducts.length === 0 ? (
+            <ProductGridSkeleton count={4} />
+          ) : featuredProducts.length > 0 ? (
+            <div className="home-rebel__product-grid">
+              {featuredProducts.map((product) => (
+                <ProductCard product={product} key={product.id} />
+              ))}
+            </div>
+          ) : (
+            <div className="home-rebel__empty">
               Chưa có sản phẩm nổi bật.
             </div>
           )}
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-5 pt-16 lg:px-16">
-        <div className="overflow-hidden rounded-[32px] bg-[#006397] px-7 py-10 text-white sm:px-12 lg:flex lg:items-center lg:justify-between lg:px-16">
-          <div className="max-w-2xl">
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#cce5ff]">
+      <section
+        id="custom"
+        className="home-rebel__section home-rebel__custom-section"
+      >
+        <div className="home-rebel__container home-rebel__custom-grid">
+          <div className="home-rebel__custom-copy">
+            <span className="home-rebel__section-kicker home-rebel__section-kicker--light">
               Ý tưởng của riêng bạn
-            </p>
-            <h2 className="mt-3 text-3xl font-black sm:text-4xl">
-              Có mẫu muốn in? Va ngay với chủ
-              shop
+            </span>
+
+            <h2>
+              Nghĩ ra thứ gì hay ho?
+              <br />
+              Cứ ném sang đây.
             </h2>
-            <p className="mt-4 leading-7 text-[#e8f2ff]">
-              Gửi ý tưởng qua Messenger, shop sẽ
-              trao đổi nhanh về mẫu, kích thước và
-              chi phí.
+
+            <p>
+              {settings.customPrintDescription ||
+                "Không cần biết thiết kế 3D. Chỉ cần gửi hình, phác thảo hoặc kể ý tưởng. InGiDay sẽ cùng bạn chốt kiểu dáng, màu sắc và kích thước phù hợp."}
             </p>
+
+            <div className="home-rebel__steps">
+              <div>
+                <span>01</span>
+                <strong>
+                  {settings.customPrintStep1Title || "Gửi ý tưởng"}
+                </strong>
+              </div>
+
+              <div>
+                <span>02</span>
+                <strong>
+                  {settings.customPrintStep2Title ||
+                    "Duyệt mẫu và báo giá"}
+                </strong>
+              </div>
+
+              <div>
+                <span>03</span>
+                <strong>
+                  {settings.customPrintStep3Title ||
+                    "In và hoàn thiện"}
+                </strong>
+              </div>
+            </div>
+
+            {messengerUrl ? (
+              <a
+                className="home-rebel__message-button"
+                href={messengerUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Nhắn InGiDay ngay
+              </a>
+            ) : (
+              <Link
+                className="home-rebel__message-button"
+                to="/in-rieng"
+              >
+                Nhắn InGiDay ngay
+              </Link>
+            )}
           </div>
 
-          <Link
-            to="/in-rieng"
-            className="mt-7 inline-flex min-h-12 items-center justify-center rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white lg:mt-0"
-          >
-            Xem quy trình
-          </Link>
+          <div className="home-rebel__custom-art">
+            <span className="home-rebel__idea-sticker">
+              Your idea
+            </span>
+            <span className="home-rebel__one-sticker">
+              One of one
+            </span>
+            <span className="home-rebel__custom-spark home-rebel__custom-spark--one">
+              ✦
+            </span>
+            <span className="home-rebel__custom-spark home-rebel__custom-spark--two">
+              ✺
+            </span>
+            <span className="home-rebel__display-stage" />
+
+            <CollectionProduct
+              product={customShowcase[1]}
+              fallback="🐰"
+              className="home-rebel__custom-model home-rebel__custom-model--left"
+            />
+
+            <CollectionProduct
+              product={customShowcase[0]}
+              fallback="🦖"
+              className="home-rebel__custom-model home-rebel__custom-model--main"
+            />
+
+            <CollectionProduct
+              product={customShowcase[2]}
+              fallback="👻"
+              className="home-rebel__custom-model home-rebel__custom-model--right"
+            />
+
+            <span className="home-rebel__keychain">IGD</span>
+
+            <span className="home-rebel__custom-note">
+              ý tưởng hơi điên càng vui.
+            </span>
+          </div>
         </div>
       </section>
-    </>
+
+      <section className="home-rebel__quote-section">
+        <div className="home-rebel__container">
+          <div className="home-rebel__quote">
+            <blockquote>
+              “Không phải ai lớn lên cũng phải thôi thích những thứ
+              dễ thương.”
+            </blockquote>
+            <p>InGiDay Manifesto</p>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

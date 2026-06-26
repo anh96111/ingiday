@@ -25,6 +25,7 @@ import { fetchProductBySlug } from "../../services/products";
 import type { SelectedVariant } from "../../types/cart";
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
+import "./ProductDetailPage.css";
 
 export default function ProductDetailPage() {
   const { slug = "" } = useParams();
@@ -42,7 +43,6 @@ export default function ProductDetailPage() {
   const [error, setError] = useState("");
   const [retryVersion, setRetryVersion] =
     useState(0);
-
   const [quantity, setQuantity] = useState(1);
   const [selections, setSelections] = useState<
     Record<string, string>
@@ -97,9 +97,7 @@ export default function ProductDetailPage() {
         }
 
         const redirectSlug =
-          await resolveProductSlugRedirect(
-            slug,
-          );
+          await resolveProductSlugRedirect(slug);
 
         if (!active) {
           return;
@@ -112,9 +110,7 @@ export default function ProductDetailPage() {
           redirecting = true;
           navigate(
             `/san-pham/${redirectSlug}`,
-            {
-              replace: true,
-            },
+            { replace: true },
           );
           return;
         }
@@ -185,18 +181,23 @@ export default function ProductDetailPage() {
     }
 
     trackedProductIdRef.current = product.id;
+
     const initialUnitPrice =
       product.price +
       selectedVariants.reduce(
-        (sum, variant) => sum + variant.priceDelta,
+        (sum, variant) =>
+          sum + variant.priceDelta,
         0,
       );
-    const path = `${window.location.pathname}${window.location.search}`;
+
+    const path =
+      `${window.location.pathname}${window.location.search}`;
 
     void trackPageView({
       path,
       productId: product.id,
     });
+
     void trackViewContent({
       product,
       quantity: 1,
@@ -216,13 +217,9 @@ export default function ProductDetailPage() {
 
   if (error && !product) {
     return (
-      <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <h1 className="text-3xl font-black">
-          Không thể tải sản phẩm
-        </h1>
-        <p className="mt-4 text-[#a43c12]">
-          {error}
-        </p>
+      <section className="product-detail-state">
+        <h1>Không thể tải sản phẩm</h1>
+        <p>{error}</p>
         <button
           type="button"
           onClick={() =>
@@ -230,7 +227,6 @@ export default function ProductDetailPage() {
               (current) => current + 1,
             )
           }
-          className="mt-6 rounded-2xl bg-[#006397] px-6 py-3 font-bold text-white"
         >
           Thử lại
         </button>
@@ -240,21 +236,16 @@ export default function ProductDetailPage() {
 
   if (!product) {
     return (
-      <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <div className="mx-auto grid h-24 w-24 place-items-center rounded-[35%] bg-[#dff4ff] text-5xl">
+      <section className="product-detail-state">
+        <div className="product-detail-state__icon">
           🧩
         </div>
-        <h1 className="mt-6 text-3xl font-black">
-          Không tìm thấy sản phẩm
-        </h1>
-        <p className="mt-3 text-[#707881]">
+        <h1>Không tìm thấy sản phẩm</h1>
+        <p>
           Sản phẩm có thể đã bị ẩn hoặc đường dẫn
           không còn tồn tại.
         </p>
-        <Link
-          to="/san-pham"
-          className="mt-6 inline-flex rounded-2xl bg-[#006397] px-6 py-3 font-bold text-white"
-        >
+        <Link to="/san-pham">
           Quay lại cửa hàng
         </Link>
       </section>
@@ -296,6 +287,16 @@ export default function ProductDetailPage() {
       0,
     );
 
+  const discountPercent =
+    product.compareAtPrice &&
+    product.compareAtPrice > unitPrice
+      ? Math.round(
+          ((product.compareAtPrice - unitPrice) /
+            product.compareAtPrice) *
+            100,
+        )
+      : 0;
+
   function addToCart(goToCheckout: boolean) {
     if (!product || availableStock <= 0) {
       return;
@@ -311,6 +312,7 @@ export default function ProductDetailPage() {
       cartQuantity,
       selectedVariants,
     );
+
     void trackAddToCart({
       product,
       quantity: cartQuantity,
@@ -333,311 +335,409 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-10 lg:px-16">
-      <div className="mb-6 text-sm text-[#707881]">
-        <Link
-          to="/san-pham"
-          className="font-bold text-[#006397]"
+    <main className="product-detail">
+      <div className="product-detail__container">
+        <nav
+          className="product-detail__breadcrumb"
+          aria-label="Đường dẫn"
         >
-          Sản phẩm
-        </Link>
-        <span> / {product.name}</span>
-      </div>
+          <Link to="/">Trang chủ</Link>
+          <span>/</span>
+          <Link to="/san-pham">Sản phẩm</Link>
+          <span>/</span>
+          <strong>{product.name}</strong>
+        </nav>
 
-      {error && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#fff0eb] px-5 py-3 text-sm font-semibold text-[#a43c12]">
-          <span>{error}</span>
-          <button
-            type="button"
-            onClick={() =>
-              setRetryVersion(
-                (current) => current + 1,
-              )
-            }
-            className="rounded-xl bg-white px-4 py-2 font-bold"
-          >
-            Thử lại
-          </button>
-        </div>
-      )}
+        {error && (
+          <div className="product-detail__error">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() =>
+                setRetryVersion(
+                  (current) => current + 1,
+                )
+              }
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
 
-      <div className="grid gap-10 lg:grid-cols-2">
-        <div>
-          <div
-            className="grid aspect-square place-items-center overflow-hidden rounded-[32px] text-[130px]"
-            style={{
-              backgroundColor:
-                product.background,
-            }}
-          >
-            {selectedImage ? (
-              <img
-                src={optimizeCloudinaryUrl(
-                  selectedImage.url,
-                  1080,
-                )}
-                srcSet={getCloudinarySrcSet(
-                  selectedImage.url,
-                  [
-                    480,
-                    640,
-                    800,
+        <section className="product-detail__main">
+          <div className="product-detail__gallery">
+            <div
+              className="product-detail__image-stage"
+              style={{
+                backgroundColor:
+                  product.background,
+              }}
+            >
+              <span className="product-detail__image-grid" />
+
+              {product.badge && (
+                <span className="product-detail__badge">
+                  {product.badge}
+                </span>
+              )}
+
+              {selectedImage ? (
+                <img
+                  src={optimizeCloudinaryUrl(
+                    selectedImage.url,
                     1080,
-                    1400,
-                  ],
-                )}
-                sizes="(max-width: 1023px) 100vw, 50vw"
-                alt={
-                  selectedImage.altText ||
-                  product.name
-                }
-                width="1080"
-                height="1080"
-                className="h-full w-full object-cover"
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-              />
-            ) : (
-              product.emoji
-            )}
-          </div>
-
-          {productImages.length > 1 && (
-            <div className="mt-4 grid grid-cols-5 gap-3">
-              {productImages.map((image) => (
-                <button
-                  key={image.id}
-                  type="button"
-                  onClick={() =>
-                    setSelectedImageId(
-                      image.id,
-                    )
-                  }
-                  className={`aspect-square overflow-hidden rounded-2xl border-2 ${
-                    selectedImage?.id ===
-                    image.id
-                      ? "border-[#006397]"
-                      : "border-transparent"
-                  }`}
-                  aria-label={`Xem ảnh ${
-                    image.altText ||
+                  )}
+                  srcSet={getCloudinarySrcSet(
+                    selectedImage.url,
+                    [
+                      480,
+                      640,
+                      800,
+                      1080,
+                      1400,
+                    ],
+                  )}
+                  sizes="(max-width: 1023px) 100vw, 50vw"
+                  alt={
+                    selectedImage.altText ||
                     product.name
-                  }`}
-                >
-                  <img
-                    src={optimizeCloudinaryUrl(
-                      image.url,
-                      220,
-                    )}
-                    srcSet={getCloudinarySrcSet(
-                      image.url,
-                      [120, 180, 220],
-                    )}
-                    sizes="20vw"
-                    alt={
-                      image.altText ||
-                      product.name
-                    }
-                    width="220"
-                    height="220"
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+                  }
+                  width="1080"
+                  height="1080"
+                  loading="eager"
+                  decoding="async"
+                  fetchPriority="high"
+                />
+              ) : (
+                <span className="product-detail__emoji">
+                  {product.emoji}
+                </span>
+              )}
 
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#006397]">
-            {product.categoryName}
-          </p>
-
-          <h1 className="mt-3 text-3xl font-black leading-tight sm:text-4xl">
-            {product.name}
-          </h1>
-
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <strong className="text-3xl text-[#a43c12]">
-              {formatCurrency(unitPrice)}
-            </strong>
-
-            {product.compareAtPrice && (
-              <span className="text-lg text-[#8b949d] line-through">
-                {formatCurrency(
-                  product.compareAtPrice,
-                )}
+              <span className="product-detail__image-note">
+                in 3D · làm kỹ từng chi tiết
               </span>
+            </div>
+
+            {productImages.length > 1 && (
+              <div className="product-detail__thumbnails">
+                {productImages.map(
+                  (image, index) => (
+                    <button
+                      key={image.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedImageId(
+                          image.id,
+                        )
+                      }
+                      className={
+                        selectedImage?.id ===
+                        image.id
+                          ? "is-active"
+                          : ""
+                      }
+                      aria-label={`Xem ảnh ${
+                        index + 1
+                      } của ${product.name}`}
+                    >
+                      <img
+                        src={optimizeCloudinaryUrl(
+                          image.url,
+                          220,
+                        )}
+                        srcSet={getCloudinarySrcSet(
+                          image.url,
+                          [120, 180, 220],
+                        )}
+                        sizes="20vw"
+                        alt={
+                          image.altText ||
+                          product.name
+                        }
+                        width="220"
+                        height="220"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </button>
+                  ),
+                )}
+              </div>
             )}
           </div>
 
-          <p className="mt-6 whitespace-pre-line leading-8 text-[#3f4850]">
-            {product.description}
-          </p>
-
-          {product.variantGroups?.map(
-            (group) => {
-              const selectedOptionId =
-                selections[group.id] ??
-                group.options[0]?.id;
-
-              return (
-                <fieldset
-                  key={group.id}
-                  className="mt-6"
-                >
-                  <legend className="font-black">
-                    {group.name}
-                  </legend>
-
-                  <div className="mt-3 flex flex-wrap gap-3">
-                    {group.options.map(
-                      (option) => (
-                        <label
-                          key={option.id}
-                          className="cursor-pointer"
-                        >
-                          <input
-                            type="radio"
-                            name={group.id}
-                            value={option.id}
-                            checked={
-                              selectedOptionId ===
-                              option.id
-                            }
-                            onChange={() => {
-                              setSelections(
-                                (current) => ({
-                                  ...current,
-                                  [group.id]:
-                                    option.id,
-                                }),
-                              );
-                              setQuantity(1);
-                            }}
-                            className="peer sr-only"
-                          />
-
-                          <span className="inline-flex min-h-11 items-center rounded-xl border border-[#c7d0da] px-4 text-sm font-bold transition peer-checked:border-[#006397] peer-checked:bg-[#edf4ff] peer-checked:text-[#006397]">
-                            {option.label}
-                            {option.priceDelta
-                              ? ` (+${formatCurrency(
-                                  option.priceDelta,
-                                )})`
-                              : ""}
-                          </span>
-                        </label>
-                      ),
-                    )}
-                  </div>
-                </fieldset>
-              );
-            },
-          )}
-
-          <div className="mt-7 flex flex-wrap items-center gap-4">
-            <div className="flex h-12 overflow-hidden rounded-xl border border-[#c7d0da] bg-white">
-              <button
-                type="button"
-                onClick={() =>
-                  setQuantity((current) =>
-                    Math.max(
-                      1,
-                      current - 1,
-                    ),
-                  )
-                }
-                className="grid h-full w-12 place-items-center text-xl font-bold hover:bg-[#edf4ff]"
-                aria-label="Giảm số lượng"
-              >
-                −
-              </button>
-
-              <span className="grid min-w-12 place-items-center font-black">
-                {quantity}
-              </span>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setQuantity((current) =>
-                    Math.min(
-                      Math.max(
-                        availableStock,
-                        1,
-                      ),
-                      current + 1,
-                    ),
-                  )
-                }
-                className="grid h-full w-12 place-items-center text-xl font-bold hover:bg-[#edf4ff]"
-                aria-label="Tăng số lượng"
-              >
-                +
-              </button>
+          <div className="product-detail__purchase">
+            <div className="product-detail__category">
+              {product.categoryName}
             </div>
 
-            <p
-              className={`text-sm font-bold ${
+            <h1>{product.name}</h1>
+
+            <div className="product-detail__price-row">
+              <strong>
+                {formatCurrency(unitPrice)}
+              </strong>
+
+              {product.compareAtPrice && (
+                <span className="product-detail__compare-price">
+                  {formatCurrency(
+                    product.compareAtPrice,
+                  )}
+                </span>
+              )}
+
+              {discountPercent > 0 && (
+                <span className="product-detail__discount">
+                  Tiết kiệm {discountPercent}%
+                </span>
+              )}
+            </div>
+
+            <div
+              className={`product-detail__stock ${
                 availableStock > 0
-                  ? "text-[#14633d]"
-                  : "text-[#a43c12]"
+                  ? "is-available"
+                  : "is-out"
               }`}
             >
+              <span />
               {availableStock > 0
                 ? `Còn ${availableStock} sản phẩm`
                 : "Tạm hết hàng"}
+            </div>
+
+            {product.variantGroups?.map(
+              (group) => {
+                const selectedOptionId =
+                  selections[group.id] ??
+                  group.options[0]?.id;
+
+                return (
+                  <fieldset
+                    key={group.id}
+                    className="product-detail__variants"
+                  >
+                    <legend>{group.name}</legend>
+
+                    <div>
+                      {group.options.map(
+                        (option) => (
+                          <label
+                            key={option.id}
+                          >
+                            <input
+                              type="radio"
+                              name={group.id}
+                              value={option.id}
+                              checked={
+                                selectedOptionId ===
+                                option.id
+                              }
+                              onChange={() => {
+                                setSelections(
+                                  (current) => ({
+                                    ...current,
+                                    [group.id]:
+                                      option.id,
+                                  }),
+                                );
+                                setQuantity(1);
+                              }}
+                            />
+
+                            <span>
+                              {option.label}
+                              {option.priceDelta
+                                ? ` (+${formatCurrency(
+                                    option.priceDelta,
+                                  )})`
+                                : ""}
+                            </span>
+                          </label>
+                        ),
+                      )}
+                    </div>
+                  </fieldset>
+                );
+              },
+            )}
+
+            <div className="product-detail__quantity-row">
+              <div>
+                <span className="product-detail__field-label">
+                  Số lượng
+                </span>
+
+                <div className="product-detail__quantity">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuantity(
+                        (current) =>
+                          Math.max(
+                            1,
+                            current - 1,
+                          ),
+                      )
+                    }
+                    aria-label="Giảm số lượng"
+                  >
+                    −
+                  </button>
+
+                  <strong>{quantity}</strong>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuantity(
+                        (current) =>
+                          Math.min(
+                            Math.max(
+                              availableStock,
+                              1,
+                            ),
+                            current + 1,
+                          ),
+                      )
+                    }
+                    aria-label="Tăng số lượng"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <p>
+                Tổng tạm tính
+                <strong>
+                  {formatCurrency(
+                    unitPrice * quantity,
+                  )}
+                </strong>
+              </p>
+            </div>
+
+            <div className="product-detail__actions">
+              <button
+                type="button"
+                onClick={() =>
+                  addToCart(true)
+                }
+                disabled={availableStock <= 0}
+                className="product-detail__buy-now"
+              >
+                Mua ngay
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  addToCart(false)
+                }
+                disabled={availableStock <= 0}
+                className="product-detail__add-cart"
+              >
+                Thêm vào giỏ
+              </button>
+            </div>
+
+            {message && (
+              <p className="product-detail__message">
+                {message}
+              </p>
+            )}
+
+            <div className="product-detail__trust">
+              <article>
+                <span className="product-detail__trust-icon product-detail__trust-icon--blue">
+                  ✦
+                </span>
+                <div>
+                  <h2>In 3D sắc nét</h2>
+                  <p>
+                    Kiểm tra bề mặt và chi tiết
+                    trước khi đóng gói.
+                  </p>
+                </div>
+              </article>
+
+              <article>
+                <span className="product-detail__trust-icon product-detail__trust-icon--pink">
+                  ◈
+                </span>
+                <div>
+                  <h2>Đóng gói chống va đập</h2>
+                  <p>
+                    Bảo vệ sản phẩm trong quá
+                    trình vận chuyển.
+                  </p>
+                </div>
+              </article>
+
+              <article>
+                <span className="product-detail__trust-icon product-detail__trust-icon--mint">
+                  ✓
+                </span>
+                <div>
+                  <h2>Thanh toán khi nhận hàng</h2>
+                  <p>
+                    Hỗ trợ COD trên toàn quốc.
+                  </p>
+                </div>
+              </article>
+
+              <article>
+                <span className="product-detail__trust-icon product-detail__trust-icon--yellow">
+                  ⚡
+                </span>
+                <div>
+                  <h2>Freeship từ 200.000đ</h2>
+                  <p>
+                    Áp dụng theo chính sách hiện
+                    tại của shop.
+                  </p>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="product-detail__information">
+          <div>
+            <span className="product-detail__section-kicker">
+              Chi tiết
+            </span>
+            <h2>Thông tin sản phẩm</h2>
+          </div>
+
+          <div className="product-detail__description">
+            <p>
+              {product.description ||
+                "Thông tin sản phẩm đang được cập nhật."}
             </p>
+
+            <aside>
+              <strong>Lưu ý nhỏ</strong>
+              <ul>
+                <li>
+                  Sản phẩm in 3D có thể có vân lớp
+                  nhẹ đặc trưng.
+                </li>
+                <li>
+                  Màu thực tế có thể chênh nhẹ do
+                  màn hình và ánh sáng.
+                </li>
+              </ul>
+            </aside>
           </div>
+        </section>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() =>
-                addToCart(false)
-              }
-              disabled={availableStock <= 0}
-              className="min-h-13 rounded-2xl bg-[#fe7e4f] px-7 font-bold text-white shadow-lg shadow-[#fe7e4f]/20 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Thêm vào giỏ
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                addToCart(true)
-              }
-              disabled={availableStock <= 0}
-              className="min-h-13 rounded-2xl bg-[#006397] px-7 font-bold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Mua ngay
-            </button>
-          </div>
-
-          {message && (
-            <p className="mt-4 rounded-2xl bg-[#dcf8eb] px-4 py-3 text-sm font-bold text-[#14633d]">
-              {message}
-            </p>
-          )}
-
-          <div className="mt-8 grid grid-cols-3 gap-3 text-center text-xs font-bold text-[#3f4850]">
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              Đóng gói cẩn thận
-            </div>
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              Thanh toán COD
-            </div>
-            <div className="rounded-2xl bg-white p-4 shadow-sm">
-              Freeship từ 200k
-            </div>
-          </div>
-        </div>
+        <ProductRecommendations
+          product={product}
+        />
       </div>
-      <ProductRecommendations product={product} />
-
-    </section>
+    </main>
   );
 }
