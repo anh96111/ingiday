@@ -1,4 +1,5 @@
 import { Outlet } from "react-router-dom";
+import ScrollToTop from "../components/common/ScrollToTop";
 import Footer from "../components/shop/Footer";
 import AdTrackingBridge from "../features/ads/AdTrackingBridge";
 import Header from "../components/shop/Header";
@@ -9,7 +10,8 @@ export default function ShopLayout() {
       <AdTrackingBridge />
       <Header />
       <main>
-        <Outlet />
+        <ScrollToTop />
+      <Outlet />
       </main>
       <Footer />
     </div>
