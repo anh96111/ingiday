@@ -43,6 +43,8 @@ const initialSettings: StoreSettings = {
   customPrintStep3Title: "Xác nhận và in",
   customPrintStep3Description:
     "Sau khi chốt yêu cầu, shop tiến hành in và cập nhật tiến độ cho bạn.",
+  logoUrl: "",
+  logoPublicId: "",
   faviconUrl: "",
   faviconPublicId: "",
   socialShareImageUrl: "",
@@ -74,6 +76,8 @@ type StoreSettingsRow = {
   custom_print_step_2_description: string;
   custom_print_step_3_title: string;
   custom_print_step_3_description: string;
+  logo_url: string | null;
+  logo_public_id: string | null;
   favicon_url: string | null;
   favicon_public_id: string | null;
   social_share_image_url: string | null;
@@ -125,6 +129,8 @@ const settingsSelect = `
   custom_print_step_2_description,
   custom_print_step_3_title,
   custom_print_step_3_description,
+  logo_url,
+  logo_public_id,
   favicon_url,
   favicon_public_id,
   social_share_image_url,
@@ -173,6 +179,8 @@ function settingsFromRow(row: StoreSettingsRow): StoreSettings {
     customPrintStep3Description:
       row.custom_print_step_3_description ||
       initialSettings.customPrintStep3Description,
+    logoUrl: row.logo_url ?? "",
+    logoPublicId: row.logo_public_id ?? "",
     faviconUrl: row.favicon_url ?? "",
     faviconPublicId: row.favicon_public_id ?? "",
     socialShareImageUrl:
@@ -190,6 +198,7 @@ function settingsFromRow(row: StoreSettingsRow): StoreSettings {
 }
 
 function settingsToRow(value: StoreSettings) {
+  const logoUrl = value.logoUrl.trim();
   const faviconUrl = value.faviconUrl.trim();
   const socialShareImageUrl =
     value.socialShareImageUrl.trim();
@@ -238,6 +247,11 @@ function settingsToRow(value: StoreSettings) {
     custom_print_step_3_description:
       value.customPrintStep3Description.trim() ||
       initialSettings.customPrintStep3Description,
+    logo_url: logoUrl || null,
+    logo_public_id:
+      logoUrl
+        ? value.logoPublicId.trim() || null
+        : null,
     favicon_url: faviconUrl || null,
     favicon_public_id:
       faviconUrl
@@ -405,6 +419,8 @@ export function SettingsProvider({
             0,
             Math.round(nextSettings.freeShippingThreshold),
           ),
+          logoUrl: nextSettings.logoUrl.trim(),
+          logoPublicId: nextSettings.logoPublicId.trim(),
           faviconUrl: nextSettings.faviconUrl.trim(),
           faviconPublicId:
             nextSettings.faviconPublicId.trim(),

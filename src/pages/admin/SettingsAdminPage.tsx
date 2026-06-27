@@ -24,6 +24,7 @@ export default function SettingsAdminPage() {
     useState<MessageType>("success");
   const [uploadingImage, setUploadingImage] =
     useState<SiteBrandImageKind | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const socialImageInputRef =
     useRef<HTMLInputElement>(null);
@@ -55,27 +56,39 @@ export default function SettingsAdminPage() {
         kind,
       );
 
-      setForm((current) =>
-        kind === "favicon"
-          ? {
-              ...current,
-              faviconUrl: uploaded.url,
-              faviconPublicId: uploaded.publicId,
-            }
-          : {
-              ...current,
-              socialShareImageUrl: uploaded.url,
-              socialShareImagePublicId:
-                uploaded.publicId,
-            },
-      );
+      setForm((current) => {
+        if (kind === "logo") {
+          return {
+            ...current,
+            logoUrl: uploaded.url,
+            logoPublicId: uploaded.publicId,
+          };
+        }
 
-      showMessage(
-        kind === "favicon"
-          ? "Đã tải favicon. Bấm Lưu cài đặt để áp dụng."
-          : "Đã tải ảnh chia sẻ. Bấm Lưu cài đặt để áp dụng.",
-        "success",
-      );
+        if (kind === "favicon") {
+          return {
+            ...current,
+            faviconUrl: uploaded.url,
+            faviconPublicId: uploaded.publicId,
+          };
+        }
+
+        return {
+          ...current,
+          socialShareImageUrl: uploaded.url,
+          socialShareImagePublicId:
+            uploaded.publicId,
+        };
+      });
+
+      const uploadMessage =
+        kind === "logo"
+          ? "Đã tải logo. Bấm Lưu cài đặt để áp dụng."
+          : kind === "favicon"
+            ? "Đã tải favicon. Bấm Lưu cài đặt để áp dụng."
+            : "Đã tải ảnh chia sẻ. Bấm Lưu cài đặt để áp dụng.";
+
+      showMessage(uploadMessage, "success");
     } catch (uploadError) {
       showMessage(
         uploadError instanceof Error
@@ -90,9 +103,11 @@ export default function SettingsAdminPage() {
 
   function clearBrandImage(kind: SiteBrandImageKind) {
     const label =
-      kind === "favicon"
-        ? "favicon"
-        : "ảnh thumbnail chia sẻ";
+      kind === "logo"
+        ? "logo website"
+        : kind === "favicon"
+          ? "favicon"
+          : "ảnh thumbnail chia sẻ";
 
     if (
       !window.confirm(
@@ -102,19 +117,29 @@ export default function SettingsAdminPage() {
       return;
     }
 
-    setForm((current) =>
-      kind === "favicon"
-        ? {
-            ...current,
-            faviconUrl: "",
-            faviconPublicId: "",
-          }
-        : {
-            ...current,
-            socialShareImageUrl: "",
-            socialShareImagePublicId: "",
-          },
-    );
+    setForm((current) => {
+      if (kind === "logo") {
+        return {
+          ...current,
+          logoUrl: "",
+          logoPublicId: "",
+        };
+      }
+
+      if (kind === "favicon") {
+        return {
+          ...current,
+          faviconUrl: "",
+          faviconPublicId: "",
+        };
+      }
+
+      return {
+        ...current,
+        socialShareImageUrl: "",
+        socialShareImagePublicId: "",
+      };
+    });
 
     showMessage(
       `Đã bỏ ${label}. Bấm Lưu cài đặt để áp dụng.`,
@@ -349,14 +374,83 @@ export default function SettingsAdminPage() {
               Nhận diện website và chia sẻ liên kết
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#707881]">
-              Favicon hiển thị trên tab trình duyệt. Ảnh chia sẻ
-              được tự cắt thành 1200 × 630 px để dùng cho
-              Facebook, Messenger, Zalo và các nền tảng hỗ trợ
-              Open Graph.
+              Logo hiển thị ở đầu và cuối website. Favicon hiển
+              thị trên tab trình duyệt. Ảnh chia sẻ được tự cắt
+              thành 1200 × 630 px để dùng cho Facebook,
+              Messenger, Zalo và các nền tảng hỗ trợ Open Graph.
             </p>
           </div>
 
-          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div className="mt-5 grid gap-5 lg:grid-cols-3">
+            <section className="rounded-3xl border border-[#dce3ea] bg-[#f7f9ff] p-5">
+              <div>
+                <h3 className="font-black">Logo website</h3>
+                <p className="mt-1 text-xs leading-5 text-[#707881]">
+                  Giữ nguyên tỷ lệ và nền trong suốt. Logo sẽ
+                  hiển thị tại Header và Footer.
+                </p>
+              </div>
+
+              <div className="mt-4 grid min-h-28 place-items-center overflow-hidden rounded-2xl border border-[#d7dee6] bg-white p-4">
+                {form.logoUrl ? (
+                  <img
+                    src={form.logoUrl}
+                    alt="Xem trước logo website"
+                    className="max-h-20 max-w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-center text-xl font-black text-[#006397]">
+                    {form.storeName || "InGiDay"}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  disabled={
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() =>
+                    logoInputRef.current?.click()
+                  }
+                  className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {uploadingImage === "logo"
+                    ? "Đang tải..."
+                    : form.logoUrl
+                      ? "Thay logo"
+                      : "Tải logo"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    !form.logoUrl ||
+                    loading ||
+                    saving ||
+                    uploadingImage !== null
+                  }
+                  onClick={() => clearBrandImage("logo")}
+                  className="rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-bold text-[#a43c12] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Dùng tên cửa hàng
+                </button>
+              </div>
+
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(event) =>
+                  void handleBrandImage("logo", event)
+                }
+              />
+            </section>
+
             <section className="rounded-3xl border border-[#dce3ea] bg-[#f7f9ff] p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
