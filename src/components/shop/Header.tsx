@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useCart } from "../../features/cart/CartContext";
@@ -33,8 +33,20 @@ export default function Header() {
 
       <header className="sticky top-0 z-40 border-b border-[#bfc7d2]/40 bg-[#f7f9ff]/90 backdrop-blur-xl">
         <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-5 lg:px-16">
-          <Link to="/" className="text-2xl font-black tracking-tight text-[#006397] sm:text-3xl">
-            {settings.storeName}
+          <Link
+            to="/"
+            className="flex min-w-0 items-center text-2xl font-black tracking-tight text-[#006397] sm:text-3xl"
+            aria-label={settings.storeName}
+          >
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt={settings.storeName}
+                className="h-10 max-w-[150px] object-contain sm:h-11 sm:max-w-[190px]"
+              />
+            ) : (
+              settings.storeName
+            )}
           </Link>
 
           <nav className="hidden items-center gap-7 md:flex">

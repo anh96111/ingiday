@@ -79,6 +79,8 @@ export type StoreSettings = {
   customPrintStep2Description: string;
   customPrintStep3Title: string;
   customPrintStep3Description: string;
+  logoUrl: string;
+  logoPublicId: string;
   faviconUrl: string;
   faviconPublicId: string;
   socialShareImageUrl: string;

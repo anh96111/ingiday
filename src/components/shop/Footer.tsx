@@ -34,9 +34,18 @@ export default function Footer() {
         <div>
           <Link
             to="/"
-            className="text-2xl font-black text-white"
+            className="inline-flex max-w-full items-center text-2xl font-black text-white"
+            aria-label={settings.storeName}
           >
-            {settings.storeName}
+            {settings.logoUrl ? (
+              <img
+                src={settings.logoUrl}
+                alt={settings.storeName}
+                className="max-h-14 max-w-[220px] object-contain"
+              />
+            ) : (
+              settings.storeName
+            )}
           </Link>
           <p className="mt-4 max-w-sm text-sm leading-7 text-[#b8c8d5]">
             {settings.footerDescription}

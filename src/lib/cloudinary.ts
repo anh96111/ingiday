@@ -12,6 +12,7 @@ export type CloudinaryUploadResult = {
 };
 
 export type SiteBrandImageKind =
+  | "logo"
   | "favicon"
   | "social-share";
 
@@ -256,6 +257,79 @@ export async function uploadProductImage(
   return uploadPreparedImage(optimizedFile);
 }
 
+async function prepareWebsiteLogoPng(file: File) {
+  assertSiteBrandImage(file);
+
+  const source = await loadImageSource(file);
+  const { width, height } = sourceSize(source);
+
+  if (!width || !height) {
+    closeImageSource(source);
+    throw new Error(
+      `Không thể xác định kích thước ảnh ${file.name}.`,
+    );
+  }
+
+  const maxWidth = 1200;
+  const maxHeight = 480;
+  const scale = Math.min(
+    1,
+    maxWidth / width,
+    maxHeight / height,
+  );
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+  const canvas = document.createElement("canvas");
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d", {
+    alpha: true,
+  });
+
+  if (!context) {
+    closeImageSource(source);
+    throw new Error(
+      "Trình duyệt không hỗ trợ xử lý ảnh.",
+    );
+  }
+
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.clearRect(0, 0, targetWidth, targetHeight);
+  context.drawImage(
+    source,
+    0,
+    0,
+    width,
+    height,
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
+
+  closeImageSource(source);
+
+  const blob = await canvasToBlob(
+    canvas,
+    "image/png",
+  );
+  const safeBaseName = safeImageBaseName(
+    file,
+    "ingiday-logo",
+  );
+
+  return new File(
+    [blob],
+    `${safeBaseName}-logo.png`,
+    {
+      type: "image/png",
+    },
+  );
+}
+
 async function prepareFaviconPng(file: File) {
   assertSiteBrandImage(file);
 
@@ -411,9 +485,11 @@ export async function uploadSiteBrandImage(
   kind: SiteBrandImageKind,
 ): Promise<CloudinaryUploadResult> {
   const preparedFile =
-    kind === "favicon"
-      ? await prepareFaviconPng(file)
-      : await prepareSocialShareJpeg(file);
+    kind === "logo"
+      ? await prepareWebsiteLogoPng(file)
+      : kind === "favicon"
+        ? await prepareFaviconPng(file)
+        : await prepareSocialShareJpeg(file);
 
   return uploadPreparedImage(preparedFile);
 }
