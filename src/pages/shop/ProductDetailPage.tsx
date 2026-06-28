@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect */
+﻿/* eslint-disable react-hooks/set-state-in-effect */
 import {
   useEffect,
   useMemo,
@@ -649,58 +649,84 @@ export default function ProductDetailPage() {
               </p>
             )}
 
-            <div className="product-detail__trust">
+                      <section
+            className="product-detail__trust"
+            aria-label="Cam kết mua hàng tại InGiDay"
+          >
+            <div className="product-detail__trust-head">
+              <span className="product-detail__trust-seal">✨</span>
+              <div>
+                <p className="product-detail__trust-eyebrow">
+                  Cam kết InGiDay
+                </p>
+                <h2>An tâm khi đặt sản phẩm in 3D</h2>
+                <p>
+                  Từng món được đóng gói kỹ, hỗ trợ rõ ràng và có bảo hành
+                  khi phát sinh lỗi từ shop.
+                </p>
+              </div>
+            </div>
+
+            <div className="product-detail__trust-grid">
               <article>
                 <span className="product-detail__trust-icon product-detail__trust-icon--blue">
-                  ✦
+                  🛡️
                 </span>
                 <div>
-                  <h2>In 3D sắc nét</h2>
+                  <h3>BH lỗi 1 đổi 1</h3>
                   <p>
-                    Kiểm tra bề mặt và chi tiết
-                    trước khi đóng gói.
+                    Gặp lỗi từ shop hoặc lỗi sản phẩm rõ ràng, InGiDay hỗ trợ
+                    đổi mới theo chính sách.
                   </p>
                 </div>
               </article>
 
               <article>
                 <span className="product-detail__trust-icon product-detail__trust-icon--pink">
-                  ◈
+                  📦
                 </span>
                 <div>
-                  <h2>Đóng gói chống va đập</h2>
+                  <h3>Đóng gói chống va đập</h3>
                   <p>
-                    Bảo vệ sản phẩm trong quá
-                    trình vận chuyển.
+                    Sản phẩm được bọc và chèn kỹ để hạn chế trầy, móp, gãy
+                    trong lúc vận chuyển.
                   </p>
                 </div>
               </article>
 
               <article>
                 <span className="product-detail__trust-icon product-detail__trust-icon--mint">
-                  ✓
+                  💵
                 </span>
                 <div>
-                  <h2>Thanh toán khi nhận hàng</h2>
+                  <h3>Nhận hàng rồi thanh toán</h3>
                   <p>
-                    Hỗ trợ COD trên toàn quốc.
+                    Hỗ trợ COD toàn quốc, phù hợp khách đặt lần đầu chưa quen
+                    shop.
                   </p>
                 </div>
               </article>
 
               <article>
                 <span className="product-detail__trust-icon product-detail__trust-icon--yellow">
-                  ⚡
+                  💬
                 </span>
                 <div>
-                  <h2>Freeship từ 200.000đ</h2>
+                  <h3>Hỗ trợ khách hàng 24/7</h3>
                   <p>
-                    Áp dụng theo chính sách hiện
-                    tại của shop.
+                    Cần hỏi mẫu, màu, đơn hàng hoặc sản phẩm in riêng đều có
+                    thể nhắn shop hỗ trợ.
                   </p>
                 </div>
               </article>
             </div>
+
+            <p className="product-detail__trust-note">
+              <span>✓</span>
+              Đồ in 3D có thể có vân lớp nhẹ — đây là đặc trưng của sản phẩm
+              in 3D, không phải lỗi.
+            </p>
+          </section>
           </div>
         </section>
 
