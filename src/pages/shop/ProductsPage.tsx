@@ -42,7 +42,7 @@ export default function ProductsPage() {
   const lastTrackedSearchRef = useRef("");
 
   const keyword = searchParams.get("q") ?? "";
-  const categoryId =
+  const categoryParam =
     searchParams.get("danh-muc") ?? "";
   const minPrice = numberParam(
     searchParams.get("gia-tu"),
@@ -118,10 +118,25 @@ export default function ProductsPage() {
     };
   }, []);
 
+
+  const resolvedCategoryId = useMemo(() => {
+    if (!categoryParam) {
+      return "";
+    }
+
+    const matchedCategory = categories.find(
+      (category) =>
+        category.id === categoryParam ||
+        category.slug === categoryParam,
+    );
+
+    return matchedCategory?.id ?? "";
+  }, [categories, categoryParam]);
+
   const filters = useMemo<ProductSearchFilters>(
     () => ({
       query: debouncedKeyword,
-      categoryId,
+      categoryId: resolvedCategoryId,
       minPrice,
       maxPrice,
       inStock,
@@ -130,7 +145,7 @@ export default function ProductsPage() {
       pageSize: PAGE_SIZE,
     }),
     [
-      categoryId,
+      resolvedCategoryId,
       debouncedKeyword,
       inStock,
       maxPrice,
@@ -219,7 +234,7 @@ export default function ProductsPage() {
         <label className="text-sm font-bold">
           Danh mục
           <select
-            value={categoryId}
+            value={categoryParam}
             onChange={(event) =>
               updateParam(
                 "danh-muc",
