@@ -1,4 +1,4 @@
-﻿.product-detail {
+.product-detail {
   --pd-ink: #102033;
   --pd-text: #526a80;
   --pd-muted: #7890a6;
@@ -415,6 +415,126 @@
   background: #e0f7ff;
   border-color: rgba(14, 165, 233, 0.5);
   box-shadow: 0 10px 24px rgba(14, 165, 233, 0.1);
+}
+
+.product-detail__custom {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(255, 247, 237, 0.9);
+  border: 1px solid rgba(251, 146, 60, 0.26);
+  border-radius: 24px;
+}
+
+.product-detail__custom-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.product-detail__custom-fee {
+  flex: 0 0 auto;
+  color: #c2410c;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.product-detail__custom-input {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 10px;
+  padding: 0 14px;
+  color: var(--pd-ink);
+  background: #fff;
+  border: 1px solid rgba(14, 116, 144, 0.16);
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 800;
+  outline: none;
+}
+
+.product-detail__custom-input:focus {
+  border-color: rgba(14, 165, 233, 0.5);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.12);
+}
+
+.product-detail__custom-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--pd-text);
+  font-size: 12px;
+}
+
+.product-detail__custom-help strong {
+  color: var(--pd-ink);
+}
+
+.product-detail__custom-colors {
+  margin: 16px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.product-detail__custom-colors legend {
+  color: var(--pd-ink);
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.product-detail__custom-colors > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.product-detail__custom-colors label {
+  cursor: pointer;
+}
+
+.product-detail__custom-colors input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.product-detail__custom-colors label span {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 13px 0 8px;
+  color: #4b5b69;
+  background: #fff;
+  border: 1px solid rgba(14, 116, 144, 0.16);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.product-detail__custom-colors label img {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.product-detail__custom-colors input:checked + span {
+  color: #0369a1;
+  background: #e0f7ff;
+  border-color: rgba(14, 165, 233, 0.5);
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.1);
+}
+
+.product-detail__custom-colors p {
+  margin: 9px 0 0;
+  color: var(--pd-text);
+  font-size: 12px;
 }
 
 .product-detail__quantity-row {

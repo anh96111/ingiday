@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/set-state-in-effect */
 import {
   useEffect,
   useMemo,
@@ -21,8 +21,13 @@ import {
   optimizeCloudinaryUrl,
 } from "../../lib/cloudinary";
 import { resolveProductSlugRedirect } from "../../services/productRedirects";
+import { fetchProductCustomOptions } from "../../services/customProductOptions";
 import { fetchProductBySlug } from "../../services/products";
 import type { SelectedVariant } from "../../types/cart";
+import type {
+  ProductCustomOptions,
+  SelectedCustomOptions,
+} from "../../types/customProductOptions";
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import "./ProductDetailPage.css";
@@ -50,6 +55,10 @@ export default function ProductDetailPage() {
   const [message, setMessage] = useState("");
   const [selectedImageId, setSelectedImageId] =
     useState("");
+  const [customOptions, setCustomOptions] =
+    useState<ProductCustomOptions | null>(null);
+  const [customText, setCustomText] = useState("");
+  const [customColorId, setCustomColorId] = useState("");
   const trackedProductIdRef = useRef("");
 
   usePageMeta({
@@ -70,6 +79,9 @@ export default function ProductDetailPage() {
     setSelections({});
     setMessage("");
     setSelectedImageId("");
+    setCustomOptions(null);
+    setCustomText("");
+    setCustomColorId("");
     trackedProductIdRef.current = "";
   }, [slug]);
 
@@ -93,6 +105,26 @@ export default function ProductDetailPage() {
 
         if (nextProduct) {
           setProduct(nextProduct);
+          try {
+            const nextCustomOptions = await fetchProductCustomOptions(
+              nextProduct.id,
+            );
+            if (!active) {
+              return;
+            }
+            setCustomOptions(nextCustomOptions);
+            setCustomColorId(nextCustomOptions.colors[0]?.id ?? "");
+          } catch (customOptionsError) {
+            console.warn(
+              "Cannot load custom product options:",
+              customOptionsError,
+            );
+            if (!active) {
+              return;
+            }
+            setCustomOptions(null);
+            setCustomColorId("");
+          }
           return;
         }
 
@@ -171,6 +203,39 @@ export default function ProductDetailPage() {
         },
       );
     }, [product, selections]);
+
+
+  const activeCustomOptions = customOptions?.enabled
+    ? customOptions
+    : null;
+  const customTextConfig = activeCustomOptions?.text.enabled
+    ? activeCustomOptions.text
+    : null;
+  const normalizedCustomText = customText.trim();
+  const availableCustomColors = activeCustomOptions?.colors ?? [];
+  const selectedCustomColor =
+    normalizedCustomText.length > 0 && availableCustomColors.length > 0
+      ? availableCustomColors.find((color) => color.id === customColorId) ??
+        availableCustomColors[0]
+      : undefined;
+  const selectedCustomOptions: SelectedCustomOptions | undefined =
+    customTextConfig && normalizedCustomText
+      ? {
+          text: {
+            label: customTextConfig.label,
+            value: normalizedCustomText,
+            priceDelta: customTextConfig.priceDelta,
+          },
+          color: selectedCustomColor
+            ? {
+                id: selectedCustomColor.id,
+                name: selectedCustomColor.name,
+                imageUrl: selectedCustomColor.imageUrl,
+                colorHex: selectedCustomColor.colorHex,
+              }
+            : undefined,
+        }
+      : undefined;
 
   useEffect(() => {
     if (
@@ -279,13 +344,15 @@ export default function ProductDetailPage() {
           )
         : product.stock;
 
+  const customTextPriceDelta =
+    selectedCustomOptions?.text?.priceDelta ?? 0;
   const unitPrice =
     product.price +
     selectedVariants.reduce(
-      (sum, variant) =>
-        sum + variant.priceDelta,
+      (sum, variant) => sum + variant.priceDelta,
       0,
-    );
+    ) +
+    customTextPriceDelta;
 
   const discountPercent =
     product.compareAtPrice &&
@@ -311,6 +378,7 @@ export default function ProductDetailPage() {
       product,
       cartQuantity,
       selectedVariants,
+      selectedCustomOptions,
     );
 
     void trackAddToCart({
@@ -563,7 +631,86 @@ export default function ProductDetailPage() {
               },
             )}
 
-            <div className="product-detail__quantity-row">
+          {customTextConfig && (
+            <section
+              className="product-detail__custom"
+              aria-label="Tuy chon ca nhan hoa"
+            >
+              <div className="product-detail__custom-head">
+                <label
+                  className="product-detail__field-label"
+                  htmlFor="product-custom-text"
+                >
+                  {customTextConfig.label}
+                </label>
+                {customTextConfig.priceDelta > 0 && (
+                  <span className="product-detail__custom-fee">
+                    (+{formatCurrency(customTextConfig.priceDelta)})
+                  </span>
+                )}
+              </div>
+              <input
+                id="product-custom-text"
+                className="product-detail__custom-input"
+                value={customText}
+                maxLength={customTextConfig.maxLength}
+                placeholder={
+                  customTextConfig.placeholder || "Nhap noi dung tuy chon"
+                }
+                onChange={(event) => {
+                  setCustomText(
+                    event.target.value.slice(
+                      0,
+                      customTextConfig.maxLength,
+                    ),
+                  );
+                }}
+              />
+              <div className="product-detail__custom-help">
+                <span>
+                  {normalizedCustomText
+                    ? "Phu phi chi tinh khi co nhap text."
+                    : "Co the bo trong neu khong can custom text."}
+                </span>
+                <strong>
+                  {customText.length}/{customTextConfig.maxLength}
+                </strong>
+              </div>
+
+              {activeCustomOptions &&
+                normalizedCustomText &&
+                availableCustomColors.length > 0 && (
+                  <fieldset className="product-detail__custom-colors">
+                    <legend>Mau chu (mien phi)</legend>
+                    <div>
+                      {availableCustomColors.map((color) => {
+                        const selectedColorId =
+                          customColorId || availableCustomColors[0]?.id;
+                        return (
+                          <label key={color.id}>
+                            <input
+                              type="radio"
+                              name="custom-text-color"
+                              value={color.id}
+                              checked={selectedColorId === color.id}
+                              onChange={() => setCustomColorId(color.id)}
+                            />
+                            <span>
+                              <img src={color.imageUrl} alt="" />
+                              {color.name}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p>
+                      Mau sac mien phi va chi ap dung cho phan text da nhap.
+                    </p>
+                  </fieldset>
+                )}
+            </section>
+          )}
+          <div className="product-detail__quantity-row">
               <div>
                 <span className="product-detail__field-label">
                   Số lượng

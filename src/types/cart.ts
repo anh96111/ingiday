@@ -1,3 +1,5 @@
+import type { SelectedCustomOptions } from "./customProductOptions";
+
 export type SelectedVariant = {
   groupId: string;
   groupName: string;
@@ -20,6 +22,7 @@ export type CartItem = {
   quantity: number;
   stock: number;
   selectedVariants: SelectedVariant[];
+  selectedCustomOptions?: SelectedCustomOptions;
 };
 
 export type CheckoutCustomer = {

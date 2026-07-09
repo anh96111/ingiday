@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { Product } from "../../types/product";
 import type { CartItem, SelectedVariant } from "../../types/cart";
+import type { SelectedCustomOptions } from "../../types/customProductOptions";
 
 const STORAGE_KEY = "ingiday-cart";
 
@@ -10,7 +11,12 @@ type CartContextValue = {
   items: CartItem[];
   itemCount: number;
   subtotal: number;
-  addItem: (product: Product, quantity: number, selectedVariants: SelectedVariant[]) => void;
+  addItem: (
+    product: Product,
+    quantity: number,
+    selectedVariants: SelectedVariant[],
+    selectedCustomOptions?: SelectedCustomOptions,
+  ) => void;
   updateQuantity: (key: string, quantity: number) => void;
   removeItem: (key: string) => void;
   clearCart: () => void;
@@ -36,14 +42,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  function addItem(product: Product, quantity: number, selectedVariants: SelectedVariant[]) {
-    const keyParts = [product.id, ...selectedVariants.map((variant) => variant.optionId)];
+  function addItem(
+    product: Product,
+    quantity: number,
+    selectedVariants: SelectedVariant[],
+    selectedCustomOptions?: SelectedCustomOptions,
+  ) {
+    const normalizedCustomText = selectedCustomOptions?.text?.value.trim() ?? "";
+    const customColorId = normalizedCustomText
+      ? selectedCustomOptions?.color?.id ?? ""
+      : "";
+    const keyParts = [
+      product.id,
+      ...selectedVariants.map((variant) => variant.optionId),
+      normalizedCustomText ? "text:" + normalizedCustomText : "text:",
+      customColorId ? "color:" + customColorId : "color:",
+    ];
     const key = keyParts.join("::");
     const variantStock = selectedVariants
       .map((variant) => variant.stock)
       .filter((stock): stock is number => typeof stock === "number");
-    const stock = variantStock.length > 0 ? Math.min(product.stock, ...variantStock) : product.stock;
-    const unitPrice = product.price + selectedVariants.reduce((sum, variant) => sum + variant.priceDelta, 0);
+    const stock =
+      variantStock.length > 0 ? Math.min(product.stock, ...variantStock) : product.stock;
+    const effectiveCustomOptions =
+      normalizedCustomText && selectedCustomOptions?.text
+        ? {
+            text: {
+              label: selectedCustomOptions.text.label,
+              value: normalizedCustomText,
+              priceDelta: selectedCustomOptions.text.priceDelta,
+            },
+            color: selectedCustomOptions.color,
+          }
+        : undefined;
+    const customPriceDelta = effectiveCustomOptions?.text?.priceDelta ?? 0;
+    const unitPrice =
+      product.price +
+      selectedVariants.reduce((sum, variant) => sum + variant.priceDelta, 0) +
+      customPriceDelta;
     const primaryImage =
       product.images?.find((image) => image.isPrimary) ??
       [...(product.images ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)[0];
@@ -57,7 +93,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
             ? {
                 ...item,
                 imageUrl: primaryImage?.url ?? item.imageUrl,
+                unitPrice,
                 quantity: Math.min(item.quantity + quantity, stock),
+                selectedCustomOptions: effectiveCustomOptions,
               }
             : item,
         );
@@ -78,6 +116,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           quantity: Math.min(Math.max(quantity, 1), stock),
           stock,
           selectedVariants,
+          selectedCustomOptions: effectiveCustomOptions,
         },
       ];
     });

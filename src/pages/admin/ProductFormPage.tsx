@@ -9,13 +9,24 @@ import {
   listAdDataSources,
   saveProductAdAssignments,
 } from "../../services/ads";
+import {
+  createDefaultProductCustomOptions,
+  fetchProductCustomOptions,
+  listCustomOptionColors,
+  saveProductCustomOptions,
+} from "../../services/customProductOptions";
 import type {
   AdDataSource,
   AdPlatform,
   ProductAdAssignments,
 } from "../../types/ads";
+import type {
+  CustomOptionColor,
+  ProductCustomOptionsInput,
+} from "../../types/customProductOptions";
 import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup } from "../../types/product";
 import { slugify } from "../../utils/slug";
+import { formatCurrency } from "../../utils/currency";
 
 type ProductFormState = {
   name: string;
@@ -32,6 +43,15 @@ type ProductFormState = {
   featured: boolean;
   status: ProductStatus;
   variantGroups: ProductVariantGroup[];
+};
+type ProductCustomOptionsFormState = {
+  enabled: boolean;
+  textEnabled: boolean;
+  textLabel: string;
+  textPlaceholder: string;
+  textMaxLength: string;
+  textPriceDelta: string;
+  colorIds: string[];
 };
 
 function makeId(prefix: string) {
@@ -60,6 +80,41 @@ function createInitialState(product?: Product): ProductFormState {
   };
 }
 
+function createInitialCustomOptionsForm(): ProductCustomOptionsFormState {
+  return {
+    enabled: false,
+    textEnabled: false,
+    textLabel: "Custom text",
+    textPlaceholder: "VÃ­ dá»¥: TÃªn cá»§a báº¡n",
+    textMaxLength: "30",
+    textPriceDelta: "0",
+    colorIds: [],
+  };
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") {
+      return message;
+    }
+  }
+
+  return "Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh.";
+}
+
+function clampTextMaxLength(value: string) {
+  return Math.min(120, Math.max(1, Math.trunc(Number(value) || 30)));
+}
+
+function normalizePriceDelta(value: string) {
+  return Math.max(0, Math.round(Number(value) || 0));
+}
+
 export default function ProductFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -77,6 +132,10 @@ export default function ProductFormPage() {
   });
   const [adsLoading, setAdsLoading] = useState(true);
   const [adsError, setAdsError] = useState("");
+  const [customColors, setCustomColors] = useState<CustomOptionColor[]>([]);
+  const [customOptions, setCustomOptions] = useState<ProductCustomOptionsFormState>(() => createInitialCustomOptionsForm());
+  const [customOptionsLoading, setCustomOptionsLoading] = useState(true);
+  const [customOptionsError, setCustomOptionsError] = useState("");
   const isEditing = Boolean(existingProduct || createdProductId);
 
   useEffect(() => {
@@ -125,6 +184,49 @@ export default function ProductFormPage() {
       active = false;
     };
   }, [id, existingProduct?.id]);
+
+  useEffect(() => {
+    let active = true;
+    const productId = existingProduct?.id ?? createdProductId ?? "";
+
+    setCustomOptionsLoading(true);
+    setCustomOptionsError("");
+
+    void Promise.all([
+      listCustomOptionColors(true),
+      productId
+        ? fetchProductCustomOptions(productId)
+        : Promise.resolve(createDefaultProductCustomOptions("")),
+    ])
+      .then(([colors, options]) => {
+        if (!active) return;
+
+        setCustomColors(colors);
+        setCustomOptions({
+          enabled: options.enabled,
+          textEnabled: options.text.enabled,
+          textLabel: options.text.label,
+          textPlaceholder: options.text.placeholder,
+          textMaxLength: String(options.text.maxLength),
+          textPriceDelta: String(options.text.priceDelta),
+          colorIds: options.colors.map((color) => color.id),
+        });
+      })
+      .catch((loadCustomOptionsError: unknown) => {
+        if (!active) return;
+
+        setCustomOptionsError(
+          "KhÃ´ng thá»ƒ táº£i Custom Product Options: " + errorMessage(loadCustomOptionsError),
+        );
+      })
+      .finally(() => {
+        if (active) setCustomOptionsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [existingProduct?.id, createdProductId]);
 
   if (loading) {
     return <section className="rounded-3xl bg-white p-8 text-center shadow-sm">Đang tải dữ liệu sản phẩm...</section>;
@@ -205,6 +307,43 @@ export default function ProductFormPage() {
     }));
   }
 
+  function updateCustomOptions(changes: Partial<ProductCustomOptionsFormState>) {
+    setCustomOptions((current) => ({ ...current, ...changes }));
+  }
+
+  function toggleCustomColor(colorId: string) {
+    setCustomOptions((current) => {
+      const hasColor = current.colorIds.includes(colorId);
+
+      return {
+        ...current,
+        colorIds: hasColor
+          ? current.colorIds.filter((item) => item !== colorId)
+          : [...current.colorIds, colorId],
+      };
+    });
+  }
+
+  function colorIsSelected(colorId: string) {
+    return customOptions.colorIds.includes(colorId);
+  }
+
+  function buildCustomOptionsInput(): ProductCustomOptionsInput {
+    return {
+      enabled: customOptions.enabled,
+      text: {
+        enabled: customOptions.enabled && customOptions.textEnabled,
+        label: customOptions.textLabel.trim() || "Custom text",
+        placeholder: customOptions.textPlaceholder.trim(),
+        maxLength: clampTextMaxLength(customOptions.textMaxLength),
+        priceDelta: normalizePriceDelta(customOptions.textPriceDelta),
+      },
+      colorIds: customOptions.enabled ? customOptions.colorIds : [],
+    };
+  }
+
+
+
   function sourcesFor(platform: AdPlatform) {
     return adSources.filter(
       (source) => source.platform === platform,
@@ -239,6 +378,16 @@ export default function ProductFormPage() {
       return;
     }
 
+    if (customOptionsLoading) {
+      setError("Vui lÃ²ng chá» táº£i Custom Product Options hoÃ n táº¥t.");
+      return;
+    }
+
+    if (customOptionsError) {
+      setError(customOptionsError);
+      return;
+    }
+
     const category = categories.find((item) => item.id === form.categoryId);
     const price = Number(form.price);
     const stock = Number(form.stock);
@@ -260,6 +409,25 @@ export default function ProductFormPage() {
       return;
     }
 
+    if (customOptions.enabled && customOptions.textEnabled) {
+      if (!customOptions.textLabel.trim()) {
+        setError("Vui lÃ²ng nháº­p Label cho custom text.");
+        return;
+      }
+
+      const maxLength = Number(customOptions.textMaxLength);
+      if (!Number.isFinite(maxLength) || maxLength < 1 || maxLength > 120) {
+        setError("Giá»›i háº¡n kÃ½ tá»± custom text pháº£i tá»« 1 Ä‘áº¿n 120.");
+        return;
+      }
+
+      const priceDelta = Number(customOptions.textPriceDelta);
+      if (!Number.isFinite(priceDelta) || priceDelta < 0) {
+        setError("Phá»¥ phÃ­ custom text khÃ´ng há»£p lá»‡.");
+        return;
+      }
+    }
+
     const variantGroups = form.variantGroups
       .map((group) => ({
         ...group,
@@ -269,6 +437,7 @@ export default function ProductFormPage() {
           .map((option) => ({ ...option, label: option.label.trim() })),
       }))
       .filter((group) => group.name && group.options.length > 0);
+    const customOptionsInput = buildCustomOptionsInput();
 
     const status: ProductStatus = stock === 0 && form.status === "active" ? "out_of_stock" : form.status;
     const input: ProductInput = {
@@ -313,6 +482,18 @@ export default function ProductFormPage() {
 
     if (!targetProductId) {
       setCreatedProductId(savedProductId);
+    }
+
+    try {
+      await saveProductCustomOptions(savedProductId, customOptionsInput);
+    } catch (customSaveError) {
+      setSaving(false);
+      setError(
+        "Sáº£n pháº©m Ä‘Ã£ lÆ°u nhÆ°ng chÆ°a lÆ°u Ä‘Æ°á»£c Custom Product Options: " +
+          errorMessage(customSaveError) +
+          ". Báº¥m lÆ°u láº¡i Ä‘á»ƒ thá»­ láº¡i.",
+      );
+      return;
     }
 
     try {
@@ -403,6 +584,166 @@ export default function ProductFormPage() {
             onUploadingChange={setUploadingImages}
             onChange={(images) => setForm((current) => ({ ...current, images }))}
           />
+
+        <article className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-black">Custom Product Options</h2>
+              <p className="mt-1 text-sm leading-6 text-[#707881]">
+                Cáº¥u hÃ¬nh riÃªng theo tá»«ng sáº£n pháº©m. MÃ u custom miá»…n phÃ­; chá»‰ custom text má»›i tÃ­nh phá»¥ phÃ­ khi khÃ¡ch nháº­p ná»™i dung.
+              </p>
+            </div>
+            <label className="flex items-center gap-3 rounded-2xl bg-[#f7f9ff] px-4 py-3 text-sm font-bold">
+              <input
+                type="checkbox"
+                checked={customOptions.enabled}
+                onChange={(event) => updateCustomOptions({ enabled: event.target.checked })}
+                className="h-5 w-5 accent-[#006397]"
+              />
+              Báº­t custom
+            </label>
+          </div>
+
+          {customOptions.enabled && (
+            <div className="mt-5 space-y-5">
+              <label className="flex items-start gap-3 rounded-2xl border border-[#dce3ea] bg-[#f7f9ff] p-4 text-sm font-bold">
+                <input
+                  type="checkbox"
+                  checked={customOptions.textEnabled}
+                  onChange={(event) => updateCustomOptions({ textEnabled: event.target.checked })}
+                  className="mt-1 h-5 w-5 accent-[#006397]"
+                />
+                <span>
+                  Báº­t custom text
+                  <span className="mt-1 block font-normal leading-6 text-[#707881]">
+                    KhÃ¡ch cÃ³ thá»ƒ bá» trá»‘ng. Phá»¥ phÃ­ chá»‰ Ä‘Æ°á»£c cá»™ng khi khÃ¡ch nháº­p text.
+                  </span>
+                </span>
+              </label>
+
+              {customOptions.textEnabled && (
+                <div className="grid gap-4 rounded-3xl border border-[#dce3ea] p-5 md:grid-cols-2">
+                  <label className="text-sm font-bold">
+                    Label
+                    <input
+                      value={customOptions.textLabel}
+                      onChange={(event) => updateCustomOptions({ textLabel: event.target.value })}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                      placeholder="TÃªn in lÃªn sáº£n pháº©m"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold">
+                    Placeholder
+                    <input
+                      value={customOptions.textPlaceholder}
+                      onChange={(event) => updateCustomOptions({ textPlaceholder: event.target.value })}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                      placeholder="VÃ­ dá»¥: Báº£o An"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold">
+                    Giá»›i háº¡n kÃ½ tá»±
+                    <input
+                      type="number"
+                      min="1"
+                      max="120"
+                      value={customOptions.textMaxLength}
+                      onChange={(event) => updateCustomOptions({ textMaxLength: event.target.value })}
+                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                    />
+                  </label>
+
+                  <label className="text-sm font-bold">
+                    Phá»¥ phÃ­ custom text
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={customOptions.textPriceDelta}
+                        onChange={(event) => updateCustomOptions({ textPriceDelta: event.target.value })}
+                        className="h-11 rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                        placeholder="0"
+                      />
+                      <span className="inline-flex min-h-11 items-center rounded-xl bg-[#fff4ec] px-4 text-sm font-black text-[#a43c12]">
+                        +{formatCurrency(normalizePriceDelta(customOptions.textPriceDelta))}
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              <div className="rounded-3xl border border-[#dce3ea] p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-black">MÃ u cho custom text</h3>
+                    <p className="mt-1 text-sm leading-6 text-[#707881]">
+                      Chá»n danh sÃ¡ch mÃ u miá»…n phÃ­ riÃªng cho sáº£n pháº©m nÃ y. MÃ u chá»‰ Ã¡p cho pháº§n text khÃ¡ch nháº­p.
+                    </p>
+                  </div>
+                  <Link to="/admin/mau-custom" className="rounded-xl bg-[#edf4ff] px-4 py-2 text-sm font-bold text-[#006397]">
+                    Quáº£n lÃ½ báº£ng mÃ u
+                  </Link>
+                </div>
+
+                {customOptionsLoading && (
+                  <p className="mt-4 rounded-2xl bg-[#f7f9ff] p-4 text-sm text-[#707881]">
+                    Äang táº£i báº£ng mÃ u custom...
+                  </p>
+                )}
+
+                {customOptionsError && (
+                  <p className="mt-4 rounded-2xl bg-[#fff0eb] p-4 text-sm font-semibold text-[#a43c12]">
+                    {customOptionsError}
+                  </p>
+                )}
+
+                {!customOptionsLoading && !customOptionsError && customColors.length === 0 && (
+                  <p className="mt-4 rounded-2xl border border-dashed border-[#bfc7d2] p-5 text-center text-sm text-[#707881]">
+                    ChÆ°a cÃ³ mÃ u custom nÃ o trong báº£ng mÃ u Admin.
+                  </p>
+                )}
+
+                {!customOptionsLoading && !customOptionsError && customColors.length > 0 && (
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {customColors.map((color) => (
+                      <label
+                        key={color.id}
+                        className={
+                          "flex cursor-pointer gap-3 rounded-2xl border p-3 text-sm transition " +
+                          (colorIsSelected(color.id)
+                            ? "border-[#006397] bg-[#edf4ff]"
+                            : "border-[#dce3ea] bg-white") +
+                          (!color.isActive ? " opacity-60" : "")
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={colorIsSelected(color.id)}
+                          onChange={() => toggleCustomColor(color.id)}
+                          className="mt-4 h-5 w-5 accent-[#006397]"
+                        />
+                        <img
+                          src={color.imageUrl}
+                          alt={"MÃ u " + color.name}
+                          className="h-14 w-14 rounded-2xl border border-[#dce3ea] object-cover"
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-bold text-[#252525]">{color.name}</span>
+                          <span className="mt-1 block text-xs font-semibold text-[#707881]">
+                            {color.isActive ? "Äang báº­t" : "Äang táº¯t"}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </article>
 
           <article className="rounded-3xl bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-4">

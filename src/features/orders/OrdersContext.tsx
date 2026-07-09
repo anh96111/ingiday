@@ -5,6 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
 import { submitStoreOrder } from "../../services/orders";
 import type { CartItem, CheckoutCustomer, LocalOrder, SelectedVariant } from "../../types/cart";
+import type { SelectedCustomOptions } from "../../types/customProductOptions";
 import type { OrderStatus, StoreOrder } from "../../types/store";
 
 type OrdersActionResult<T = undefined> = {
@@ -41,6 +42,7 @@ type OrderItemRow = {
   unit_price: number | string;
   quantity: number;
   selected_variants: unknown;
+  custom_options: unknown;
 };
 
 type StatusHistoryRow = {
@@ -137,8 +139,9 @@ const ORDER_SELECT = `
     product_emoji,
     unit_price,
     quantity,
-    selected_variants
-  ),
+    selected_variants,
+          custom_options
+        ),
   order_status_history (
     to_status,
     created_at
@@ -162,6 +165,60 @@ function parseSelectedVariants(value: unknown): SelectedVariant[] {
   });
 }
 
+
+function parseSelectedCustomOptions(value: unknown): SelectedCustomOptions | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const source = value as {
+    text?: { label?: unknown; value?: unknown; priceDelta?: unknown };
+    color?: { id?: unknown; name?: unknown; imageUrl?: unknown; colorHex?: unknown };
+  };
+  const textValue =
+    typeof source.text?.value === "string" ? source.text.value.trim() : "";
+
+  if (!textValue) {
+    return undefined;
+  }
+
+  const text = {
+    label:
+      typeof source.text?.label === "string" && source.text.label.trim()
+        ? source.text.label
+        : "Custom text",
+    value: textValue,
+    priceDelta:
+      typeof source.text?.priceDelta === "number"
+        ? source.text.priceDelta
+        : Number(source.text?.priceDelta ?? 0),
+  };
+
+  const colorId =
+    typeof source.color?.id === "string" ? source.color.id.trim() : "";
+  const colorName =
+    typeof source.color?.name === "string" ? source.color.name.trim() : "";
+
+  return {
+    text,
+    color:
+      colorId && colorName
+        ? {
+            id: colorId,
+            name: colorName,
+            imageUrl:
+              typeof source.color?.imageUrl === "string"
+                ? source.color.imageUrl
+                : "",
+            colorHex:
+              typeof source.color?.colorHex === "string"
+                ? source.color.colorHex
+                : undefined,
+          }
+        : undefined,
+  };
+}
+
 function itemFromRow(row: OrderItemRow): CartItem {
   return {
     key: row.id,
@@ -175,6 +232,7 @@ function itemFromRow(row: OrderItemRow): CartItem {
     quantity: row.quantity,
     stock: Number.MAX_SAFE_INTEGER,
     selectedVariants: parseSelectedVariants(row.selected_variants),
+    selectedCustomOptions: parseSelectedCustomOptions(row.custom_options),
   };
 }
 

@@ -43,6 +43,7 @@ type PendingOrderRequest = {
       productId: string;
       quantity: number;
       selectedVariants: LocalOrder["items"][number]["selectedVariants"];
+        selectedCustomOptions?: LocalOrder["items"][number]["selectedCustomOptions"];
     }>;
     couponCode?: string;
   };
@@ -91,28 +92,49 @@ function buildOrderSnapshot(
       province: order.customer.province.trim(),
       district: order.customer.district.trim(),
       ward: order.customer.ward.trim(),
-      addressDetail:
-        order.customer.addressDetail.trim(),
+      addressDetail: order.customer.addressDetail.trim(),
       note: order.customer.note.trim(),
     },
-    items: order.items.map((item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      selectedVariants: item.selectedVariants
-        .map((variant) => ({
-          groupId: variant.groupId,
-          groupName: variant.groupName,
-          optionId: variant.optionId,
-          optionLabel: variant.optionLabel,
-          priceDelta: variant.priceDelta,
-          stock: variant.stock,
-        }))
-        .sort((left, right) =>
-          `${left.groupId}:${left.optionId}`.localeCompare(
-            `${right.groupId}:${right.optionId}`,
+    items: order.items.map((item) => {
+      const selectedText = item.selectedCustomOptions?.text;
+      const selectedColor = item.selectedCustomOptions?.color;
+
+      return {
+        productId: item.productId,
+        quantity: item.quantity,
+        selectedVariants: item.selectedVariants
+          .map((variant) => ({
+            groupId: variant.groupId,
+            groupName: variant.groupName,
+            optionId: variant.optionId,
+            optionLabel: variant.optionLabel,
+            priceDelta: variant.priceDelta,
+            stock: variant.stock,
+          }))
+          .sort((left, right) =>
+            (left.groupId + ":" + left.optionId).localeCompare(
+              right.groupId + ":" + right.optionId,
+            ),
           ),
-        ),
-    })),
+        selectedCustomOptions: selectedText
+          ? {
+              text: {
+                label: selectedText.label,
+                value: selectedText.value.trim(),
+                priceDelta: selectedText.priceDelta,
+              },
+              color: selectedColor
+                ? {
+                    id: selectedColor.id,
+                    name: selectedColor.name,
+                    imageUrl: selectedColor.imageUrl,
+                    colorHex: selectedColor.colorHex,
+                  }
+                : undefined,
+            }
+          : undefined,
+      };
+    }),
     couponCode: order.couponCode?.trim().toUpperCase(),
   };
 }
@@ -265,7 +287,7 @@ function errorMessage(error: unknown) {
     return (error as RpcError).message as string;
   }
 
-  return "KhÃ´ng thá»ƒ táº¡o Ä‘Æ¡n hÃ ng.";
+  return "KhÃ´ng thá»ƒ táº¡o Ä‘Æ¡n hÃ ng.";
 }
 
 function isTransientError(error: unknown) {
@@ -306,17 +328,16 @@ export async function submitStoreOrder(
       success: false,
       requestId: pending.requestId,
       message:
-        "Thiáº¿t bá»‹ Ä‘ang máº¥t máº¡ng. ThÃ´ng tin Ä‘Æ¡n Ä‘Ã£ Ä‘Æ°á»£c giá»¯ láº¡i; hÃ£y káº¿t ná»‘i máº¡ng rá»“i báº¥m Äáº·t hÃ ng COD láº¡i.",
+        "Thiáº¿t bá»‹ Ä‘ang máº¥t máº¡ng. ThÃ´ng tin Ä‘Æ¡n Ä‘Ã£ Ä‘Æ°á»£c giá»¯ láº¡i; hÃ£y káº¿t ná»‘i máº¡ng rá»“i báº¥m Äáº·t hÃ ng COD láº¡i.",
     };
   }
 
-  const payloadItems = order.items.map(
-    (item) => ({
-      productId: item.productId,
-      quantity: item.quantity,
-      selectedVariants: item.selectedVariants,
-    }),
-  );
+  const payloadItems = order.items.map((item) => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    selectedVariants: item.selectedVariants,
+    selectedCustomOptions: item.selectedCustomOptions,
+  }));
 
   for (
     let attempt = 1;
@@ -364,7 +385,7 @@ export async function submitStoreOrder(
           requestId: pending.requestId,
           message:
             response.error.message ||
-            "KhÃ´ng thá»ƒ táº¡o Ä‘Æ¡n hÃ ng.",
+            "KhÃ´ng thá»ƒ táº¡o Ä‘Æ¡n hÃ ng.",
         };
       }
 
@@ -383,7 +404,7 @@ export async function submitStoreOrder(
           success: false,
           requestId: pending.requestId,
           message:
-            "ChÆ°a xÃ¡c nháº­n Ä‘Æ°á»£c mÃ£ Ä‘Æ¡n. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng.",
+            "ChÆ°a xÃ¡c nháº­n Ä‘Æ°á»£c mÃ£ Ä‘Æ¡n. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng.",
         };
       }
 
@@ -395,8 +416,8 @@ export async function submitStoreOrder(
         success: true,
         requestId: pending.requestId,
         message: result.replayed
-          ? "ÄÃ£ tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng vá»«a táº¡o."
-          : "ÄÃ£ táº¡o Ä‘Æ¡n hÃ ng.",
+          ? "ÄÃ£ tÃ¬m tháº¥y Ä‘Æ¡n hÃ ng vá»«a táº¡o."
+          : "ÄÃ£ táº¡o Ä‘Æ¡n hÃ ng.",
         data: result,
       };
     } catch (error) {
@@ -412,7 +433,7 @@ export async function submitStoreOrder(
         success: false,
         requestId: pending.requestId,
         message: isTransientError(error)
-          ? "Káº¿t ná»‘i khÃ´ng á»•n Ä‘á»‹nh. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ dÃ¹ng cÃ¹ng mÃ£ yÃªu cáº§u vÃ  khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng."
+          ? "Káº¿t ná»‘i khÃ´ng á»•n Ä‘á»‹nh. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ dÃ¹ng cÃ¹ng mÃ£ yÃªu cáº§u vÃ  khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng."
           : errorMessage(error),
       };
     }
@@ -422,6 +443,6 @@ export async function submitStoreOrder(
     success: false,
     requestId: pending.requestId,
     message:
-      "ChÆ°a xÃ¡c nháº­n Ä‘Æ°á»£c Ä‘Æ¡n hÃ ng. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng.",
+      "ChÆ°a xÃ¡c nháº­n Ä‘Æ°á»£c Ä‘Æ¡n hÃ ng. HÃ£y báº¥m Äáº·t hÃ ng COD láº¡i; há»‡ thá»‘ng sáº½ khÃ´ng táº¡o Ä‘Æ¡n trÃ¹ng.",
   };
 }

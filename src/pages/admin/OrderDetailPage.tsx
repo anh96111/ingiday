@@ -146,7 +146,44 @@ export default function OrderDetailPage() {
                       </p>
                     )}
                     <p className="mt-2 text-sm">
-                      {item.quantity} × {formatCurrency(item.unitPrice)}
+
+              {item.selectedCustomOptions?.text && (
+                <div
+                  data-custom-options-display="admin-order"
+                  className="mt-2 space-y-1 rounded-xl bg-[#f7f9ff] px-3 py-2 text-xs leading-5 text-[#3f4850]"
+                >
+                  <p>
+                    <span className="font-bold text-[#091d2e]">
+                      {item.selectedCustomOptions.text.label}:
+                    </span>{" "}
+                    {item.selectedCustomOptions.text.value}
+                  </p>
+                  {item.selectedCustomOptions.color && (
+                    <p className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-[#091d2e]">
+                        Màu chữ:
+                      </span>
+                      {item.selectedCustomOptions.color.imageUrl && (
+                        <img
+                          src={item.selectedCustomOptions.color.imageUrl}
+                          alt=""
+                          className="h-4 w-4 rounded-full object-cover"
+                        />
+                      )}
+                      <span>{item.selectedCustomOptions.color.name}</span>
+                      <span className="font-semibold text-[#14633d]">
+                        miễn phí
+                      </span>
+                    </p>
+                  )}
+                  {item.selectedCustomOptions.text.priceDelta > 0 && (
+                    <p className="font-semibold text-[#a43c12]">
+                      Phụ phí text: +{formatCurrency(item.selectedCustomOptions.text.priceDelta)}
+                    </p>
+                  )}
+                </div>
+              )}
+              {item.quantity} × {formatCurrency(item.unitPrice)}
                     </p>
                   </div>
 

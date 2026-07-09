@@ -1,4 +1,4 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useCart } from "../../features/cart/CartContext";
 import { useSettings } from "../../features/settings/SettingsContext";
 import { formatCurrency } from "../../utils/currency";
@@ -34,7 +34,44 @@ export default function CartPage() {
               <div>
                 <Link to={`/san-pham/${item.slug}`} className="text-lg font-black text-[#091d2e] hover:text-[#006397]">{item.name}</Link>
                 {item.selectedVariants.length > 0 && <p className="mt-2 text-sm text-[#707881]">{item.selectedVariants.map((variant) => `${variant.groupName}: ${variant.optionLabel}`).join(" · ")}</p>}
-                <strong className="mt-3 block text-[#a43c12]">{formatCurrency(item.unitPrice)}</strong>
+                <strong className="mt-3 block text-[#a43c12]">
+                {item.selectedCustomOptions?.text && (
+                  <div
+                    data-custom-options-display="cart"
+                    className="mt-2 space-y-1 rounded-2xl bg-[#f7f9ff] px-3 py-2 text-xs leading-5 text-[#3f4850]"
+                  >
+                    <p>
+                      <span className="font-bold text-[#091d2e]">
+                        {item.selectedCustomOptions.text.label}:
+                      </span>{" "}
+                      {item.selectedCustomOptions.text.value}
+                    </p>
+                    {item.selectedCustomOptions.color && (
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-[#091d2e]">
+                          Màu chữ:
+                        </span>
+                        {item.selectedCustomOptions.color.imageUrl && (
+                          <img
+                            src={item.selectedCustomOptions.color.imageUrl}
+                            alt=""
+                            className="h-5 w-5 rounded-full object-cover"
+                          />
+                        )}
+                        <span>{item.selectedCustomOptions.color.name}</span>
+                        <span className="font-semibold text-[#14633d]">
+                          miễn phí
+                        </span>
+                      </p>
+                    )}
+                    {item.selectedCustomOptions.text.priceDelta > 0 && (
+                      <p className="font-semibold text-[#a43c12]">
+                        Phụ phí text: +{formatCurrency(item.selectedCustomOptions.text.priceDelta)}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {formatCurrency(item.unitPrice)}</strong>
               </div>
               <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
                 <div className="flex h-11 items-center overflow-hidden rounded-xl border border-[#bfc7d2]">

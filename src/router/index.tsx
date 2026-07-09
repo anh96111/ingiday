@@ -18,6 +18,9 @@ const BannersAdminPage = lazy(
 const CategoriesAdminPage = lazy(
   () => import("../pages/admin/CategoriesAdminPage"),
 );
+const CustomColorsAdminPage = lazy(
+  () => import("../pages/admin/CustomColorsAdminPage"),
+);
 const CouponsAdminPage = lazy(
   () => import("../pages/admin/CouponsAdminPage"),
 );
@@ -163,7 +166,8 @@ export const router = createBrowserRouter([
         path: "san-pham/:id/sua",
         element: <ProductFormPage />,
       },
-      {
+      { path: "mau-custom", element: <CustomColorsAdminPage /> },
+{
         path: "danh-muc",
         element: <CategoriesAdminPage />,
       },
