@@ -26,11 +26,6 @@ const navItems = [
     icon: "📦",
   },
   {
-    label: "Màu custom",
-    to: "/admin/mau-custom",
-    icon: "●",
-  },
-  {
     label: "Danh mục",
     to: "/admin/danh-muc",
     icon: "🗂️",

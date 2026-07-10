@@ -634,7 +634,7 @@ export default function ProductDetailPage() {
           {customTextConfig && (
             <section
               className="product-detail__custom"
-              aria-label="Tuy chon ca nhan hoa"
+              aria-label="Tuỳ chọn cá nhân hoá"
             >
               <div className="product-detail__custom-head">
                 <label
@@ -645,7 +645,7 @@ export default function ProductDetailPage() {
                 </label>
                 {customTextConfig.priceDelta > 0 && (
                   <span className="product-detail__custom-fee">
-                    (+{formatCurrency(customTextConfig.priceDelta)})
+                    +{formatCurrency(customTextConfig.priceDelta)}
                   </span>
                 )}
               </div>
@@ -655,7 +655,7 @@ export default function ProductDetailPage() {
                 value={customText}
                 maxLength={customTextConfig.maxLength}
                 placeholder={
-                  customTextConfig.placeholder || "Nhap noi dung tuy chon"
+                  customTextConfig.placeholder || "Nhập nội dung tuỳ chọn"
                 }
                 onChange={(event) => {
                   setCustomText(
@@ -669,8 +669,8 @@ export default function ProductDetailPage() {
               <div className="product-detail__custom-help">
                 <span>
                   {normalizedCustomText
-                    ? "Phu phi chi tinh khi co nhap text."
-                    : "Co the bo trong neu khong can custom text."}
+                    ? "Phụ phí chỉ tính khi có nhập text."
+                    : "Có thể bỏ trống nếu không cần custom text."}
                 </span>
                 <strong>
                   {customText.length}/{customTextConfig.maxLength}
@@ -681,13 +681,17 @@ export default function ProductDetailPage() {
                 normalizedCustomText &&
                 availableCustomColors.length > 0 && (
                   <fieldset className="product-detail__custom-colors">
-                    <legend>Mau chu (mien phi)</legend>
-                    <div>
+                    <legend>Màu chữ miễn phí</legend>
+                    <div className="product-detail__custom-color-dots">
                       {availableCustomColors.map((color) => {
                         const selectedColorId =
                           customColorId || availableCustomColors[0]?.id;
                         return (
-                          <label key={color.id}>
+                          <label
+                            key={color.id}
+                            className="product-detail__custom-color-option"
+                            title={color.name}
+                          >
                             <input
                               type="radio"
                               name="custom-text-color"
@@ -695,8 +699,12 @@ export default function ProductDetailPage() {
                               checked={selectedColorId === color.id}
                               onChange={() => setCustomColorId(color.id)}
                             />
-                            <span>
-                              <img src={color.imageUrl} alt="" />
+                            <span
+                              className="product-detail__custom-color-dot"
+                              style={{ backgroundColor: color.colorHex || "#d1d5db" }}
+                              aria-hidden="true"
+                            />
+                            <span className="product-detail__custom-color-name">
                               {color.name}
                             </span>
                           </label>
@@ -704,7 +712,7 @@ export default function ProductDetailPage() {
                       })}
                     </div>
                     <p>
-                      Mau sac mien phi va chi ap dung cho phan text da nhap.
+                      Màu miễn phí và chỉ áp dụng cho phần text đã nhập.
                     </p>
                   </fieldset>
                 )}

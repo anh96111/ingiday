@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useStoreData } from "../../features/admin/StoreDataContext";
 import ProductImageManager from "../../components/admin/ProductImageManager";
+import { useStoreData } from "../../features/admin/StoreDataContext";
 import {
   getProductAdAssignments,
   listAdDataSources,
@@ -11,6 +11,7 @@ import {
 } from "../../services/ads";
 import {
   createDefaultProductCustomOptions,
+  createCustomOptionColor,
   fetchProductCustomOptions,
   listCustomOptionColors,
   saveProductCustomOptions,
@@ -25,8 +26,8 @@ import type {
   ProductCustomOptionsInput,
 } from "../../types/customProductOptions";
 import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup } from "../../types/product";
-import { slugify } from "../../utils/slug";
 import { formatCurrency } from "../../utils/currency";
+import { slugify } from "../../utils/slug";
 
 type ProductFormState = {
   name: string;
@@ -85,7 +86,7 @@ function createInitialCustomOptionsForm(): ProductCustomOptionsFormState {
     enabled: false,
     textEnabled: false,
     textLabel: "Custom text",
-    textPlaceholder: "VÃ­ dá»¥: TÃªn cá»§a báº¡n",
+    textPlaceholder: "Ví dụ: Tên của bạn",
     textMaxLength: "30",
     textPriceDelta: "0",
     colorIds: [],
@@ -104,7 +105,7 @@ function errorMessage(error: unknown) {
     }
   }
 
-  return "Lá»—i khÃ´ng xÃ¡c Ä‘á»‹nh.";
+  return "Lỗi không xác định.";
 }
 
 function clampTextMaxLength(value: string) {
@@ -136,6 +137,10 @@ export default function ProductFormPage() {
   const [customOptions, setCustomOptions] = useState<ProductCustomOptionsFormState>(() => createInitialCustomOptionsForm());
   const [customOptionsLoading, setCustomOptionsLoading] = useState(true);
   const [customOptionsError, setCustomOptionsError] = useState("");
+  const [newCustomTextColorName, setNewCustomTextColorName] = useState("");
+  const [newCustomTextColorHex, setNewCustomTextColorHex] = useState("#111827");
+  const [savingCustomTextColor, setSavingCustomTextColor] = useState(false);
+  const [newCustomTextColorError, setNewCustomTextColorError] = useState<string | null>(null);
   const isEditing = Boolean(existingProduct || createdProductId);
 
   useEffect(() => {
@@ -216,7 +221,7 @@ export default function ProductFormPage() {
         if (!active) return;
 
         setCustomOptionsError(
-          "KhÃ´ng thá»ƒ táº£i Custom Product Options: " + errorMessage(loadCustomOptionsError),
+          "Không thể tải Custom Product Options: " + errorMessage(loadCustomOptionsError),
         );
       })
       .finally(() => {
@@ -328,6 +333,55 @@ export default function ProductFormPage() {
     return customOptions.colorIds.includes(colorId);
   }
 
+  async function handleAddCustomTextColor() {
+    const name = newCustomTextColorName.trim();
+    const colorHex = newCustomTextColorHex.trim();
+
+    if (!name) {
+      setNewCustomTextColorError("Nhập tên màu trước khi thêm.");
+      return;
+    }
+
+    if (!/^#[0-9a-f]{6}$/i.test(colorHex)) {
+      setNewCustomTextColorError("Mã màu phải có dạng #RRGGBB.");
+      return;
+    }
+
+    setSavingCustomTextColor(true);
+    setNewCustomTextColorError(null);
+
+    try {
+      const createdColor = await createCustomOptionColor({
+        name,
+        imageUrl: "",
+        colorHex,
+        isActive: true,
+        sortOrder: customColors.length,
+      });
+
+      setCustomColors((colors) => [
+        createdColor,
+        ...colors.filter((color) => color.id !== createdColor.id),
+      ]);
+
+      if (!colorIsSelected(createdColor.id)) {
+        toggleCustomColor(createdColor.id);
+      }
+
+      setNewCustomTextColorName("");
+      setNewCustomTextColorHex("#111827");
+    } catch (error) {
+      setNewCustomTextColorError(
+        error instanceof Error ? error.message : "Không thể thêm màu custom.",
+      );
+    } finally {
+      setSavingCustomTextColor(false);
+    }
+  }
+
+
+
+
   function buildCustomOptionsInput(): ProductCustomOptionsInput {
     return {
       enabled: customOptions.enabled,
@@ -379,7 +433,7 @@ export default function ProductFormPage() {
     }
 
     if (customOptionsLoading) {
-      setError("Vui lÃ²ng chá» táº£i Custom Product Options hoÃ n táº¥t.");
+      setError("Vui lòng chờ tải Custom Product Options hoàn tất.");
       return;
     }
 
@@ -411,19 +465,19 @@ export default function ProductFormPage() {
 
     if (customOptions.enabled && customOptions.textEnabled) {
       if (!customOptions.textLabel.trim()) {
-        setError("Vui lÃ²ng nháº­p Label cho custom text.");
+        setError("Vui lòng nhập Label cho custom text.");
         return;
       }
 
       const maxLength = Number(customOptions.textMaxLength);
       if (!Number.isFinite(maxLength) || maxLength < 1 || maxLength > 120) {
-        setError("Giá»›i háº¡n kÃ½ tá»± custom text pháº£i tá»« 1 Ä‘áº¿n 120.");
+        setError("Giới hạn ký tự custom text phải từ 1 đến 120.");
         return;
       }
 
       const priceDelta = Number(customOptions.textPriceDelta);
       if (!Number.isFinite(priceDelta) || priceDelta < 0) {
-        setError("Phá»¥ phÃ­ custom text khÃ´ng há»£p lá»‡.");
+        setError("Phụ phí custom text không hợp lệ.");
         return;
       }
     }
@@ -489,9 +543,9 @@ export default function ProductFormPage() {
     } catch (customSaveError) {
       setSaving(false);
       setError(
-        "Sáº£n pháº©m Ä‘Ã£ lÆ°u nhÆ°ng chÆ°a lÆ°u Ä‘Æ°á»£c Custom Product Options: " +
+        "Sản phẩm đã lưu nhưng chưa lưu được Custom Product Options: " +
           errorMessage(customSaveError) +
-          ". Báº¥m lÆ°u láº¡i Ä‘á»ƒ thá»­ láº¡i.",
+          ". Bấm lưu lại để thử lại.",
       );
       return;
     }
@@ -584,13 +638,12 @@ export default function ProductFormPage() {
             onUploadingChange={setUploadingImages}
             onChange={(images) => setForm((current) => ({ ...current, images }))}
           />
-
         <article className="rounded-3xl bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-black">Custom Product Options</h2>
               <p className="mt-1 text-sm leading-6 text-[#707881]">
-                Cáº¥u hÃ¬nh riÃªng theo tá»«ng sáº£n pháº©m. MÃ u custom miá»…n phÃ­; chá»‰ custom text má»›i tÃ­nh phá»¥ phÃ­ khi khÃ¡ch nháº­p ná»™i dung.
+                Cấu hình riêng theo từng sản phẩm. Chỉ bật phần màu khi có custom text, vì màu này áp dụng cho chữ khách nhập.
               </p>
             </div>
             <label className="flex items-center gap-3 rounded-2xl bg-[#f7f9ff] px-4 py-3 text-sm font-bold">
@@ -600,7 +653,7 @@ export default function ProductFormPage() {
                 onChange={(event) => updateCustomOptions({ enabled: event.target.checked })}
                 className="h-5 w-5 accent-[#006397]"
               />
-              Báº­t custom
+              Bật custom
             </label>
           </div>
 
@@ -614,133 +667,184 @@ export default function ProductFormPage() {
                   className="mt-1 h-5 w-5 accent-[#006397]"
                 />
                 <span>
-                  Báº­t custom text
+                  Bật custom text
                   <span className="mt-1 block font-normal leading-6 text-[#707881]">
-                    KhÃ¡ch cÃ³ thá»ƒ bá» trá»‘ng. Phá»¥ phÃ­ chá»‰ Ä‘Æ°á»£c cá»™ng khi khÃ¡ch nháº­p text.
+                    Khách có thể bỏ trống. Phụ phí chỉ được cộng khi khách nhập text.
                   </span>
                 </span>
               </label>
 
               {customOptions.textEnabled && (
-                <div className="grid gap-4 rounded-3xl border border-[#dce3ea] p-5 md:grid-cols-2">
-                  <label className="text-sm font-bold">
-                    Label
-                    <input
-                      value={customOptions.textLabel}
-                      onChange={(event) => updateCustomOptions({ textLabel: event.target.value })}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                      placeholder="TÃªn in lÃªn sáº£n pháº©m"
-                    />
-                  </label>
+                <div className="space-y-5 rounded-3xl border border-[#dce3ea] p-5">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-bold">
+                      Label
+                      <input
+                        value={customOptions.textLabel}
+                        onChange={(event) => updateCustomOptions({ textLabel: event.target.value })}
+                        className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                        placeholder="Tên in lên sản phẩm"
+                      />
+                    </label>
 
-                  <label className="text-sm font-bold">
-                    Placeholder
-                    <input
-                      value={customOptions.textPlaceholder}
-                      onChange={(event) => updateCustomOptions({ textPlaceholder: event.target.value })}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                      placeholder="VÃ­ dá»¥: Báº£o An"
-                    />
-                  </label>
+                    <label className="text-sm font-bold">
+                      Placeholder
+                      <input
+                        value={customOptions.textPlaceholder}
+                        onChange={(event) => updateCustomOptions({ textPlaceholder: event.target.value })}
+                        className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                        placeholder="Ví dụ: Bảo An"
+                      />
+                    </label>
 
-                  <label className="text-sm font-bold">
-                    Giá»›i háº¡n kÃ½ tá»±
-                    <input
-                      type="number"
-                      min="1"
-                      max="120"
-                      value={customOptions.textMaxLength}
-                      onChange={(event) => updateCustomOptions({ textMaxLength: event.target.value })}
-                      className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                    />
-                  </label>
-
-                  <label className="text-sm font-bold">
-                    Phá»¥ phÃ­ custom text
-                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <label className="text-sm font-bold">
+                      Giới hạn ký tự
                       <input
                         type="number"
-                        min="0"
-                        step="1000"
-                        value={customOptions.textPriceDelta}
-                        onChange={(event) => updateCustomOptions({ textPriceDelta: event.target.value })}
-                        className="h-11 rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                        placeholder="0"
+                        min="1"
+                        max="120"
+                        value={customOptions.textMaxLength}
+                        onChange={(event) => updateCustomOptions({ textMaxLength: event.target.value })}
+                        className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
                       />
-                      <span className="inline-flex min-h-11 items-center rounded-xl bg-[#fff4ec] px-4 text-sm font-black text-[#a43c12]">
-                        +{formatCurrency(normalizePriceDelta(customOptions.textPriceDelta))}
-                      </span>
+                    </label>
+
+                    <label className="text-sm font-bold">
+                      Phụ phí custom text
+                      <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={customOptions.textPriceDelta}
+                          onChange={(event) => updateCustomOptions({ textPriceDelta: event.target.value })}
+                          className="h-11 rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                          placeholder="0"
+                        />
+                        <span className="inline-flex min-h-11 items-center rounded-xl bg-[#fff4ec] px-4 text-sm font-black text-[#a43c12]">
+                          +{formatCurrency(normalizePriceDelta(customOptions.textPriceDelta))}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="rounded-3xl border border-[#dce3ea] bg-white p-5">
+                    <div>
+                      <h3 className="font-black">Màu chữ cho custom text</h3>
+                      <p className="mt-1 text-sm leading-6 text-[#707881]">
+                        Thêm và chọn các màu miễn phí cho chữ khách nhập. Phần này chỉ nằm trong custom text.
+                      </p>
                     </div>
-                  </label>
+
+                    <div className="mt-4 rounded-2xl border border-[#dce3ea] bg-[#f7f9ff] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-black">Thêm màu chữ ngay tại sản phẩm</h4>
+                          <p className="mt-1 text-sm leading-6 text-[#707881]">
+                            Không cần trang màu riêng. Thêm màu ở đây rồi chọn luôn cho custom text của sản phẩm này.
+                          </p>
+                        </div>
+                        <span
+                          className="h-10 w-10 rounded-full border border-[#cfd6dd] shadow-sm"
+                          style={{ backgroundColor: newCustomTextColorHex }}
+                          aria-hidden="true"
+                        />
+                      </div>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_150px_auto]">
+                        <label className="text-sm font-bold">
+                          Tên màu
+                          <input
+                            value={newCustomTextColorName}
+                            onChange={(event) => setNewCustomTextColorName(event.target.value)}
+                            className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-white px-4 font-normal outline-none focus:border-[#006397]"
+                            placeholder="Ví dụ: Đen, Trắng, Đỏ"
+                          />
+                        </label>
+
+                        <label className="text-sm font-bold">
+                          Màu
+                          <input
+                            type="color"
+                            value={newCustomTextColorHex}
+                            onChange={(event) => setNewCustomTextColorHex(event.target.value)}
+                            className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-white px-2"
+                            aria-label="Chọn màu chữ"
+                          />
+                        </label>
+
+                        <button
+                          type="button"
+                          onClick={handleAddCustomTextColor}
+                          disabled={savingCustomTextColor}
+                          className="mt-7 rounded-xl bg-[#006397] px-4 py-3 text-sm font-black text-white transition hover:bg-[#004c73] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {savingCustomTextColor ? "Đang thêm..." : "+ Thêm màu"}
+                        </button>
+                      </div>
+
+                      {newCustomTextColorError && (
+                        <p className="mt-3 rounded-xl bg-[#fff0eb] px-4 py-3 text-sm font-bold text-[#a43c12]">
+                          {newCustomTextColorError}
+                        </p>
+                      )}
+                    </div>
+
+                    {customOptionsLoading && (
+                      <p className="mt-4 rounded-2xl bg-[#f7f9ff] p-4 text-sm text-[#707881]">
+                        Đang tải bảng màu custom...
+                      </p>
+                    )}
+
+                    {customOptionsError && (
+                      <p className="mt-4 rounded-2xl bg-[#fff0eb] p-4 text-sm font-semibold text-[#a43c12]">
+                        {customOptionsError}
+                      </p>
+                    )}
+
+                    {!customOptionsLoading && !customOptionsError && customColors.length === 0 && (
+                      <p className="mt-4 rounded-2xl border border-dashed border-[#bfc7d2] p-5 text-center text-sm text-[#707881]">
+                        Chưa có màu custom nào. Thêm màu ở trên để chọn cho text khách nhập.
+                      </p>
+                    )}
+
+                    {!customOptionsLoading && !customOptionsError && customColors.length > 0 && (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {customColors.map((color) => (
+                          <label
+                            key={color.id}
+                            className={
+                              "flex cursor-pointer items-center gap-3 rounded-2xl border p-3 text-sm transition " +
+                              (colorIsSelected(color.id)
+                                ? "border-[#006397] bg-[#edf4ff]"
+                                : "border-[#dce3ea] bg-white") +
+                              (!color.isActive ? " opacity-60" : "")
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={colorIsSelected(color.id)}
+                              onChange={() => toggleCustomColor(color.id)}
+                              className="h-5 w-5 accent-[#006397]"
+                            />
+                            <span
+                              className="h-8 w-8 rounded-full border border-[#cfd6dd] shadow-sm"
+                              style={{ backgroundColor: color.colorHex || "#d1d5db" }}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block font-bold text-[#252525]">{color.name}</span>
+                              <span className="mt-1 block text-xs font-semibold text-[#707881]">
+                                {color.isActive ? "Đang bật" : "Đang tắt"}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-
-              <div className="rounded-3xl border border-[#dce3ea] p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h3 className="font-black">MÃ u cho custom text</h3>
-                    <p className="mt-1 text-sm leading-6 text-[#707881]">
-                      Chá»n danh sÃ¡ch mÃ u miá»…n phÃ­ riÃªng cho sáº£n pháº©m nÃ y. MÃ u chá»‰ Ã¡p cho pháº§n text khÃ¡ch nháº­p.
-                    </p>
-                  </div>
-                  <Link to="/admin/mau-custom" className="rounded-xl bg-[#edf4ff] px-4 py-2 text-sm font-bold text-[#006397]">
-                    Quáº£n lÃ½ báº£ng mÃ u
-                  </Link>
-                </div>
-
-                {customOptionsLoading && (
-                  <p className="mt-4 rounded-2xl bg-[#f7f9ff] p-4 text-sm text-[#707881]">
-                    Äang táº£i báº£ng mÃ u custom...
-                  </p>
-                )}
-
-                {customOptionsError && (
-                  <p className="mt-4 rounded-2xl bg-[#fff0eb] p-4 text-sm font-semibold text-[#a43c12]">
-                    {customOptionsError}
-                  </p>
-                )}
-
-                {!customOptionsLoading && !customOptionsError && customColors.length === 0 && (
-                  <p className="mt-4 rounded-2xl border border-dashed border-[#bfc7d2] p-5 text-center text-sm text-[#707881]">
-                    ChÆ°a cÃ³ mÃ u custom nÃ o trong báº£ng mÃ u Admin.
-                  </p>
-                )}
-
-                {!customOptionsLoading && !customOptionsError && customColors.length > 0 && (
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                    {customColors.map((color) => (
-                      <label
-                        key={color.id}
-                        className={
-                          "flex cursor-pointer gap-3 rounded-2xl border p-3 text-sm transition " +
-                          (colorIsSelected(color.id)
-                            ? "border-[#006397] bg-[#edf4ff]"
-                            : "border-[#dce3ea] bg-white") +
-                          (!color.isActive ? " opacity-60" : "")
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          checked={colorIsSelected(color.id)}
-                          onChange={() => toggleCustomColor(color.id)}
-                          className="mt-4 h-5 w-5 accent-[#006397]"
-                        />
-                        <img
-                          src={color.imageUrl}
-                          alt={"MÃ u " + color.name}
-                          className="h-14 w-14 rounded-2xl border border-[#dce3ea] object-cover"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-bold text-[#252525]">{color.name}</span>
-                          <span className="mt-1 block text-xs font-semibold text-[#707881]">
-                            {color.isActive ? "Äang báº­t" : "Äang táº¯t"}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </article>
@@ -825,6 +929,7 @@ export default function ProductFormPage() {
                 {(["meta", "tiktok"] as const).map((platform) => {
                   const currentValue = adAssignments[platform] ?? "";
                   const defaultName = defaultSourceName(platform);
+
 
                   return (
                     <label
