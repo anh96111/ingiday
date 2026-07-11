@@ -11,6 +11,39 @@ const navItems = [
   { label: "Yêu cầu riêng", to: "/in-rieng" },
 ];
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+    </svg>
+  );
+}
+
+function CartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 4h2l1.6 10.1a2 2 0 0 0 2 1.7h7.8a2 2 0 0 0 2-1.6L20 7H6" />
+      <path d="M9 20h.01M17 20h.01" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m6 6 12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
 export default function Header() {
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -26,39 +59,47 @@ export default function Header() {
   }
 
   return (
-    <>
-      <div className="bg-[#fe7e4f] px-4 py-2 text-center text-xs font-bold text-[#6b1f00] sm:text-sm">
-        Miễn phí vận chuyển cho đơn hàng từ {formatCurrency(settings.freeShippingThreshold)}
+    <header className="storefront-header">
+      <div className="storefront-announcement">
+        <div className="sf-container storefront-announcement__inner">
+          <span className="storefront-announcement__dot" aria-hidden="true" />
+          <span>
+            Miễn phí vận chuyển cho đơn hàng từ{" "}
+            <strong>{formatCurrency(settings.freeShippingThreshold)}</strong>
+          </span>
+        </div>
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-[#bfc7d2]/40 bg-[#f7f9ff]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-5 lg:px-16">
+      <div className="storefront-header__main">
+        <div className="sf-container storefront-header__inner">
           <Link
             to="/"
-            className="flex min-w-0 items-center text-2xl font-black tracking-tight text-[#006397] sm:text-3xl"
-            aria-label={settings.storeName}
+            className="storefront-brand"
+            aria-label={`${settings.storeName} - Trang chủ`}
+            onClick={() => setMenuOpen(false)}
           >
             {settings.logoUrl ? (
               <img
                 src={settings.logoUrl}
                 alt={settings.storeName}
-                className="h-10 max-w-[150px] object-contain sm:h-11 sm:max-w-[190px]"
+                className="storefront-brand__logo"
               />
             ) : (
-              settings.storeName
+              <span className="storefront-brand__wordmark">
+                {settings.storeName}
+                <span aria-hidden="true">♡</span>
+              </span>
             )}
           </Link>
 
-          <nav className="hidden items-center gap-7 md:flex">
+          <nav className="storefront-nav" aria-label="Điều hướng chính">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === "/"}
                 className={({ isActive }) =>
-                  `text-sm font-semibold transition-colors ${
-                    isActive ? "text-[#006397]" : "text-[#3f4850] hover:text-[#a43c12]"
-                  }`
+                  `storefront-nav__link${isActive ? " is-active" : ""}`
                 }
               >
                 {item.label}
@@ -66,52 +107,75 @@ export default function Header() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-2">
-            <form onSubmit={handleSearch} className="hidden lg:block">
-              <label className="flex h-11 w-64 items-center gap-2 rounded-2xl bg-[#edf4ff] px-4 text-[#3f4850] shadow-inner">
-                <span aria-hidden="true">⌕</span>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm outline-none placeholder:text-[#707881]"
-                  placeholder="Tìm món đồ xinh xắn..."
-                />
-              </label>
+          <div className="storefront-header__actions">
+            <form
+              className="storefront-search storefront-search--desktop"
+              role="search"
+              onSubmit={handleSearch}
+            >
+              <SearchIcon />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Tìm món đồ xinh xắn..."
+                aria-label="Tìm sản phẩm"
+              />
             </form>
 
             <Link
               to="/gio-hang"
-              className="relative grid h-11 w-11 place-items-center rounded-full text-xl text-[#091d2e] transition hover:bg-[#d1e4fb]"
+              className="storefront-cart-button"
               aria-label={`Giỏ hàng có ${itemCount} sản phẩm`}
+              onClick={() => setMenuOpen(false)}
             >
-              🛒
-              <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#fe7e4f] px-1 text-[10px] font-bold text-white">
-                {itemCount > 99 ? "99+" : itemCount}
-              </span>
+              <CartIcon />
+              {itemCount > 0 && (
+                <span className="storefront-cart-button__badge">
+                  {itemCount > 99 ? "99+" : itemCount}
+                </span>
+              )}
             </Link>
 
             <button
               type="button"
+              className="storefront-menu-button"
+              aria-expanded={menuOpen}
+              aria-controls="storefront-mobile-menu"
+              aria-label={menuOpen ? "Đóng menu" : "Mở menu"}
               onClick={() => setMenuOpen((current) => !current)}
-              className="grid h-11 w-11 place-items-center rounded-full text-xl hover:bg-[#d1e4fb] md:hidden"
-              aria-label="Mở menu"
             >
-              {menuOpen ? "✕" : "☰"}
+              {menuOpen ? <CloseIcon /> : <MenuIcon />}
             </button>
           </div>
         </div>
+      </div>
 
-        {menuOpen && (
-          <div className="border-t border-[#bfc7d2]/40 bg-[#f7f9ff] px-5 py-4 md:hidden">
-            <form onSubmit={handleSearch} className="mb-4">
+      {menuOpen && (
+        <div
+          id="storefront-mobile-menu"
+          className="storefront-mobile-menu"
+        >
+          <div className="sf-container storefront-mobile-menu__inner">
+            <form
+              className="storefront-search storefront-search--mobile"
+              role="search"
+              onSubmit={handleSearch}
+            >
+              <SearchIcon />
               <input
+                type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                className="h-12 w-full rounded-2xl border border-[#bfc7d2] bg-white px-4 outline-none focus:border-[#006397]"
                 placeholder="Tìm sản phẩm..."
+                aria-label="Tìm sản phẩm"
               />
             </form>
-            <nav className="grid gap-2">
+
+            <nav
+              className="storefront-mobile-nav"
+              aria-label="Điều hướng di động"
+            >
               {navItems.map((item) => (
                 <NavLink
                   key={item.to}
@@ -119,18 +183,19 @@ export default function Header() {
                   end={item.to === "/"}
                   onClick={() => setMenuOpen(false)}
                   className={({ isActive }) =>
-                    `rounded-xl px-4 py-3 font-semibold ${
-                      isActive ? "bg-[#d1e4fb] text-[#006397]" : "text-[#3f4850]"
+                    `storefront-mobile-nav__link${
+                      isActive ? " is-active" : ""
                     }`
                   }
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  <span aria-hidden="true">→</span>
                 </NavLink>
               ))}
             </nav>
           </div>
-        )}
-      </header>
-    </>
+        </div>
+      )}
+    </header>
   );
 }

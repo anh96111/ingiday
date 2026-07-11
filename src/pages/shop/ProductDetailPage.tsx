@@ -10,7 +10,6 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-
 import ProductDetailSkeleton from "../../components/shop/ProductDetailSkeleton";
 import ProductRecommendations from "../../components/shop/ProductRecommendations";
 import { useAdTracking } from "../../features/ads/AdTrackingContext";
@@ -20,8 +19,8 @@ import {
   getCloudinarySrcSet,
   optimizeCloudinaryUrl,
 } from "../../lib/cloudinary";
-import { resolveProductSlugRedirect } from "../../services/productRedirects";
 import { fetchProductCustomOptions } from "../../services/customProductOptions";
+import { resolveProductSlugRedirect } from "../../services/productRedirects";
 import { fetchProductBySlug } from "../../services/products";
 import type { SelectedVariant } from "../../types/cart";
 import type {
@@ -31,6 +30,24 @@ import type {
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import "./ProductDetailPage.css";
+
+function BagIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 8h12l1 13H5L6 8Z" />
+      <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+    </svg>
+  );
+}
+
+function SparkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m12 3 1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" />
+      <path d="m18.5 15 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" />
+    </svg>
+  );
+}
 
 export default function ProductDetailPage() {
   const { slug = "" } = useParams();
@@ -42,19 +59,16 @@ export default function ProductDetailPage() {
     trackViewContent,
   } = useAdTracking();
 
-  const [product, setProduct] =
-    useState<Product | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [retryVersion, setRetryVersion] =
-    useState(0);
+  const [retryVersion, setRetryVersion] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selections, setSelections] = useState<
     Record<string, string>
   >({});
   const [message, setMessage] = useState("");
-  const [selectedImageId, setSelectedImageId] =
-    useState("");
+  const [selectedImageId, setSelectedImageId] = useState("");
   const [customOptions, setCustomOptions] =
     useState<ProductCustomOptions | null>(null);
   const [customText, setCustomText] = useState("");
@@ -94,10 +108,9 @@ export default function ProductDetailPage() {
 
     void (async () => {
       try {
-        const nextProduct =
-          await fetchProductBySlug(slug, {
-            force: retryVersion > 0,
-          });
+        const nextProduct = await fetchProductBySlug(slug, {
+          force: retryVersion > 0,
+        });
 
         if (!active) {
           return;
@@ -105,26 +118,33 @@ export default function ProductDetailPage() {
 
         if (nextProduct) {
           setProduct(nextProduct);
+
           try {
-            const nextCustomOptions = await fetchProductCustomOptions(
-              nextProduct.id,
-            );
+            const nextCustomOptions =
+              await fetchProductCustomOptions(nextProduct.id);
+
             if (!active) {
               return;
             }
+
             setCustomOptions(nextCustomOptions);
-            setCustomColorId(nextCustomOptions.colors[0]?.id ?? "");
+            setCustomColorId(
+              nextCustomOptions.colors[0]?.id ?? "",
+            );
           } catch (customOptionsError) {
             console.warn(
               "Cannot load custom product options:",
               customOptionsError,
             );
+
             if (!active) {
               return;
             }
+
             setCustomOptions(null);
             setCustomColorId("");
           }
+
           return;
         }
 
@@ -140,10 +160,11 @@ export default function ProductDetailPage() {
           redirectSlug !== slug
         ) {
           redirecting = true;
-          navigate(
-            `/san-pham/${redirectSlug}`,
-            { replace: true },
-          );
+
+          navigate(`/san-pham/${redirectSlug}`, {
+            replace: true,
+          });
+
           return;
         }
 
@@ -168,42 +189,34 @@ export default function ProductDetailPage() {
     };
   }, [navigate, retryVersion, slug]);
 
-  const selectedVariants =
-    useMemo<SelectedVariant[]>(() => {
-      if (!product?.variantGroups) {
+  const selectedVariants = useMemo<SelectedVariant[]>(() => {
+    if (!product?.variantGroups) {
+      return [];
+    }
+
+    return product.variantGroups.flatMap((group) => {
+      const selectedOptionId =
+        selections[group.id] ?? group.options[0]?.id;
+      const option = group.options.find(
+        (item) => item.id === selectedOptionId,
+      );
+
+      if (!option) {
         return [];
       }
 
-      return product.variantGroups.flatMap(
-        (group) => {
-          const selectedOptionId =
-            selections[group.id] ??
-            group.options[0]?.id;
-
-          const option = group.options.find(
-            (item) =>
-              item.id === selectedOptionId,
-          );
-
-          if (!option) {
-            return [];
-          }
-
-          return [
-            {
-              groupId: group.id,
-              groupName: group.name,
-              optionId: option.id,
-              optionLabel: option.label,
-              priceDelta:
-                option.priceDelta ?? 0,
-              stock: option.stock,
-            },
-          ];
+      return [
+        {
+          groupId: group.id,
+          groupName: group.name,
+          optionId: option.id,
+          optionLabel: option.label,
+          priceDelta: option.priceDelta ?? 0,
+          stock: option.stock,
         },
-      );
-    }, [product, selections]);
-
+      ];
+    });
+  }, [product, selections]);
 
   const activeCustomOptions = customOptions?.enabled
     ? customOptions
@@ -214,11 +227,16 @@ export default function ProductDetailPage() {
   const normalizedCustomText = customText.trim();
   const availableCustomColors = activeCustomOptions?.colors ?? [];
   const selectedCustomColor =
-    normalizedCustomText.length > 0 && availableCustomColors.length > 0
-      ? availableCustomColors.find((color) => color.id === customColorId) ??
-        availableCustomColors[0]
+    normalizedCustomText.length > 0 &&
+    availableCustomColors.length > 0
+      ? availableCustomColors.find(
+          (color) => color.id === customColorId,
+        ) ?? availableCustomColors[0]
       : undefined;
-  const selectedCustomOptions: SelectedCustomOptions | undefined =
+
+  const selectedCustomOptions:
+    | SelectedCustomOptions
+    | undefined =
     customTextConfig && normalizedCustomText
       ? {
           text: {
@@ -250,8 +268,7 @@ export default function ProductDetailPage() {
     const initialUnitPrice =
       product.price +
       selectedVariants.reduce(
-        (sum, variant) =>
-          sum + variant.priceDelta,
+        (sum, variant) => sum + variant.priceDelta,
         0,
       );
 
@@ -282,46 +299,40 @@ export default function ProductDetailPage() {
 
   if (error && !product) {
     return (
-      <section className="product-detail-state">
+      <main className="product-detail-state">
+        <span aria-hidden="true">♡</span>
         <h1>Không thể tải sản phẩm</h1>
         <p>{error}</p>
         <button
           type="button"
           onClick={() =>
-            setRetryVersion(
-              (current) => current + 1,
-            )
+            setRetryVersion((current) => current + 1)
           }
         >
           Thử lại
         </button>
-      </section>
+      </main>
     );
   }
 
   if (!product) {
     return (
-      <section className="product-detail-state">
-        <div className="product-detail-state__icon">
-          🧩
-        </div>
+      <main className="product-detail-state">
+        <span aria-hidden="true">?</span>
         <h1>Không tìm thấy sản phẩm</h1>
         <p>
-          Sản phẩm có thể đã bị ẩn hoặc đường dẫn
-          không còn tồn tại.
+          Sản phẩm có thể đã bị ẩn hoặc đường dẫn không còn
+          tồn tại.
         </p>
-        <Link to="/san-pham">
-          Quay lại cửa hàng
-        </Link>
-      </section>
+        <Link to="/san-pham">Quay lại cửa hàng</Link>
+      </main>
     );
   }
 
   const productImages = product.images ?? [];
   const primaryImage =
-    productImages.find(
-      (image) => image.isPrimary,
-    ) ?? productImages[0];
+    productImages.find((image) => image.isPrimary) ??
+    productImages[0];
   const selectedImage =
     productImages.find(
       (image) => image.id === selectedImageId,
@@ -338,14 +349,12 @@ export default function ProductDetailPage() {
     product.status === "out_of_stock"
       ? 0
       : variantStocks.length > 0
-        ? Math.min(
-            product.stock,
-            ...variantStocks,
-          )
+        ? Math.min(product.stock, ...variantStocks)
         : product.stock;
 
   const customTextPriceDelta =
     selectedCustomOptions?.text?.priceDelta ?? 0;
+
   const unitPrice =
     product.price +
     selectedVariants.reduce(
@@ -393,9 +402,7 @@ export default function ProductDetailPage() {
       return;
     }
 
-    setMessage(
-      "Đã thêm sản phẩm vào giỏ hàng.",
-    );
+    setMessage("Đã thêm sản phẩm vào giỏ hàng.");
 
     window.setTimeout(() => {
       setMessage("");
@@ -422,9 +429,7 @@ export default function ProductDetailPage() {
             <button
               type="button"
               onClick={() =>
-                setRetryVersion(
-                  (current) => current + 1,
-                )
+                setRetryVersion((current) => current + 1)
               }
             >
               Thử lại
@@ -438,10 +443,13 @@ export default function ProductDetailPage() {
               className="product-detail__image-stage"
               style={{
                 backgroundColor:
-                  product.background,
+                  product.background || "var(--sf-cream)",
               }}
             >
-              <span className="product-detail__image-grid" />
+              <span className="product-detail__image-orbit" />
+              <span className="product-detail__image-spark">
+                ✦
+              </span>
 
               {product.badge && (
                 <span className="product-detail__badge">
@@ -457,329 +465,292 @@ export default function ProductDetailPage() {
                   )}
                   srcSet={getCloudinarySrcSet(
                     selectedImage.url,
-                    [
-                      480,
-                      640,
-                      800,
-                      1080,
-                      1400,
-                    ],
+                    [480, 640, 800, 1080, 1400],
                   )}
                   sizes="(max-width: 1023px) 100vw, 50vw"
                   alt={
-                    selectedImage.altText ||
-                    product.name
+                    selectedImage.altText || product.name
                   }
                   width="1080"
                   height="1080"
-                  loading="eager"
-                  decoding="async"
                   fetchPriority="high"
                 />
               ) : (
-                <span className="product-detail__emoji">
+                <span
+                  className="product-detail__emoji"
+                  aria-hidden="true"
+                >
                   {product.emoji}
                 </span>
               )}
-
-              <span className="product-detail__image-note">
-                in 3D · làm kỹ từng chi tiết
-              </span>
             </div>
 
             {productImages.length > 1 && (
-              <div className="product-detail__thumbnails">
-                {productImages.map(
-                  (image, index) => (
-                    <button
-                      key={image.id}
-                      type="button"
-                      onClick={() =>
-                        setSelectedImageId(
-                          image.id,
-                        )
-                      }
-                      className={
-                        selectedImage?.id ===
-                        image.id
-                          ? "is-active"
-                          : ""
-                      }
-                      aria-label={`Xem ảnh ${
-                        index + 1
-                      } của ${product.name}`}
-                    >
-                      <img
-                        src={optimizeCloudinaryUrl(
-                          image.url,
-                          220,
-                        )}
-                        srcSet={getCloudinarySrcSet(
-                          image.url,
-                          [120, 180, 220],
-                        )}
-                        sizes="20vw"
-                        alt={
-                          image.altText ||
-                          product.name
-                        }
-                        width="220"
-                        height="220"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </button>
-                  ),
-                )}
+              <div
+                className="product-detail__thumbnails"
+                aria-label="Ảnh sản phẩm"
+              >
+                {productImages.map((image, index) => (
+                  <button
+                    key={image.id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedImageId(image.id)
+                    }
+                    className={
+                      selectedImage?.id === image.id
+                        ? "is-active"
+                        : ""
+                    }
+                    aria-label={`Xem ảnh ${
+                      index + 1
+                    } của ${product.name}`}
+                  >
+                    <img
+                      src={optimizeCloudinaryUrl(
+                        image.url,
+                        180,
+                      )}
+                      alt=""
+                      width="180"
+                      height="180"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
 
           <div className="product-detail__purchase">
-            <div className="product-detail__category">
+            <p className="product-detail__category">
               {product.categoryName}
-            </div>
+            </p>
 
             <h1>{product.name}</h1>
 
             <div className="product-detail__price-row">
-              <strong>
-                {formatCurrency(unitPrice)}
-              </strong>
+              <strong>{formatCurrency(unitPrice)}</strong>
 
               {product.compareAtPrice && (
-                <span className="product-detail__compare-price">
-                  {formatCurrency(
-                    product.compareAtPrice,
-                  )}
+                <span>
+                  {formatCurrency(product.compareAtPrice)}
                 </span>
               )}
 
               {discountPercent > 0 && (
-                <span className="product-detail__discount">
-                  Tiết kiệm {discountPercent}%
-                </span>
+                <em>Tiết kiệm {discountPercent}%</em>
               )}
             </div>
 
-            <div
+            <span
               className={`product-detail__stock ${
                 availableStock > 0
                   ? "is-available"
                   : "is-out"
               }`}
             >
-              <span />
               {availableStock > 0
                 ? `Còn ${availableStock} sản phẩm`
                 : "Tạm hết hàng"}
-            </div>
+            </span>
 
-            {product.variantGroups?.map(
-              (group) => {
-                const selectedOptionId =
-                  selections[group.id] ??
-                  group.options[0]?.id;
+            <div className="product-detail__divider" />
 
-                return (
-                  <fieldset
-                    key={group.id}
-                    className="product-detail__variants"
-                  >
-                    <legend>{group.name}</legend>
+            {product.variantGroups?.map((group) => {
+              const selectedOptionId =
+                selections[group.id] ??
+                group.options[0]?.id;
 
-                    <div>
-                      {group.options.map(
-                        (option) => (
-                          <label
-                            key={option.id}
-                          >
-                            <input
-                              type="radio"
-                              name={group.id}
-                              value={option.id}
-                              checked={
-                                selectedOptionId ===
-                                option.id
-                              }
-                              onChange={() => {
-                                setSelections(
-                                  (current) => ({
-                                    ...current,
-                                    [group.id]:
-                                      option.id,
-                                  }),
-                                );
-                                setQuantity(1);
-                              }}
-                            />
-
-                            <span>
-                              {option.label}
-                              {option.priceDelta
-                                ? ` (+${formatCurrency(
-                                    option.priceDelta,
-                                  )})`
-                                : ""}
-                            </span>
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  </fieldset>
-                );
-              },
-            )}
-
-          {customTextConfig && (
-            <section
-              className="product-detail__custom"
-              aria-label="Tuỳ chọn cá nhân hoá"
-            >
-              <div className="product-detail__custom-head">
-                <label
-                  className="product-detail__field-label"
-                  htmlFor="product-custom-text"
+              return (
+                <fieldset
+                  key={group.id}
+                  className="product-detail__option-group"
                 >
-                  {customTextConfig.label}
-                </label>
-                {customTextConfig.priceDelta > 0 && (
-                  <span className="product-detail__custom-fee">
-                    +{formatCurrency(customTextConfig.priceDelta)}
+                  <legend>{group.name}</legend>
+
+                  <div className="product-detail__option-list">
+                    {group.options.map((option) => (
+                      <label key={option.id}>
+                        <input
+                          type="radio"
+                          name={`variant-${group.id}`}
+                          value={option.id}
+                          checked={
+                            selectedOptionId === option.id
+                          }
+                          onChange={() => {
+                            setSelections((current) => ({
+                              ...current,
+                              [group.id]: option.id,
+                            }));
+                            setQuantity(1);
+                          }}
+                        />
+                        <span>
+                          {option.label}
+                          {option.priceDelta
+                            ? ` (+${formatCurrency(
+                                option.priceDelta,
+                              )})`
+                            : ""}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            })}
+
+            {customTextConfig && (
+              <div className="product-detail__custom-text">
+                <div className="product-detail__field-heading">
+                  <label htmlFor="product-custom-text">
+                    {customTextConfig.label}
+                  </label>
+
+                  {customTextConfig.priceDelta > 0 && (
+                    <span>
+                      +
+                      {formatCurrency(
+                        customTextConfig.priceDelta,
+                      )}
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  id="product-custom-text"
+                  type="text"
+                  value={customText}
+                  placeholder={customTextConfig.placeholder}
+                  maxLength={customTextConfig.maxLength}
+                  onChange={(event) => {
+                    setCustomText(
+                      event.target.value.slice(
+                        0,
+                        customTextConfig.maxLength,
+                      ),
+                    );
+                  }}
+                />
+
+                <div className="product-detail__field-help">
+                  <span>
+                    {normalizedCustomText
+                      ? "Phụ phí chỉ tính khi có nhập text."
+                      : "Có thể bỏ trống nếu không cần custom text."}
                   </span>
-                )}
-              </div>
-              <input
-                id="product-custom-text"
-                className="product-detail__custom-input"
-                value={customText}
-                maxLength={customTextConfig.maxLength}
-                placeholder={
-                  customTextConfig.placeholder || "Nhập nội dung tuỳ chọn"
-                }
-                onChange={(event) => {
-                  setCustomText(
-                    event.target.value.slice(
-                      0,
-                      customTextConfig.maxLength,
-                    ),
-                  );
-                }}
-              />
-              <div className="product-detail__custom-help">
-                <span>
-                  {normalizedCustomText
-                    ? "Phụ phí chỉ tính khi có nhập text."
-                    : "Có thể bỏ trống nếu không cần custom text."}
-                </span>
-                <strong>
-                  {customText.length}/{customTextConfig.maxLength}
-                </strong>
-              </div>
-
-              {activeCustomOptions &&
-                normalizedCustomText &&
-                availableCustomColors.length > 0 && (
-                  <fieldset className="product-detail__custom-colors">
-                    <legend>Màu chữ miễn phí</legend>
-                    <div className="product-detail__custom-color-dots">
-                      {availableCustomColors.map((color) => {
-                        const selectedColorId =
-                          customColorId || availableCustomColors[0]?.id;
-                        return (
-                          <label
-                            key={color.id}
-                            className="product-detail__custom-color-option"
-                            title={color.name}
-                          >
-                            <input
-                              type="radio"
-                              name="custom-text-color"
-                              value={color.id}
-                              checked={selectedColorId === color.id}
-                              onChange={() => setCustomColorId(color.id)}
-                            />
-                            <span
-                              className="product-detail__custom-color-dot"
-                              style={{ backgroundColor: color.colorHex || "#d1d5db" }}
-                              aria-hidden="true"
-                            />
-                            <span className="product-detail__custom-color-name">
-                              {color.name}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <p>
-                      Màu miễn phí và chỉ áp dụng cho phần text đã nhập.
-                    </p>
-                  </fieldset>
-                )}
-            </section>
-          )}
-          <div className="product-detail__quantity-row">
-              <div>
-                <span className="product-detail__field-label">
-                  Số lượng
-                </span>
-
-                <div className="product-detail__quantity">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setQuantity(
-                        (current) =>
-                          Math.max(
-                            1,
-                            current - 1,
-                          ),
-                      )
-                    }
-                    aria-label="Giảm số lượng"
-                  >
-                    −
-                  </button>
-
-                  <strong>{quantity}</strong>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setQuantity(
-                        (current) =>
-                          Math.min(
-                            Math.max(
-                              availableStock,
-                              1,
-                            ),
-                            current + 1,
-                          ),
-                      )
-                    }
-                    aria-label="Tăng số lượng"
-                  >
-                    +
-                  </button>
+                  <strong>
+                    {customText.length}/
+                    {customTextConfig.maxLength}
+                  </strong>
                 </div>
               </div>
+            )}
 
-              <p>
-                Tổng tạm tính
-                <strong>
-                  {formatCurrency(
-                    unitPrice * quantity,
-                  )}
-                </strong>
-              </p>
+            {activeCustomOptions &&
+              normalizedCustomText &&
+              availableCustomColors.length > 0 && (
+                <fieldset className="product-detail__color-group">
+                  <legend>Màu chữ miễn phí</legend>
+
+                  <div className="product-detail__color-list">
+                    {availableCustomColors.map((color) => {
+                      const selectedColorId =
+                        customColorId ||
+                        availableCustomColors[0]?.id;
+
+                      return (
+                        <label key={color.id}>
+                          <input
+                            type="radio"
+                            name="custom-color"
+                            value={color.id}
+                            checked={
+                              selectedColorId === color.id
+                            }
+                            onChange={() =>
+                              setCustomColorId(color.id)
+                            }
+                          />
+
+                          <span className="product-detail__color-choice">
+                            <span
+                              className="product-detail__color-swatch"
+                              style={{
+                                backgroundColor:
+                                  color.colorHex || "#ffffff",
+                              }}
+                            >
+                              {color.imageUrl && (
+                                <img
+                                  src={color.imageUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              )}
+                            </span>
+                            {color.name}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  <p>
+                    Màu miễn phí và chỉ áp dụng cho phần text
+                    đã nhập.
+                  </p>
+                </fieldset>
+              )}
+
+            <div className="product-detail__quantity-row">
+              <span>Số lượng</span>
+
+              <div className="product-detail__quantity">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((current) =>
+                      Math.max(1, current - 1),
+                    )
+                  }
+                  aria-label="Giảm số lượng"
+                >
+                  −
+                </button>
+                <strong>{quantity}</strong>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((current) =>
+                      Math.min(
+                        Math.max(availableStock, 1),
+                        current + 1,
+                      ),
+                    )
+                  }
+                  aria-label="Tăng số lượng"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="product-detail__total">
+              <span>Tổng tạm tính</span>
+              <strong>
+                {formatCurrency(unitPrice * quantity)}
+              </strong>
             </div>
 
             <div className="product-detail__actions">
               <button
                 type="button"
-                onClick={() =>
-                  addToCart(true)
-                }
+                onClick={() => addToCart(true)}
                 disabled={availableStock <= 0}
                 className="product-detail__buy-now"
               >
@@ -788,108 +759,86 @@ export default function ProductDetailPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  addToCart(false)
-                }
+                onClick={() => addToCart(false)}
                 disabled={availableStock <= 0}
                 className="product-detail__add-cart"
               >
+                <BagIcon />
                 Thêm vào giỏ
               </button>
             </div>
 
             {message && (
-              <p className="product-detail__message">
+              <p
+                className="product-detail__message"
+                role="status"
+                aria-live="polite"
+              >
                 {message}
               </p>
             )}
 
-                      <section
-            className="product-detail__trust"
-            aria-label="Cam kết mua hàng tại InGiDay"
-          >
-            <div className="product-detail__trust-head">
-              <span className="product-detail__trust-seal">✨</span>
-              <div>
-                <p className="product-detail__trust-eyebrow">
-                  Cam kết InGiDay
-                </p>
-                <h2>An tâm khi đặt sản phẩm in 3D</h2>
-                <p>
-                  Từng món được đóng gói kỹ, hỗ trợ rõ ràng và có bảo hành
-                  khi phát sinh lỗi từ shop.
-                </p>
-              </div>
+            <div className="product-detail__micro-trust">
+              <SparkIcon />
+              <span>
+                Ảnh hiển thị trọn sản phẩm, lựa chọn và giá
+                được cập nhật theo cấu hình bạn chọn.
+              </span>
             </div>
+          </div>
+        </section>
 
-            <div className="product-detail__trust-grid">
-              <article>
-                <span className="product-detail__trust-icon product-detail__trust-icon--blue">
-                  🛡️
-                </span>
-                <div>
-                  <h3>BH lỗi 1 đổi 1</h3>
-                  <p>
-                    Gặp lỗi từ shop hoặc lỗi sản phẩm rõ ràng, InGiDay hỗ trợ
-                    đổi mới theo chính sách.
-                  </p>
-                </div>
-              </article>
-
-              <article>
-                <span className="product-detail__trust-icon product-detail__trust-icon--pink">
-                  📦
-                </span>
-                <div>
-                  <h3>Đóng gói chống va đập</h3>
-                  <p>
-                    Sản phẩm được bọc và chèn kỹ để hạn chế trầy, móp, gãy
-                    trong lúc vận chuyển.
-                  </p>
-                </div>
-              </article>
-
-              <article>
-                <span className="product-detail__trust-icon product-detail__trust-icon--mint">
-                  💵
-                </span>
-                <div>
-                  <h3>Nhận hàng rồi thanh toán</h3>
-                  <p>
-                    Hỗ trợ COD toàn quốc, phù hợp khách đặt lần đầu chưa quen
-                    shop.
-                  </p>
-                </div>
-              </article>
-
-              <article>
-                <span className="product-detail__trust-icon product-detail__trust-icon--yellow">
-                  💬
-                </span>
-                <div>
-                  <h3>Hỗ trợ khách hàng 24/7</h3>
-                  <p>
-                    Cần hỏi mẫu, màu, đơn hàng hoặc sản phẩm in riêng đều có
-                    thể nhắn shop hỗ trợ.
-                  </p>
-                </div>
-              </article>
+        <section className="product-detail__trust">
+          <div className="product-detail__trust-heading">
+            <span aria-hidden="true">✦</span>
+            <div>
+              <p>Cam kết InGiDay</p>
+              <h2>An tâm hơn khi đặt sản phẩm in 3D</h2>
             </div>
+          </div>
 
-            <p className="product-detail__trust-note">
-              <span>✓</span>
-              Đồ in 3D có thể có vân lớp nhẹ — đây là đặc trưng của sản phẩm
-              in 3D, không phải lỗi.
-            </p>
-          </section>
+          <div className="product-detail__trust-grid">
+            <article>
+              <span>01</span>
+              <h3>Trao đổi rõ ràng</h3>
+              <p>
+                Thông tin mẫu, lựa chọn và yêu cầu riêng được
+                thể hiện rõ trước khi đặt.
+              </p>
+            </article>
+
+            <article>
+              <span>02</span>
+              <h3>Đóng gói cẩn thận</h3>
+              <p>
+                Sản phẩm được kiểm tra và đóng gói phù hợp
+                trước khi gửi.
+              </p>
+            </article>
+
+            <article>
+              <span>03</span>
+              <h3>Đặc trưng in 3D</h3>
+              <p>
+                Vân lớp nhẹ có thể xuất hiện và là đặc trưng
+                của quá trình in 3D.
+              </p>
+            </article>
+
+            <article>
+              <span>04</span>
+              <h3>Hỗ trợ theo nhu cầu</h3>
+              <p>
+                Có thể liên hệ shop khi cần hỏi thêm về mẫu,
+                màu hoặc sản phẩm in riêng.
+              </p>
+            </article>
           </div>
         </section>
 
         <section className="product-detail__information">
           <div>
-            <span className="product-detail__section-kicker">
-              Chi tiết
-            </span>
+            <p>Chi tiết</p>
             <h2>Thông tin sản phẩm</h2>
           </div>
 
@@ -899,25 +848,23 @@ export default function ProductDetailPage() {
                 "Thông tin sản phẩm đang được cập nhật."}
             </p>
 
-            <aside>
+            <div className="product-detail__note">
               <strong>Lưu ý nhỏ</strong>
               <ul>
                 <li>
-                  Sản phẩm in 3D có thể có vân lớp
-                  nhẹ đặc trưng.
+                  Sản phẩm in 3D có thể có vân lớp nhẹ đặc
+                  trưng.
                 </li>
                 <li>
-                  Màu thực tế có thể chênh nhẹ do
-                  màn hình và ánh sáng.
+                  Màu thực tế có thể chênh nhẹ do màn hình và
+                  ánh sáng.
                 </li>
               </ul>
-            </aside>
+            </div>
           </div>
         </section>
 
-        <ProductRecommendations
-          product={product}
-        />
+        <ProductRecommendations product={product} />
       </div>
     </main>
   );
