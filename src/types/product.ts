@@ -29,6 +29,7 @@ export type ProductVariantGroup = {
 
 export type Product = {
   id: string;
+  sku?: string;
   name: string;
   slug: string;
   categoryId: string;
@@ -89,7 +90,7 @@ export type ProductSearchResult = {
 
 export type ProductInput = Omit<
   Product,
-  "id" | "createdAt" | "updatedAt" | "soldQuantity"
+  "id" | "sku" | "createdAt" | "updatedAt" | "soldQuantity"
 >;
 
 export type CategoryInput = Omit<
