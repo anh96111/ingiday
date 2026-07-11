@@ -523,6 +523,38 @@ export async function searchProducts(
   );
 }
 
+export async function fetchCollectionProductPreviews(
+  categories: Category[],
+  limit = 3,
+  options: FetchOptions = {},
+): Promise<Record<string, Product[]>> {
+  const previewLimit = Math.min(3, Math.max(1, limit));
+  const entries = await Promise.all(
+    categories.map(async (category) => {
+      const result = await searchProducts(
+        {
+          categoryId: category.id,
+          sort: "bestselling",
+          page: 1,
+          pageSize: 12,
+        },
+        options,
+      );
+      const productsWithImages = result.products
+        .filter((product) =>
+          (product.images ?? []).some((image) =>
+            Boolean(image.url.trim()),
+          ),
+        )
+        .slice(0, previewLimit);
+
+      return [category.id, productsWithImages] as const;
+    }),
+  );
+
+  return Object.fromEntries(entries);
+}
+
 export async function fetchFeaturedProducts(
   limit = 4,
   options: FetchOptions = {},

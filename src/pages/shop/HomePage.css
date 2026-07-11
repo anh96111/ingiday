@@ -431,8 +431,9 @@
 
 .home-rebel__collection-grid {
   display: grid;
+  grid-template-rows: repeat(2, minmax(0, auto));
   grid-auto-flow: column;
-  grid-auto-columns: minmax(250px, 280px);
+  grid-auto-columns: calc((100% - 16px) / 2);
   gap: 16px;
   overflow-x: auto;
   padding: 4px 8px 24px 4px;
@@ -496,7 +497,7 @@
 }
 
 .home-rebel__collection-art {
-  min-height: 190px;
+  min-height: clamp(230px, 18vw, 270px);
   position: relative;
   overflow: hidden;
   margin-bottom: 14px;
@@ -571,6 +572,18 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transform: scale(1.04);
+  transform-origin: center;
+  transition: transform 0.25s ease;
+}
+
+.home-rebel__stack-item--main img {
+  transform: scale(1.08);
+}
+
+.home-rebel__stack-item--left img,
+.home-rebel__stack-item--right img {
+  transform: scale(1.04);
 }
 
 .home-rebel__stack-item > span {
@@ -578,10 +591,11 @@
 }
 
 .home-rebel__stack-item--main {
-  width: 108px;
-  height: 122px;
+  width: clamp(150px, 74%, 250px);
+  height: auto;
+  aspect-ratio: 0.9;
   left: 50%;
-  bottom: 18px;
+  bottom: 8px;
   z-index: 3;
   border-radius: 28px 28px 20px 20px;
   font-size: 64px;
@@ -589,10 +603,11 @@
 }
 
 .home-rebel__stack-item--left {
-  width: 78px;
-  height: 88px;
-  bottom: 28px;
-  left: 15px;
+  width: clamp(108px, 50%, 180px);
+  height: auto;
+  aspect-ratio: 0.88;
+  bottom: 17px;
+  left: -4px;
   z-index: 2;
   border-radius: 22px;
   font-size: 46px;
@@ -600,33 +615,17 @@
 }
 
 .home-rebel__stack-item--right {
-  width: 74px;
-  height: 84px;
-  right: 14px;
-  bottom: 36px;
+  width: clamp(104px, 48%, 174px);
+  height: auto;
+  aspect-ratio: 0.88;
+  right: -4px;
+  bottom: 22px;
   z-index: 1;
   border-radius: 20px;
   font-size: 43px;
   transform: rotate(10deg);
 }
 
-.home-rebel__stack-badge {
-  width: 58px;
-  height: 58px;
-  position: absolute;
-  top: 14px;
-  right: 16px;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  background: var(--home-yellow);
-  border: 2px solid var(--home-ink);
-  border-radius: 18px;
-  box-shadow: 5px 5px 0 var(--home-ink);
-  font-size: 17px;
-  font-weight: 900;
-  transform: rotate(8deg);
-}
 
 .home-rebel__collection-card:hover
   .home-rebel__stack-item--main {
@@ -1064,7 +1063,7 @@
   }
 
   .home-rebel__collection-grid {
-    grid-auto-columns: minmax(240px, 42vw);
+    grid-auto-columns: calc((100% - 16px) / 2);
   }
 
   .home-rebel__product-grid {
@@ -1133,11 +1132,12 @@
   }
 
   .home-rebel__collection-grid {
-    grid-auto-columns: 82%;
+    grid-auto-columns: calc((100% - 12px) / 2);
     gap: 12px;
     margin-right: -10px;
     padding-right: 10px;
   }
+
 
   .home-rebel__product-grid {
     gap: 10px;
@@ -1162,20 +1162,33 @@
   }
 
   .home-rebel__collection-art {
-    min-height: 142px;
+    min-height: 190px;
   }
 
   .home-rebel__stack-item--main {
-    width: 82px;
-    height: 94px;
-    font-size: 48px;
+    width: clamp(105px, 78%, 160px);
+    height: auto;
+    aspect-ratio: 0.9;
+    bottom: 6px;
+    font-size: 54px;
   }
 
-  .home-rebel__stack-item--left,
+  .home-rebel__stack-item--left {
+    width: clamp(74px, 54%, 110px);
+    height: auto;
+    aspect-ratio: 0.88;
+    left: -8px;
+    bottom: 16px;
+    font-size: 38px;
+  }
+
   .home-rebel__stack-item--right {
-    width: 58px;
-    height: 66px;
-    font-size: 34px;
+    width: clamp(72px, 52%, 106px);
+    height: auto;
+    aspect-ratio: 0.88;
+    right: -8px;
+    bottom: 20px;
+    font-size: 37px;
   }
 
   .home-rebel__stack-badge {

@@ -7,6 +7,7 @@ import { useBanners } from "../../features/banners/BannersContext";
 import { useSettings } from "../../features/settings/SettingsContext";
 import {
   fetchActiveCategories,
+  fetchCollectionProductPreviews,
   fetchFeaturedProducts,
   searchProducts,
 } from "../../services/products";
@@ -53,7 +54,7 @@ function CollectionProduct({
   className,
 }: {
   product?: Product;
-  fallback: string;
+  fallback?: string;
   className: string;
 }) {
   const image = primaryImage(product);
@@ -179,27 +180,14 @@ export default function HomePage() {
         newest,
       });
 
-      const previewEntries = await Promise.all(
-        nextCategories.slice(0, 4).map(async (category) => {
-          try {
-            const result = await searchProducts(
-              {
-                categoryId: category.id,
-                sort: "bestselling",
-                page: 1,
-                pageSize: 3,
-              },
-              { force },
-            );
+      const nextCollectionProducts =
+        await fetchCollectionProductPreviews(
+          nextCategories,
+          3,
+          { force },
+        );
 
-            return [category.id, result.products] as const;
-          } catch {
-            return [category.id, []] as const;
-          }
-        }),
-      );
-
-      setCollectionProducts(Object.fromEntries(previewEntries));
+      setCollectionProducts(nextCollectionProducts);
     } catch (error) {
       setCatalogError(
         error instanceof Error
@@ -542,10 +530,6 @@ export default function HomePage() {
                         fallback={category.emoji || "🦖"}
                         className="home-rebel__stack-item--main"
                       />
-
-                      <span className="home-rebel__stack-badge">
-                        {index === 1 ? "IGD" : index === 3 ? "1/1" : "✦"}
-                      </span>
                     </div>
 
                     <h3>{category.name}</h3>
