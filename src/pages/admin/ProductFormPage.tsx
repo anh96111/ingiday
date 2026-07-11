@@ -581,6 +581,10 @@ export default function ProductFormPage() {
         <div className="space-y-6">
           <article className="rounded-3xl bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">Thông tin cơ bản</h2>
+      <div className="mt-5 rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 py-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-[#707881]">Mã sản phẩm</p>
+        <p className="mt-1 font-black text-[#006397]">{existingProduct?.sku ?? "Tự sinh sau khi lưu"}</p>
+      </div>
             <div className="mt-5 grid gap-5 md:grid-cols-2">
               <label className="md:col-span-2 text-sm font-bold">
                 Tên sản phẩm <span className="text-[#a43c12]">*</span>

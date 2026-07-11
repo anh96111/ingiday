@@ -1,4 +1,4 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useStoreData } from "../../features/admin/StoreDataContext";
@@ -415,7 +415,7 @@ export default function ProductsAdminPage() {
                               {product.name}
                             </p>
                             <p className="mt-1 text-xs text-[#707881]">
-                              {product.id}
+                              {product.sku ?? "Chưa có mã"}
                             </p>
                           </div>
                         </div>

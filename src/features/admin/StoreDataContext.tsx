@@ -81,6 +81,7 @@ type ProductRow = {
   category_id: string | null;
   name: string;
   slug: string;
+  sku: string | null;
   price: number | string;
   compare_at_price: number | string | null;
   stock: number;
@@ -161,6 +162,7 @@ function productFromRow(row: ProductRow, fallbackCategoryName?: string, images: 
     id: row.id,
     name: row.name,
     slug: row.slug,
+    sku: row.sku ?? undefined,
     categoryId: row.category_id ?? "",
     categoryName: fallbackCategoryName ?? relationName(row.categories),
     price: Number(row.price),
@@ -353,7 +355,7 @@ async function fetchStoreData(includeProducts = true) {
     supabase
       .from("products")
       .select(
-        "id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
+        "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
       )
       .order("created_at", { ascending: false }),
     supabase
@@ -502,7 +504,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           const { data: productData, error: productError } = await supabase
             .from("products")
             .select(
-              "id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
+              "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
             )
             .in("id", parsed.ids);
 
@@ -640,7 +642,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             is_featured: Boolean(input.featured),
             metadata: productMetadata(input),
           })
-          .select("id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
+          .select("id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
           .single();
 
         if (insertError) throw insertError;
@@ -676,7 +678,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             metadata: productMetadata(input),
           })
           .eq("id", id)
-          .select("id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
+          .select("id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
           .single();
 
         if (updateError) throw updateError;
@@ -746,7 +748,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             is_featured: false,
             metadata: productMetadata(input),
           })
-          .select("id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
+          .select("id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
           .single();
 
         if (insertError) throw insertError;
@@ -776,7 +778,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           .from("products")
           .update({ status: nextStatus })
           .eq("id", id)
-          .select("id,category_id,name,slug,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
+          .select("id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at")
           .single();
 
         if (updateError) throw updateError;
