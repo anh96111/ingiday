@@ -1,18 +1,23 @@
 import { Outlet } from "react-router-dom";
 import ScrollToTop from "../components/common/ScrollToTop";
 import Footer from "../components/shop/Footer";
-import AdTrackingBridge from "../features/ads/AdTrackingBridge";
 import Header from "../components/shop/Header";
+import AdTrackingBridge from "../features/ads/AdTrackingBridge";
+import "../styles/storefront-theme.css";
+import "../styles/storefront-a11y.css";
 
 export default function ShopLayout() {
   return (
-    <div className="min-h-screen bg-[#f7f9ff] text-[#091d2e]">
+    <div className="storefront-shell">
+      <a className="sf-skip-link" href="#storefront-content">
+        {"B\u1ecf qua \u0111\u1ebfn n\u1ed9i dung ch\u00ednh"}
+      </a>
+      <ScrollToTop />
       <AdTrackingBridge />
       <Header />
-      <main>
-        <ScrollToTop />
-      <Outlet />
-      </main>
+      <div id="storefront-content" className="storefront-main" tabIndex={-1}>
+        <Outlet />
+      </div>
       <Footer />
     </div>
   );

@@ -1,142 +1,142 @@
 import { Link } from "react-router-dom";
-
 import { useSettings } from "../../features/settings/SettingsContext";
 
-const policyLinks = [
-  {
-    label: "Chính sách giao hàng",
-    to: "/chinh-sach-giao-hang",
-  },
-  {
-    label: "Chính sách đổi trả",
-    to: "/chinh-sach-doi-tra",
-  },
-  {
-    label: "Chính sách bảo hành",
-    to: "/chinh-sach-bao-hanh",
-  },
-  {
-    label: "Chính sách bảo mật",
-    to: "/chinh-sach-bao-mat",
-  },
-  {
-    label: "Điều khoản sử dụng",
-    to: "/dieu-khoan-su-dung",
-  },
+const exploreLinks = [
+  { label: "Tất cả sản phẩm", to: "/san-pham" },
+  { label: "Yêu cầu in riêng", to: "/in-rieng" },
+  { label: "Giỏ hàng", to: "/gio-hang" },
 ];
+
+const policyLinks = [
+  { label: "Chính sách giao hàng", to: "/chinh-sach-giao-hang" },
+  { label: "Chính sách đổi trả", to: "/chinh-sach-doi-tra" },
+  { label: "Chính sách bảo hành", to: "/chinh-sach-bao-hanh" },
+  { label: "Chính sách bảo mật", to: "/chinh-sach-bao-mat" },
+  { label: "Điều khoản sử dụng", to: "/dieu-khoan-su-dung" },
+];
+
+function ArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </svg>
+  );
+}
 
 export default function Footer() {
   const { settings } = useSettings();
 
   return (
-    <footer className="mt-20 bg-[#091d2e] text-[#dce8f2]">
-      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:px-16">
-        <div>
-          <Link
-            to="/"
-            className="inline-flex max-w-full items-center text-2xl font-black text-white"
-            aria-label={settings.storeName}
-          >
-            {settings.logoUrl ? (
-              <img
-                src={settings.logoUrl}
-                alt={settings.storeName}
-                className="max-h-14 max-w-[220px] object-contain"
-              />
-            ) : (
-              settings.storeName
-            )}
-          </Link>
-          <p className="mt-4 max-w-sm text-sm leading-7 text-[#b8c8d5]">
-            {settings.footerDescription}
-          </p>
-        </div>
-
-        <div>
-          <h2 className="font-black text-white">
-            Khám phá
-          </h2>
-          <nav className="mt-4 space-y-3 text-sm">
+    <footer className="storefront-footer">
+      <div className="sf-container">
+        <div className="storefront-footer__panel">
+          <div className="storefront-footer__intro">
             <Link
-              to="/san-pham"
-              className="block hover:text-white"
+              to="/"
+              className="storefront-brand storefront-brand--footer"
+              aria-label={`${settings.storeName} - Trang chủ`}
             >
-              Tất cả sản phẩm
+              {settings.logoUrl ? (
+                <img
+                  src={settings.logoUrl}
+                  alt={settings.storeName}
+                  className="storefront-brand__logo"
+                />
+              ) : (
+                <span className="storefront-brand__wordmark">
+                  {settings.storeName}
+                  <span aria-hidden="true">♡</span>
+                </span>
+              )}
             </Link>
+
+            <p>{settings.footerDescription}</p>
+
             <Link
               to="/in-rieng"
-              className="block hover:text-white"
+              className="sf-button sf-button--primary storefront-footer__cta"
             >
-              Yêu cầu in riêng
+              Yêu cầu thiết kế
+              <ArrowIcon />
             </Link>
-            <Link
-              to="/gio-hang"
-              className="block hover:text-white"
-            >
-              Giỏ hàng
-            </Link>
-          </nav>
-        </div>
+          </div>
 
-        <div>
-          <h2 className="font-black text-white">
-            Chính sách
-          </h2>
-          <nav className="mt-4 space-y-3 text-sm">
-            {policyLinks.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="block hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
+          <div className="storefront-footer__column">
+            <h2>Khám phá</h2>
+            <div className="storefront-footer__links">
+              {exploreLinks.map((item) => (
+                <Link key={item.to} to={item.to}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
 
-        <div>
-          <h2 className="font-black text-white">
-            Liên hệ
-          </h2>
-          <div className="mt-4 space-y-3 text-sm leading-6 text-[#b8c8d5]">
-            {settings.phone && (
-              <p>
-                Điện thoại: {settings.phone}
-              </p>
-            )}
-            {settings.email && (
-              <p>Email: {settings.email}</p>
-            )}
-            {settings.address && (
-              <p>Địa chỉ: {settings.address}</p>
-            )}
-            {settings.messengerUrl && (
-              <a
-                href={settings.messengerUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block font-bold text-[#ffd5c4] hover:text-white"
-              >
-                Messenger ↗
-              </a>
-            )}
-            {!settings.phone &&
-              !settings.email &&
-              !settings.address &&
-              !settings.messengerUrl && (
+          <div className="storefront-footer__column">
+            <h2>Chính sách</h2>
+            <div className="storefront-footer__links">
+              {policyLinks.map((item) => (
+                <Link key={item.to} to={item.to}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="storefront-footer__column">
+            <h2>Liên hệ</h2>
+            <div className="storefront-footer__contact">
+              {settings.phone && (
+                <a href={`tel:${settings.phone.replace(/\s+/g, "")}`}>
+                  <span>Điện thoại</span>
+                  {settings.phone}
+                </a>
+              )}
+
+              {settings.email && (
+                <a href={`mailto:${settings.email}`}>
+                  <span>Email</span>
+                  {settings.email}
+                </a>
+              )}
+
+              {settings.address && (
                 <p>
-                  Thông tin liên hệ sẽ được cập
-                  nhật trong trang quản trị.
+                  <span>Địa chỉ</span>
+                  {settings.address}
                 </p>
               )}
+
+              {settings.messengerUrl && (
+                <a
+                  href={settings.messengerUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>Nhắn tin</span>
+                  Messenger ↗
+                </a>
+              )}
+
+              {!settings.phone &&
+                !settings.email &&
+                !settings.address &&
+                !settings.messengerUrl && (
+                  <p className="storefront-footer__muted">
+                    Thông tin liên hệ sẽ được cập nhật trong trang quản trị.
+                  </p>
+                )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="border-t border-white/10 px-5 py-5 text-center text-xs text-[#9fb1bf]">
-        © {new Date().getFullYear()}{" "}
-        {settings.storeName}. All rights reserved.
+        <div className="storefront-footer__bottom">
+          <span>
+            © {new Date().getFullYear()} {settings.storeName}. All rights
+            reserved.
+          </span>
+          <span>Được tạo bằng nhiều lớp nhựa và một chút đáng yêu ♡</span>
+        </div>
       </div>
     </footer>
   );

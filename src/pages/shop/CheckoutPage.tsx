@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SearchableAddressSelect from "../../components/address/SearchableAddressSelect";
@@ -446,395 +446,489 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <section className="mx-auto max-w-3xl px-5 py-20 text-center">
-        <div className="text-7xl">📦</div>
-        <h1 className="mt-5 text-3xl font-black">
-          Chưa có sản phẩm để thanh toán
-        </h1>
-        <Link
-          to="/san-pham"
-          className="mt-6 inline-flex rounded-2xl bg-[#006397] px-6 py-3 font-bold text-white"
-        >
-          Chọn sản phẩm
-        </Link>
-      </section>
+      <main className="sf-container py-12 sm:py-20">
+        <section className="grid min-h-[460px] place-items-center rounded-[36px] border border-dashed border-[rgba(255,95,143,0.28)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,231,239,0.88),transparent_20rem),#fff] p-8 text-center shadow-[0_20px_54px_rgba(86,53,74,0.07)]">
+          <div>
+            <span
+              className="text-6xl text-[var(--sf-pink)]"
+              aria-hidden="true"
+            >
+              ♡
+            </span>
+            <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] text-[var(--sf-ink)] sm:text-4xl">
+              Chưa có sản phẩm để thanh toán
+            </h1>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[var(--sf-ink-soft)]">
+              Chọn một món bạn thích rồi quay lại hoàn tất đơn hàng nhé.
+            </p>
+            <Link
+              to="/san-pham"
+              className="sf-button sf-button--primary mt-7"
+            >
+              Chọn sản phẩm
+            </Link>
+          </div>
+        </section>
+      </main>
     );
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-10 lg:px-16">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">
-          Thanh toán
-        </p>
-        <h1 className="mt-3 text-3xl font-black sm:text-4xl">
-          Hoàn tất đơn hàng COD
-        </h1>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]"
-      >
-        <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-7">
-          <h2 className="text-xl font-black">Thông tin nhận hàng</h2>
-
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <label className="block text-sm font-bold">
-              Họ và tên <span className="text-[#a43c12]">*</span>
-              <input
-                name="fullName"
-                value={customer.fullName}
-                onChange={handleChange}
-                className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                placeholder="Nguyễn Văn A"
-                autoComplete="name"
-              />
-            </label>
-
-            <div>
-              <label className="block text-sm font-bold">
-                Số điện thoại <span className="text-[#a43c12]">*</span>
-              </label>
-              <input
-                name="phone"
-                value={customer.phone}
-                onChange={handlePhoneChange}
-                onBlur={() => setPhoneTouched(true)}
-                className={`mt-2 h-12 w-full rounded-2xl border bg-[#f7f9ff] px-4 font-normal outline-none ${
-                  phoneTouched && phoneError
-                    ? "border-[#d9512c] focus:border-[#d9512c]"
-                    : "border-[#bfc7d2] focus:border-[#006397]"
-                }`}
-                placeholder="0912345678"
-                inputMode="numeric"
-                autoComplete="tel"
-                maxLength={10}
-                pattern="0(3|5|7|8|9)[0-9]{8}"
-                aria-invalid={phoneTouched && Boolean(phoneError)}
-              />
-              <div className="mt-2 flex items-start justify-between gap-3 text-xs">
-                <span
-                  className={`font-semibold ${
-                    phoneTouched && phoneError
-                      ? "text-[#a43c12]"
-                      : customer.phone.length === 10
-                        ? "text-[#14633d]"
-                        : "text-[#707881]"
-                  }`}
-                  role={phoneTouched && phoneError ? "alert" : undefined}
-                >
-                  {phoneTouched
-                    ? phoneError || "Số điện thoại hợp lệ."
-                    : "Chỉ nhập 10 chữ số, bắt đầu bằng số 0."}
-                </span>
-                <span className="shrink-0 text-[#707881]">
-                  {customer.phone.length}/10
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <SearchableAddressSelect
-              label="Tỉnh/Thành phố"
-              value={customer.province}
-              options={provinceOptions}
-              placeholder="Tìm kiếm tỉnh/thành phố"
-              loading={addressLoading}
-              error={
-                addressTouched.province && !customer.province
-                  ? "Vui lòng chọn Tỉnh/Thành phố."
-                  : ""
-              }
-              onChange={handleProvinceChange}
-              onTouched={() =>
-                setAddressTouched((current) => ({
-                  ...current,
-                  province: true,
-                }))
-              }
-            />
-
-            <SearchableAddressSelect
-              label="Quận/Huyện"
-              value={customer.district}
-              options={districtOptions}
-              placeholder="Tìm kiếm quận/huyện"
-              disabled={!customer.province}
-              loading={addressLoading}
-              error={
-                addressTouched.district &&
-                customer.province &&
-                !customer.district
-                  ? "Vui lòng chọn Quận/Huyện."
-                  : ""
-              }
-              onChange={handleDistrictChange}
-              onTouched={() =>
-                setAddressTouched((current) => ({
-                  ...current,
-                  district: true,
-                }))
-              }
-            />
-
-            <SearchableAddressSelect
-              label="Phường/Xã"
-              value={customer.ward}
-              options={wardOptions}
-              placeholder="Tìm kiếm phường/xã"
-              disabled={!customer.district}
-              loading={addressLoading}
-              error={
-                addressTouched.ward &&
-                customer.district &&
-                !customer.ward
-                  ? "Vui lòng chọn Phường/Xã."
-                  : ""
-              }
-              onChange={handleWardChange}
-              onTouched={() =>
-                setAddressTouched((current) => ({
-                  ...current,
-                  ward: true,
-                }))
-              }
-            />
-
-            <label className="block text-sm font-bold">
-              Địa chỉ chi tiết <span className="text-[#a43c12]">*</span>
-              <input
-                name="addressDetail"
-                value={customer.addressDetail}
-                onChange={handleChange}
-                className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-                placeholder="Số nhà, tên đường, thôn/xóm"
-                autoComplete="street-address"
-              />
-            </label>
-          </div>
-
-          {addressLoadError && (
-            <p
-              className="mt-4 rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]"
-              role="alert"
-            >
-              {addressLoadError}
-            </p>
-          )}
-
-          <label className="mt-5 block text-sm font-bold">
-            Ghi chú đơn hàng
-            <textarea
-              name="note"
-              value={customer.note}
-              onChange={handleChange}
-              className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] p-4 font-normal outline-none focus:border-[#006397]"
-              placeholder="Màu mong muốn hoặc lưu ý khi giao hàng..."
-            />
-          </label>
-
-          <div className="mt-6 rounded-2xl border-2 border-[#006397] bg-[#edf4ff] p-5">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">💵</span>
-              <div>
-                <p className="font-black text-[#006397]">
-                  Thanh toán khi nhận hàng — COD
-                </p>
-                <p className="mt-1 text-sm leading-6 text-[#3f4850]">
-                  Khách thanh toán trực tiếp cho đơn vị giao hàng khi nhận sản
-                  phẩm.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {error && (
-            <p
-              className="mt-5 rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]"
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
+    <main className="pb-20">
+      <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_58%,#f5f1ff_100%)]">
+        <div className="sf-container py-11 sm:py-14">
+          <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--sf-pink)] shadow-[0_0_0_5px_rgba(255,95,143,0.10)]" />
+            Thanh toán
+          </span>
+          <h1 className="mt-4 text-4xl font-black tracking-[-0.055em] text-[var(--sf-ink)] sm:text-5xl">
+            Hoàn tất đơn hàng COD ♡
+          </h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--sf-ink-soft)] sm:text-base">
+            Điền thông tin nhận hàng, kiểm tra lại sản phẩm và đặt đơn trong vài bước.
+          </p>
         </div>
+      </section>
 
-        <aside className="h-fit rounded-3xl bg-white p-6 shadow-[0_15px_40px_-25px_rgba(0,99,151,0.45)] lg:sticky lg:top-28">
-          <h2 className="text-xl font-black">Tóm tắt đơn hàng</h2>
+      <section className="sf-container pt-8">
+        <form
+          onSubmit={handleSubmit}
+          className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_400px]"
+        >
+          <div className="rounded-[30px] border border-[rgba(88,63,80,0.07)] bg-white p-5 shadow-[0_18px_48px_rgba(86,53,74,0.08)] sm:p-7">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--sf-pink-strong)]">
+                Giao hàng
+              </p>
+              <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-[var(--sf-ink)]">
+                Thông tin nhận hàng
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--sf-ink-soft)]">
+                Thông tin được lưu trên trình duyệt để lần đặt sau nhanh hơn.
+              </p>
+            </div>
 
-          <div className="mt-5 max-h-72 space-y-4 overflow-auto pr-1">
-            {items.map((item) => (
-              <div key={item.key} className="flex gap-3">
-                <div
-                  className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-xl text-3xl"
-                  style={{ backgroundColor: item.background }}
-                >
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    item.emoji
-                  )}
+            <div className="mt-7 grid gap-5 sm:grid-cols-2">
+              <label className="block text-sm font-black text-[var(--sf-ink)]">
+                Họ và tên{" "}
+                <span className="text-[var(--sf-pink-strong)]">*</span>
+                <input
+                  name="fullName"
+                  value={customer.fullName}
+                  onChange={handleChange}
+                  className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
+                  placeholder="Nguyễn Văn A"
+                  autoComplete="name"
+                />
+              </label>
+
+              <div>
+                <label className="block text-sm font-black text-[var(--sf-ink)]">
+                  Số điện thoại{" "}
+                  <span className="text-[var(--sf-pink-strong)]">*</span>
+                </label>
+                <input
+                  name="phone"
+                  value={customer.phone}
+                  onChange={handlePhoneChange}
+                  onBlur={() => setPhoneTouched(true)}
+                  className={`mt-2 h-12 w-full rounded-2xl border bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)] ${
+                    phoneTouched && phoneError
+                      ? "border-[#d94c69] focus:border-[#d94c69]"
+                      : "border-[var(--sf-border)] focus:border-[rgba(255,95,143,0.42)]"
+                  }`}
+                  placeholder="0912345678"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={10}
+                  pattern="0(3|5|7|8|9)[0-9]{8}"
+                  aria-invalid={phoneTouched && Boolean(phoneError)}
+                />
+
+                <div className="mt-2 flex items-start justify-between gap-3 text-xs">
+                  <span
+                    className={`font-semibold ${
+                      phoneTouched && phoneError
+                        ? "text-[#c94772]"
+                        : customer.phone.length === 10
+                          ? "text-[#24835b]"
+                          : "text-[var(--sf-ink-soft)]"
+                    }`}
+                    role={
+                      phoneTouched && phoneError ? "alert" : undefined
+                    }
+                  >
+                    {phoneTouched
+                      ? phoneError || "Số điện thoại hợp lệ."
+                      : "Chỉ nhập 10 chữ số, bắt đầu bằng số 0."}
+                  </span>
+                  <span className="shrink-0 text-[var(--sf-ink-soft)]">
+                    {customer.phone.length}/10
+                  </span>
                 </div>
+              </div>
+            </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold leading-5">{item.name}</p>
-                  {item.selectedVariants.length > 0 && (
-                    <p className="mt-1 truncate text-xs text-[#707881]">
-                      {item.selectedVariants
-                        .map((variant) => variant.optionLabel)
-                        .join(" · ")}
-                    </p>
-                  )}
-                  <p className="mt-1 text-sm text-[#3f4850]">
+            <div className="mt-5 grid gap-5 sm:grid-cols-2">
+              <SearchableAddressSelect
+                label="Tỉnh/Thành phố"
+                value={customer.province}
+                options={provinceOptions}
+                placeholder="Tìm kiếm tỉnh/thành phố"
+                loading={addressLoading}
+                error={
+                  addressTouched.province && !customer.province
+                    ? "Vui lòng chọn Tỉnh/Thành phố."
+                    : ""
+                }
+                onChange={handleProvinceChange}
+                onTouched={() =>
+                  setAddressTouched((current) => ({
+                    ...current,
+                    province: true,
+                  }))
+                }
+              />
 
-                  {item.selectedCustomOptions?.text && (
-                    <div
-                      data-custom-options-display="checkout"
-                      className="mt-2 space-y-1 rounded-xl bg-[#f7f9ff] px-3 py-2 text-xs leading-5 text-[#3f4850]"
-                    >
-                      <p>
-                        <span className="font-bold text-[#091d2e]">
-                          {item.selectedCustomOptions.text.label}:
-                        </span>{" "}
-                        {item.selectedCustomOptions.text.value}
-                      </p>
-                      {item.selectedCustomOptions.color && (
-                        <p className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-[#091d2e]">
-                            Màu chữ:
-                          </span>
-                          {item.selectedCustomOptions.color.imageUrl && (
-                            <img
-                              src={item.selectedCustomOptions.color.imageUrl}
-                              alt=""
-                              className="h-4 w-4 rounded-full object-cover"
-                            />
-                          )}
-                          <span>{item.selectedCustomOptions.color.name}</span>
-                          <span className="font-semibold text-[#14633d]">
-                            miễn phí
-                          </span>
-                        </p>
-                      )}
-                      {item.selectedCustomOptions.text.priceDelta > 0 && (
-                        <p className="font-semibold text-[#a43c12]">
-                          Phụ phí text: +{formatCurrency(item.selectedCustomOptions.text.priceDelta)}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {item.quantity} × {formatCurrency(item.unitPrice)}
+              <SearchableAddressSelect
+                label="Quận/Huyện"
+                value={customer.district}
+                options={districtOptions}
+                placeholder="Tìm kiếm quận/huyện"
+                disabled={!customer.province}
+                loading={addressLoading}
+                error={
+                  addressTouched.district &&
+                  customer.province &&
+                  !customer.district
+                    ? "Vui lòng chọn Quận/Huyện."
+                    : ""
+                }
+                onChange={handleDistrictChange}
+                onTouched={() =>
+                  setAddressTouched((current) => ({
+                    ...current,
+                    district: true,
+                  }))
+                }
+              />
+
+              <SearchableAddressSelect
+                label="Phường/Xã"
+                value={customer.ward}
+                options={wardOptions}
+                placeholder="Tìm kiếm phường/xã"
+                disabled={!customer.district}
+                loading={addressLoading}
+                error={
+                  addressTouched.ward &&
+                  customer.district &&
+                  !customer.ward
+                    ? "Vui lòng chọn Phường/Xã."
+                    : ""
+                }
+                onChange={handleWardChange}
+                onTouched={() =>
+                  setAddressTouched((current) => ({
+                    ...current,
+                    ward: true,
+                  }))
+                }
+              />
+
+              <label className="block text-sm font-black text-[var(--sf-ink)]">
+                Địa chỉ chi tiết{" "}
+                <span className="text-[var(--sf-pink-strong)]">*</span>
+                <input
+                  name="addressDetail"
+                  value={customer.addressDetail}
+                  onChange={handleChange}
+                  className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
+                  placeholder="Số nhà, tên đường, thôn/xóm"
+                  autoComplete="street-address"
+                />
+              </label>
+            </div>
+
+            {addressLoadError && (
+              <p
+                className="mt-4 rounded-2xl border border-[rgba(214,117,80,0.18)] bg-[#fff5ed] px-4 py-3 text-sm font-semibold text-[#884426]"
+                role="alert"
+              >
+                {addressLoadError}
+              </p>
+            )}
+
+            <label className="mt-5 block text-sm font-black text-[var(--sf-ink)]">
+              Ghi chú đơn hàng
+              <textarea
+                name="note"
+                value={customer.note}
+                onChange={handleChange}
+                className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] p-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
+                placeholder="Màu mong muốn hoặc lưu ý khi giao hàng..."
+              />
+            </label>
+
+            <div className="mt-6 rounded-[22px] border border-[rgba(255,95,143,0.16)] bg-[linear-gradient(135deg,var(--sf-pink-wash),#fff8f2)] p-5">
+              <div className="flex items-start gap-3">
+                <span
+                  className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-white text-xl shadow-sm"
+                  aria-hidden="true"
+                >
+                  ♡
+                </span>
+                <div>
+                  <p className="font-black text-[var(--sf-pink-strong)]">
+                    Thanh toán khi nhận hàng — COD
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--sf-ink-soft)]">
+                    Khách thanh toán trực tiếp cho đơn vị giao hàng khi nhận sản phẩm.
                   </p>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {error && (
+              <p
+                className="mt-5 rounded-2xl border border-[rgba(214,117,80,0.18)] bg-[#fff0f3] px-4 py-3 text-sm font-semibold text-[#a83b60]"
+                role="alert"
+              >
+                {error}
+              </p>
+            )}
           </div>
 
-          {settings.couponEnabled && (
-            <div className="mt-5 border-t border-[#bfc7d2]/60 pt-5">
-              <label className="text-sm font-bold">Mã giảm giá</label>
-              <div className="mt-2 flex gap-2">
-                <input
-                  value={couponCode}
-                  onChange={(event) =>
-                    setCouponCode(event.target.value.toUpperCase())
-                  }
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-[#bfc7d2] px-3 outline-none focus:border-[#006397]"
-                  placeholder="Nhập mã"
-                />
-                <button
-                  type="button"
-                  disabled={applyingCoupon}
-                  onClick={() => void handleApplyCoupon()}
-                  className="rounded-xl bg-[#006397] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {applyingCoupon ? "Đang kiểm tra..." : "Áp dụng"}
-                </button>
-              </div>
-              {couponMessage && (
-                <p
-                  className={`mt-2 text-xs font-semibold ${
-                    appliedCoupon ? "text-[#14633d]" : "text-[#a43c12]"
-                  }`}
-                >
-                  {couponMessage}
-                </p>
-              )}
-            </div>
-          )}
+          <aside className="h-fit rounded-[30px] border border-[rgba(88,63,80,0.07)] bg-white p-6 shadow-[0_20px_54px_rgba(86,53,74,0.09)] lg:sticky lg:top-28">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--sf-pink-strong)]">
+              Kiểm tra lần cuối
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] text-[var(--sf-ink)]">
+              Tóm tắt đơn hàng
+            </h2>
 
-          <dl className="mt-6 space-y-4 border-t border-[#bfc7d2]/60 pt-5 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-[#3f4850]">Tiền sản phẩm</dt>
-              <dd className="font-bold">{formatCurrency(subtotal)}</dd>
+            <div className="mt-5 max-h-80 space-y-4 overflow-auto pr-1">
+              {items.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex gap-3 rounded-[18px] bg-[#fcfaf9] p-2.5"
+                >
+                  <div
+                    className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl text-3xl"
+                    style={{ backgroundColor: item.background }}
+                  >
+                    {item.imageUrl ? (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="h-full w-full object-contain p-1.5"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      item.emoji
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 font-black leading-5 text-[var(--sf-ink)]">
+                      {item.name}
+                    </p>
+
+                    {item.selectedVariants.length > 0 && (
+                      <p className="mt-1 truncate text-xs text-[var(--sf-ink-soft)]">
+                        {item.selectedVariants
+                          .map((variant) => variant.optionLabel)
+                          .join(" · ")}
+                      </p>
+                    )}
+
+                    {item.selectedCustomOptions?.text && (
+                      <div
+                        data-custom-options-display="checkout"
+                        className="mt-2 space-y-1 rounded-xl bg-white px-3 py-2 text-xs leading-5 text-[var(--sf-ink-soft)]"
+                      >
+                        <p>
+                          <span className="font-black text-[var(--sf-ink)]">
+                            {item.selectedCustomOptions.text.label}:
+                          </span>{" "}
+                          {item.selectedCustomOptions.text.value}
+                        </p>
+
+                        {item.selectedCustomOptions.color && (
+                          <p className="flex flex-wrap items-center gap-2">
+                            <span className="font-black text-[var(--sf-ink)]">
+                              Màu chữ:
+                            </span>
+                            {item.selectedCustomOptions.color
+                              .imageUrl && (
+                              <img
+                                src={
+                                  item.selectedCustomOptions.color
+                                    .imageUrl
+                                }
+                                alt=""
+                                className="h-4 w-4 rounded-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            )}
+                            <span>
+                              {item.selectedCustomOptions.color.name}
+                            </span>
+                            <span className="font-semibold text-[#24835b]">
+                              miễn phí
+                            </span>
+                          </p>
+                        )}
+
+                        {item.selectedCustomOptions.text.priceDelta >
+                          0 && (
+                          <p className="font-semibold text-[var(--sf-pink-strong)]">
+                            Phụ phí text: +
+                            {formatCurrency(
+                              item.selectedCustomOptions.text
+                                .priceDelta,
+                            )}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="mt-2 text-xs font-bold text-[var(--sf-ink-soft)]">
+                      {item.quantity} ×{" "}
+                      {formatCurrency(item.unitPrice)}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            {discount > 0 && (
-              <div className="flex justify-between gap-4 text-[#14633d]">
-                <dt>
-                  Giảm giá {appliedCoupon?.code && `(${appliedCoupon.code})`}
-                </dt>
-                <dd className="font-bold">−{formatCurrency(discount)}</dd>
+            {settings.couponEnabled && (
+              <div className="mt-5 border-t border-[var(--sf-border)] pt-5">
+                <label className="text-sm font-black text-[var(--sf-ink)]">
+                  Mã giảm giá
+                </label>
+
+                <div className="mt-2 flex gap-2">
+                  <input
+                    value={couponCode}
+                    onChange={(event) =>
+                      setCouponCode(event.target.value.toUpperCase())
+                    }
+                    className="h-11 min-w-0 flex-1 rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-3 text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white"
+                    placeholder="Nhập mã"
+                  />
+                  <button
+                    type="button"
+                    disabled={applyingCoupon}
+                    onClick={() => void handleApplyCoupon()}
+                    className="rounded-2xl bg-[var(--sf-pink)] px-4 text-sm font-black text-white shadow-[0_8px_20px_rgba(255,95,143,0.20)] transition hover:bg-[var(--sf-pink-strong)] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {applyingCoupon ? "Đang kiểm tra..." : "Áp dụng"}
+                  </button>
+                </div>
+
+                {couponMessage && (
+                  <p
+                    className={`mt-2 text-xs font-semibold ${
+                      appliedCoupon
+                        ? "text-[#24835b]"
+                        : "text-[#c94772]"
+                    }`}
+                  >
+                    {couponMessage}
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="flex justify-between gap-4">
-              <dt className="text-[#3f4850]">Phí vận chuyển</dt>
-              <dd className="font-bold">
-                {shipping === 0 ? "Miễn phí" : formatCurrency(shipping)}
-              </dd>
-            </div>
+            <dl className="mt-6 space-y-4 border-t border-[var(--sf-border)] pt-5 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--sf-ink-soft)]">
+                  Tiền sản phẩm
+                </dt>
+                <dd className="font-black text-[var(--sf-ink)]">
+                  {formatCurrency(subtotal)}
+                </dd>
+              </div>
 
-            <div className="flex justify-between gap-4 border-t border-[#bfc7d2]/60 pt-4 text-base">
-              <dt className="font-black">Tổng thanh toán</dt>
-              <dd className="font-black text-[#a43c12]">
-                {formatCurrency(total)}
-              </dd>
-            </div>
-          </dl>
+              {discount > 0 && (
+                <div className="flex justify-between gap-4 text-[#24835b]">
+                  <dt>
+                    Giảm giá{" "}
+                    {appliedCoupon?.code && `(${appliedCoupon.code})`}
+                  </dt>
+                  <dd className="font-black">
+                    −{formatCurrency(discount)}
+                  </dd>
+                </div>
+              )}
 
-          <p className="mt-6 text-center text-xs leading-5 text-[#707881]">
-  Khi đặt hàng, bạn xác nhận đã đọc{" "}
-  <Link
-    to="/dieu-khoan-su-dung"
-    className="font-bold text-[#006397]"
-  >
-    Điều khoản sử dụng
-  </Link>
-  ,{" "}
-  <Link
-    to="/chinh-sach-giao-hang"
-    className="font-bold text-[#006397]"
-  >
-    Chính sách giao hàng
-  </Link>
-  {" "}và{" "}
-  <Link
-    to="/chinh-sach-doi-tra"
-    className="font-bold text-[#006397]"
-  >
-    Chính sách đổi trả
-  </Link>
-  .
-</p>
-<button
-            type="submit"
-            disabled={submitting || addressLoading || Boolean(addressLoadError)}
-            className="mt-6 min-h-13 w-full rounded-2xl bg-[#fe7e4f] px-6 font-bold text-white shadow-lg shadow-[#fe7e4f]/20 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {submitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
-          </button>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--sf-ink-soft)]">
+                  Phí vận chuyển
+                </dt>
+                <dd className="font-black text-[var(--sf-ink)]">
+                  {shipping === 0
+                    ? "Miễn phí"
+                    : formatCurrency(shipping)}
+                </dd>
+              </div>
 
-          <p className="mt-3 text-center text-xs leading-5 text-[#707881]">
-            Tổng tiền và tồn kho được hệ thống kiểm tra lại trước khi tạo đơn.
-          </p>
-        </aside>
-      </form>
-    </section>
+              <div className="flex justify-between gap-4 border-t border-[var(--sf-border)] pt-4">
+                <dt className="font-black text-[var(--sf-ink)]">
+                  Tổng thanh toán
+                </dt>
+                <dd className="text-xl font-black tracking-[-0.03em] text-[var(--sf-pink-strong)]">
+                  {formatCurrency(total)}
+                </dd>
+              </div>
+            </dl>
+
+            <p className="mt-6 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
+              Khi đặt hàng, bạn xác nhận đã đọc{" "}
+              <Link
+                to="/dieu-khoan-su-dung"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Điều khoản sử dụng
+              </Link>
+              ,{" "}
+              <Link
+                to="/chinh-sach-giao-hang"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Chính sách giao hàng
+              </Link>{" "}
+              và{" "}
+              <Link
+                to="/chinh-sach-doi-tra"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Chính sách đổi trả
+              </Link>
+              .
+            </p>
+
+            <button
+              type="submit"
+              disabled={
+                submitting ||
+                addressLoading ||
+                Boolean(addressLoadError)
+              }
+              className="mt-6 min-h-13 w-full rounded-full bg-[var(--sf-pink)] px-6 font-black text-white shadow-[0_12px_28px_rgba(255,95,143,0.26)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-pink-strong)] hover:shadow-[0_16px_34px_rgba(255,95,143,0.34)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
+            </button>
+
+            <p className="mt-3 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
+              Tổng tiền và tồn kho được hệ thống kiểm tra lại trước khi tạo đơn.
+            </p>
+          </aside>
+        </form>
+      </section>
+    </main>
   );
 }

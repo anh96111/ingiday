@@ -1,22 +1,11 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import {
-  useEffect,
-  useState,
-} from "react";
-
-import {
-  fetchProductRecommendations,
-} from "../../services/productRecommendations";
-import type {
-  Product,
-} from "../../types/product";
+import { useEffect, useState } from "react";
+import { fetchProductRecommendations } from "../../services/productRecommendations";
+import type { Product } from "../../types/product";
 import ProductCard from "./ProductCard";
 
 type ProductRecommendationsProps = {
-  product: Pick<
-    Product,
-    "id" | "categoryId"
-  >;
+  product: Pick<Product, "id" | "categoryId">;
 };
 
 type RecommendationState = {
@@ -31,22 +20,21 @@ const emptyState: RecommendationState = {
 
 function CardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-      {Array.from({ length: 6 }).map(
-        (_item, index) => (
-          <div
-            key={index}
-            className="overflow-hidden rounded-3xl bg-white shadow-sm"
-          >
-            <div className="aspect-square animate-pulse bg-[#e8eef4]" />
-            <div className="space-y-3 p-4">
-              <div className="h-3 w-2/3 animate-pulse rounded bg-[#dce6ef]" />
-              <div className="h-5 animate-pulse rounded bg-[#e8eef4]" />
-              <div className="h-5 w-1/2 animate-pulse rounded bg-[#dce6ef]" />
-            </div>
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      {Array.from({ length: 6 }).map((_item, index) => (
+        <div
+          key={index}
+          className="overflow-hidden rounded-[26px] border border-[rgba(88,63,80,0.06)] bg-white shadow-[0_12px_30px_rgba(86,53,74,0.06)]"
+          aria-hidden="true"
+        >
+          <div className="aspect-square animate-pulse bg-[#f5eff2]" />
+          <div className="space-y-3 p-4">
+            <div className="h-3 w-2/3 animate-pulse rounded-full bg-[var(--sf-pink-soft)]" />
+            <div className="h-5 animate-pulse rounded-full bg-[#f0e9ed]" />
+            <div className="h-5 w-1/2 animate-pulse rounded-full bg-[#eee5ff]" />
           </div>
-        ),
-      )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -70,24 +58,21 @@ function RecommendationGroup({
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.2em] text-[#006397]">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
             {eyebrow}
           </p>
-          <h2 className="mt-2 text-2xl font-black text-[#091d2e] sm:text-3xl">
+          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--sf-ink)] sm:text-3xl">
             {title}
           </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#707881]">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--sf-ink-soft)]">
             {description}
           </p>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         {products.map((item) => (
-          <ProductCard
-            key={item.id}
-            product={item}
-          />
+          <ProductCard key={item.id} product={item} />
         ))}
       </div>
     </section>
@@ -97,15 +82,10 @@ function RecommendationGroup({
 export default function ProductRecommendations({
   product,
 }: ProductRecommendationsProps) {
-  const [data, setData] =
-    useState<RecommendationState>(
-      emptyState,
-    );
-  const [loading, setLoading] =
-    useState(true);
+  const [data, setData] = useState(emptyState);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [retryVersion, setRetryVersion] =
-    useState(0);
+  const [retryVersion, setRetryVersion] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -142,19 +122,15 @@ export default function ProductRecommendations({
     return () => {
       active = false;
     };
-  }, [
-    product.categoryId,
-    product.id,
-    retryVersion,
-  ]);
+  }, [product.categoryId, product.id, retryVersion]);
 
   if (loading) {
     return (
-      <div className="mt-16 border-t border-[#dce3ea] pt-12">
-        <p className="text-sm font-black uppercase tracking-[0.2em] text-[#006397]">
+      <div className="mt-16 border-t border-[var(--sf-border)] pt-12">
+        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
           Có thể bạn sẽ thích
         </p>
-        <h2 className="mt-2 text-2xl font-black sm:text-3xl">
+        <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--sf-ink)] sm:text-3xl">
           Đang tải sản phẩm gợi ý
         </h2>
         <div className="mt-6">
@@ -166,18 +142,12 @@ export default function ProductRecommendations({
 
   if (error) {
     return (
-      <div className="mt-16 rounded-3xl border border-[#f0c6b5] bg-[#fff5f1] p-6 text-center">
-        <p className="font-bold text-[#a43c12]">
-          {error}
-        </p>
+      <div className="mt-16 rounded-[28px] border border-[rgba(214,117,80,0.18)] bg-[#fff5ed] p-6 text-center">
+        <p className="font-bold text-[#884426]">{error}</p>
         <button
           type="button"
-          onClick={() =>
-            setRetryVersion(
-              (current) => current + 1,
-            )
-          }
-          className="mt-4 rounded-xl bg-white px-5 py-3 text-sm font-bold text-[#006397] shadow-sm"
+          onClick={() => setRetryVersion((current) => current + 1)}
+          className="mt-4 rounded-full border border-[rgba(255,95,143,0.18)] bg-white px-5 py-3 text-sm font-black text-[var(--sf-pink-strong)] shadow-sm transition hover:-translate-y-0.5"
         >
           Tải lại gợi ý
         </button>
@@ -193,18 +163,18 @@ export default function ProductRecommendations({
   }
 
   return (
-    <div className="mt-16 space-y-14 border-t border-[#dce3ea] pt-12">
+    <div className="mt-16 space-y-14 border-t border-[var(--sf-border)] pt-12">
       <RecommendationGroup
-        eyebrow="Khám phá thêm"
-        title="Sản phẩm tương tự"
-        description="Ưu tiên sản phẩm cùng danh mục, còn hàng và đang được quan tâm."
+        eyebrow="Cùng mood"
+        title="Có thể bạn sẽ thích"
+        description="Những món cùng nhóm sản phẩm để bạn khám phá thêm."
         products={data.similar}
       />
 
       <RecommendationGroup
-        eyebrow="Được chọn nhiều"
-        title="Sản phẩm bán chạy"
-        description="Xếp theo tổng số lượng từ các đơn đã tạo thành công và chưa bị hủy."
+        eyebrow="Được quan tâm"
+        title="Những món đang được chọn nhiều"
+        description="Gợi ý thêm từ các sản phẩm bán chạy trong cửa hàng."
         products={data.bestselling}
       />
     </div>

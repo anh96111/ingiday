@@ -5,10 +5,9 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "react-router-dom";
-
 import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
-import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import ProductCard from "../../components/shop/ProductCard";
+import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useProductSearch } from "../../hooks/useProductSearch";
 import { fetchActiveCategories } from "../../services/products";
@@ -35,38 +34,44 @@ function numberParam(
     : fallback;
 }
 
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M10 18h4" />
+    </svg>
+  );
+}
+
 export default function ProductsPage() {
-  const [searchParams, setSearchParams] =
-    useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { trackSearch } = useAdTracking();
   const lastTrackedSearchRef = useRef("");
 
   const keyword = searchParams.get("q") ?? "";
-  const categoryParam =
-    searchParams.get("danh-muc") ?? "";
-  const minPrice = numberParam(
-    searchParams.get("gia-tu"),
-    0,
-  );
-  const maxPrice = numberParam(
-    searchParams.get("gia-den"),
-    500000,
-  );
-  const inStock =
-    searchParams.get("con-hang") === "1";
+  const categoryParam = searchParams.get("danh-muc") ?? "";
+  const minPrice = numberParam(searchParams.get("gia-tu"), 0);
+  const maxPrice = numberParam(searchParams.get("gia-den"), 500000);
+  const inStock = searchParams.get("con-hang") === "1";
   const sort =
-    (searchParams.get("sap-xep") as
-      | CatalogSort
-      | null) ?? "relevance";
+    (searchParams.get("sap-xep") as CatalogSort | null) ??
+    "relevance";
   const page = Math.max(
     1,
     numberParam(searchParams.get("trang"), 1),
   );
 
-  const debouncedKeyword = useDebouncedValue(
-    keyword,
-    400,
-  );
+  const debouncedKeyword = useDebouncedValue(keyword, 400);
 
   useEffect(() => {
     const normalizedKeyword = debouncedKeyword.trim();
@@ -87,11 +92,8 @@ export default function ProductsPage() {
     void trackSearch(normalizedKeyword);
   }, [debouncedKeyword, trackSearch]);
 
-  const [categories, setCategories] = useState<
-    Category[]
-  >([]);
-  const [categoriesError, setCategoriesError] =
-    useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesError, setCategoriesError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -117,7 +119,6 @@ export default function ProductsPage() {
       active = false;
     };
   }, []);
-
 
   const resolvedCategoryId = useMemo(() => {
     if (!categoryParam) {
@@ -185,11 +186,7 @@ export default function ProductsPage() {
   }
 
   function goToPage(nextPage: number) {
-    updateParam(
-      "trang",
-      String(nextPage),
-      false,
-    );
+    updateParam("trang", String(nextPage), false);
 
     window.scrollTo({
       top: 0,
@@ -197,236 +194,262 @@ export default function ProductsPage() {
     });
   }
 
-  const hasPreviousData =
-    data.products.length > 0;
+  const hasPreviousData = data.products.length > 0;
+  const selectedCategory = categories.find(
+    (category) =>
+      category.id === categoryParam ||
+      category.slug === categoryParam,
+  );
 
   return (
-    <section className="mx-auto max-w-7xl px-5 py-10 lg:px-16">
-      <div>
-        <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">
-          Cửa hàng
-        </p>
-        <h1 className="mt-2 text-3xl font-black sm:text-4xl">
-          Tất cả sản phẩm
-        </h1>
-        <p className="mt-3 text-[#707881]">
-          Tìm có dấu hoặc không dấu, lọc trực tiếp
-          từ kho sản phẩm.
-        </p>
-      </div>
-
-      <div className="mt-7 grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-6">
-        <label className="text-sm font-bold xl:col-span-2">
-          Tìm kiếm
-          <input
-            value={keyword}
-            onChange={(event) =>
-              updateParam(
-                "q",
-                event.target.value,
-              )
-            }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-            placeholder="Tên, mô tả hoặc danh mục..."
-          />
-        </label>
-
-        <label className="text-sm font-bold">
-          Danh mục
-          <select
-            value={categoryParam}
-            onChange={(event) =>
-              updateParam(
-                "danh-muc",
-                event.target.value,
-              )
-            }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-          >
-            <option value="">
-              Tất cả danh mục
-            </option>
-            {categories.map((category) => (
-              <option
-                key={category.id}
-                value={category.id}
-              >
-                {category.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-sm font-bold">
-          Giá từ
-          <input
-            type="number"
-            min="0"
-            step="10000"
-            value={minPrice}
-            onChange={(event) =>
-              updateParam(
-                "gia-tu",
-                event.target.value,
-              )
-            }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-          />
-        </label>
-
-        <label className="text-sm font-bold">
-          Giá đến
-          <input
-            type="number"
-            min="0"
-            step="10000"
-            value={maxPrice}
-            onChange={(event) =>
-              updateParam(
-                "gia-den",
-                event.target.value,
-              )
-            }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-          />
-        </label>
-
-        <label className="text-sm font-bold">
-          Sắp xếp
-          <select
-            value={sort}
-            onChange={(event) =>
-              updateParam(
-                "sap-xep",
-                event.target.value,
-              )
-            }
-            className="mt-2 h-12 w-full rounded-2xl border border-[#bfc7d2] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
-          >
-            <option value="relevance">
-              Liên quan nhất
-            </option>
-            <option value="newest">
-              Mới nhất
-            </option>
-            <option value="bestselling">
-              Bán chạy
-            </option>
-            <option value="price_asc">
-              Giá tăng dần
-            </option>
-            <option value="price_desc">
-              Giá giảm dần
-            </option>
-          </select>
-        </label>
-
-        <label className="flex items-center gap-3 text-sm font-bold md:col-span-2 xl:col-span-6">
-          <input
-            type="checkbox"
-            checked={inStock}
-            onChange={(event) =>
-              updateParam(
-                "con-hang",
-                event.target.checked
-                  ? "1"
-                  : undefined,
-              )
-            }
-            className="h-5 w-5 accent-[#006397]"
-          />
-          Chỉ hiển thị sản phẩm còn hàng
-        </label>
-      </div>
-
-      {(error || categoriesError) && (
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#fff0eb] px-5 py-4 text-sm font-semibold text-[#a43c12]">
-          <span>
-            {error || categoriesError}
+    <main className="pb-20">
+      <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_56%,#f5f1ff_100%)]">
+        <div className="sf-container py-12 sm:py-16">
+          <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--sf-pink)] shadow-[0_0_0_5px_rgba(255,95,143,0.10)]" />
+            Cửa hàng InGiDay
           </span>
 
-          <button
-            type="button"
-            onClick={retry}
-            className="rounded-xl bg-white px-4 py-2 font-bold"
-          >
-            Thử lại
-          </button>
-        </div>
-      )}
+          <h1 className="mt-4 max-w-3xl text-4xl font-black tracking-[-0.055em] text-[var(--sf-ink)] sm:text-5xl lg:text-6xl">
+            Tìm một món
+            <span className="block text-[var(--sf-pink)]">
+              đúng gu của bạn ♡
+            </span>
+          </h1>
 
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-3">
-        <p className="font-bold text-[#3f4850]">
-          Tìm thấy {data.total} sản phẩm
-        </p>
-
-        {loading && hasPreviousData && (
-          <p className="text-sm font-semibold text-[#006397]">
-            Đang cập nhật kết quả...
+          <p className="mt-4 max-w-2xl text-base leading-7 text-[var(--sf-ink-soft)]">
+            Tìm có dấu hoặc không dấu, chọn danh mục và sắp xếp
+            trực tiếp từ kho sản phẩm.
           </p>
-        )}
-      </div>
+        </div>
+      </section>
 
-      <div
-        className={`relative mt-6 transition-opacity ${
-          loading && hasPreviousData
-            ? "opacity-60"
-            : "opacity-100"
-        }`}
-      >
-        {loading && !hasPreviousData ? (
-          <ProductGridSkeleton count={PAGE_SIZE} />
-        ) : data.products.length > 0 ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {data.products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
+      <section className="sf-container pt-8">
+        <div className="rounded-[32px] border border-[rgba(88,63,80,0.07)] bg-white p-5 shadow-[0_18px_48px_rgba(86,53,74,0.08)] sm:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--sf-pink-soft)] text-[var(--sf-pink-strong)]">
+              <FilterIcon />
+            </span>
+            <div>
+              <h2 className="text-lg font-black tracking-[-0.025em] text-[var(--sf-ink)]">
+                Lọc sản phẩm
+              </h2>
+              <p className="mt-0.5 text-xs text-[var(--sf-ink-soft)]">
+                Chọn nhanh theo nhu cầu của bạn.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <label className="text-xs font-black text-[var(--sf-ink)] xl:col-span-2">
+              Tìm kiếm
+              <span className="mt-2 flex h-12 items-center gap-3 rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 transition focus-within:border-[rgba(255,95,143,0.42)] focus-within:bg-white focus-within:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]">
+                <SearchIcon />
+                <input
+                  value={keyword}
+                  onChange={(event) =>
+                    updateParam("q", event.target.value)
+                  }
+                  className="min-w-0 flex-1 border-0 bg-transparent font-normal text-[var(--sf-ink)] outline-none placeholder:text-[#9a909b]"
+                  placeholder="Tên, mô tả hoặc danh mục..."
+                />
+              </span>
+            </label>
+
+            <label className="text-xs font-black text-[var(--sf-ink)]">
+              Danh mục
+              <select
+                value={categoryParam}
+                onChange={(event) =>
+                  updateParam(
+                    "danh-muc",
+                    event.target.value,
+                  )
+                }
+                className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white"
+              >
+                <option value="">Tất cả danh mục</option>
+                {categories.map((category) => (
+                  <option
+                    key={category.id}
+                    value={category.slug}
+                  >
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-xs font-black text-[var(--sf-ink)]">
+              Giá từ
+              <input
+                type="number"
+                min="0"
+                step="10000"
+                value={minPrice}
+                onChange={(event) =>
+                  updateParam(
+                    "gia-tu",
+                    event.target.value,
+                  )
+                }
+                className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white"
               />
-            ))}
+            </label>
+
+            <label className="text-xs font-black text-[var(--sf-ink)]">
+              Giá đến
+              <input
+                type="number"
+                min="0"
+                step="10000"
+                value={maxPrice}
+                onChange={(event) =>
+                  updateParam(
+                    "gia-den",
+                    event.target.value,
+                  )
+                }
+                className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white"
+              />
+            </label>
+
+            <label className="text-xs font-black text-[var(--sf-ink)]">
+              Sắp xếp
+              <select
+                value={sort}
+                onChange={(event) =>
+                  updateParam(
+                    "sap-xep",
+                    event.target.value,
+                  )
+                }
+                className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white"
+              >
+                <option value="relevance">Liên quan nhất</option>
+                <option value="newest">Mới nhất</option>
+                <option value="bestselling">Bán chạy</option>
+                <option value="price_asc">Giá tăng dần</option>
+                <option value="price_desc">Giá giảm dần</option>
+              </select>
+            </label>
           </div>
-        ) : (
-          <div className="rounded-3xl bg-white p-12 text-center shadow-sm">
-            <h2 className="text-2xl font-black">
-              Chưa tìm thấy sản phẩm
-            </h2>
-            <p className="mt-3 text-[#707881]">
-              Hãy đổi từ khóa hoặc bộ lọc.
-            </p>
+
+          <label className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-3 rounded-full border border-[var(--sf-border)] bg-[var(--sf-paper)] px-4 text-sm font-bold text-[var(--sf-ink)]">
+            <input
+              type="checkbox"
+              checked={inStock}
+              onChange={(event) =>
+                updateParam(
+                  "con-hang",
+                  event.target.checked ? "1" : undefined,
+                )
+              }
+              className="h-5 w-5 accent-[var(--sf-pink)]"
+            />
+            Chỉ hiển thị sản phẩm còn hàng
+          </label>
+        </div>
+
+        {(error || categoriesError) && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[22px] border border-[rgba(214,117,80,0.18)] bg-[#fff5ed] px-5 py-4 text-sm font-semibold text-[#884426]">
+            <span>{error || categoriesError}</span>
+            <button
+              type="button"
+              onClick={retry}
+              className="rounded-full bg-white px-4 py-2 font-black text-[var(--sf-pink-strong)] shadow-sm"
+            >
+              Thử lại
+            </button>
           </div>
         )}
-      </div>
 
-      {data.totalPages > 1 && (
-        <nav
-          className="mt-8 flex items-center justify-center gap-3"
-          aria-label="Phân trang sản phẩm"
+        <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[var(--sf-pink-strong)]">
+              {selectedCategory?.name || "Tất cả sản phẩm"}
+            </p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--sf-ink)] sm:text-3xl">
+              Tìm thấy {data.total} sản phẩm
+            </h2>
+          </div>
+
+          {loading && hasPreviousData && (
+            <p className="rounded-full bg-[var(--sf-pink-wash)] px-4 py-2 text-xs font-bold text-[var(--sf-pink-strong)]">
+              Đang cập nhật kết quả...
+            </p>
+          )}
+        </div>
+
+        <div
+          className={`relative mt-6 transition-opacity ${
+            loading && hasPreviousData
+              ? "opacity-60"
+              : "opacity-100"
+          }`}
         >
-          <button
-            type="button"
-            disabled={page <= 1 || loading}
-            onClick={() => goToPage(page - 1)}
-            className="rounded-xl bg-[#edf4ff] px-5 py-3 font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            ← Trang trước
-          </button>
+          {loading && !hasPreviousData ? (
+            <ProductGridSkeleton count={PAGE_SIZE} />
+          ) : data.products.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {data.products.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="grid min-h-72 place-items-center rounded-[32px] border border-dashed border-[rgba(255,95,143,0.28)] bg-[var(--sf-pink-wash)] p-8 text-center">
+              <div>
+                <span
+                  className="text-5xl text-[var(--sf-pink)]"
+                  aria-hidden="true"
+                >
+                  ♡
+                </span>
+                <h2 className="mt-3 text-2xl font-black tracking-[-0.03em] text-[var(--sf-ink)]">
+                  Chưa tìm thấy sản phẩm
+                </h2>
+                <p className="mt-2 text-sm text-[var(--sf-ink-soft)]">
+                  Hãy đổi từ khóa hoặc bộ lọc.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
-          <span className="min-w-28 text-center text-sm font-bold text-[#3f4850]">
-            Trang {page}/{data.totalPages}
-          </span>
-
-          <button
-            type="button"
-            disabled={
-              page >= data.totalPages || loading
-            }
-            onClick={() => goToPage(page + 1)}
-            className="rounded-xl bg-[#006397] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        {data.totalPages > 1 && (
+          <nav
+            className="mt-10 flex flex-wrap items-center justify-center gap-3"
+            aria-label="Phân trang sản phẩm"
           >
-            Trang sau →
-          </button>
-        </nav>
-      )}
-    </section>
+            <button
+              type="button"
+              disabled={page <= 1 || loading}
+              onClick={() => goToPage(page - 1)}
+              className="min-h-11 rounded-full border border-[var(--sf-border)] bg-white px-5 font-black text-[var(--sf-ink)] shadow-sm transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ← Trang trước
+            </button>
+
+            <span className="rounded-full bg-[var(--sf-pink-wash)] px-5 py-3 text-sm font-black text-[var(--sf-pink-strong)]">
+              Trang {page}/{data.totalPages}
+            </span>
+
+            <button
+              type="button"
+              disabled={
+                page >= data.totalPages || loading
+              }
+              onClick={() => goToPage(page + 1)}
+              className="min-h-11 rounded-full bg-[var(--sf-pink)] px-5 font-black text-white shadow-[0_10px_24px_rgba(255,95,143,0.24)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-pink-strong)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Trang sau →
+            </button>
+          </nav>
+        )}
+      </section>
+    </main>
   );
 }
