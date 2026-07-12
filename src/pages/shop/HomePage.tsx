@@ -9,6 +9,7 @@ import {
   fetchActiveCategories,
   fetchCollectionProductPreviews,
   fetchFeaturedProducts,
+  searchProducts,
 } from "../../services/products";
 import type { Category, Product } from "../../types/product";
 import "./HomePage.css";
@@ -127,6 +128,62 @@ function HeadsetIcon() {
   );
 }
 
+type HomeProductSectionProps = {
+  kicker: string;
+  title: string;
+  symbol: string;
+  products: Product[];
+  loading: boolean;
+  emptyText: string;
+  href: string;
+};
+
+function HomeProductSection({
+  kicker,
+  title,
+  symbol,
+  products,
+  loading,
+  emptyText,
+  href,
+}: HomeProductSectionProps) {
+  return (
+    <div className="home-cute__featured">
+      <div className="home-cute__section-heading home-cute__section-heading--compact">
+        <div>
+          <span className="home-cute__section-kicker">{kicker}</span>
+          <h2>
+            {title} <span aria-hidden="true">{symbol}</span>
+          </h2>
+        </div>
+
+        <Link to={href} className="home-cute__text-link">
+          Xem tất cả
+          <ArrowIcon />
+        </Link>
+      </div>
+
+      {loading && products.length === 0 ? (
+        <ProductGridSkeleton count={5} />
+      ) : products.length > 0 ? (
+        <div className="home-cute__product-grid">
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              variant="featured"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="home-cute__empty-state">
+          <span aria-hidden="true">♡</span>
+          <p>{emptyText}</p>
+        </div>
+      )}
+    </div>
+  );
+}
 export default function HomePage() {
   const {
     banners,
@@ -137,6 +194,8 @@ export default function HomePage() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [bestSellingProducts, setBestSellingProducts] = useState<Product[]>([]);
+  const [newProducts, setNewProducts] = useState<Product[]>([]);
   const [collectionProducts, setCollectionProducts] = useState<
     Record<string, Product[]>
   >({});
@@ -149,12 +208,39 @@ export default function HomePage() {
     setCatalogError("");
 
     try {
-      const [nextCategories, nextFeaturedProducts] = await Promise.all([
+      const [
+        nextCategories,
+        nextFeaturedProducts,
+        bestSellingResult,
+        newestResult,
+      ] = await Promise.all([
         fetchActiveCategories({ force }),
-        fetchFeaturedProducts(4, { force }),
+        fetchFeaturedProducts(5, { force }),
+        searchProducts(
+          {
+            sort: "bestselling",
+            page: 1,
+            pageSize: 5,
+          },
+          { force },
+        ),
+        searchProducts(
+          {
+            sort: "newest",
+            page: 1,
+            pageSize: 5,
+          },
+          { force },
+        ),
       ]);
 
       setCategories(nextCategories);
+      setBestSellingProducts(
+        bestSellingResult.products.filter(
+          (product) => (product.soldQuantity ?? 0) > 0,
+        ),
+      );
+      setNewProducts(newestResult.products);
       setFeaturedProducts(nextFeaturedProducts);
 
       const nextCollectionProducts = await fetchCollectionProductPreviews(
@@ -386,69 +472,89 @@ export default function HomePage() {
                   />
                 ))
               : categories.map((category, index) => {
-                  const previews = collectionProducts[category.id] ?? [];
-                  const product = previews[0];
-                  const image = primaryImage(product);
-                  const tone =
-                    COLLECTION_TONES[index % COLLECTION_TONES.length];
+              const previews = collectionProducts[category.id] ?? [];
+              const previewImages = previews
+                .map((previewProduct) => ({
+                  product: previewProduct,
+                  image: primaryImage(previewProduct),
+                }))
+                .filter((item) => Boolean(item.image))
+                .slice(0, 3);
+              const tone =
+                COLLECTION_TONES[index % COLLECTION_TONES.length];
+              const gallerySize = Math.max(1, previewImages.length);
 
-                  return (
-                    <Link
-                      key={category.id}
-                      className={`home-cute__collection-card home-cute__collection-card--${tone}`}
-                      to={`/san-pham?danh-muc=${encodeURIComponent(category.slug)}`}
-                    >
-                      <div className="home-cute__collection-copy">
-                        <span
-                          className="home-cute__collection-emoji"
-                          aria-hidden="true"
-                        >
-                          {category.emoji || "✦"}
-                        </span>
-                        <div>
-                          <h3>{category.name}</h3>
-                          <p>{collectionDescription(category)}</p>
-                        </div>
+              return (
+                <Link
+                  key={category.id}
+                  className={`home-premium__collection-card home-premium__collection-card--${tone}`}
+                  to={`/san-pham?danh-muc=${encodeURIComponent(category.slug)}`}
+                >
+                  <div
+                    className={`home-premium__collection-gallery home-premium__collection-gallery--${gallerySize}`}
+                  >
+                    {previewImages.length > 0 ? (
+                      previewImages.map(
+                        ({ product: previewProduct, image }, previewIndex) => (
+                          <div
+                            className={`home-premium__collection-shot home-premium__collection-shot--${previewIndex + 1}`}
+                            key={previewProduct.id}
+                          >
+                            <img
+                              src={image?.url}
+                              alt={
+                                image?.altText ||
+                                previewProduct.name ||
+                                category.name
+                              }
+                              loading="lazy"
+                              decoding="async"
+                            />
+                          </div>
+                        ),
+                      )
+                    ) : (
+                      <div className="home-premium__collection-fallback">
+                        <span aria-hidden="true">{category.emoji || "✦"}</span>
+                        <small>Đang cập nhật sản phẩm</small>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="home-cute__collection-visual">
-                        {image ? (
-                          <img
-                            src={image.url}
-                            alt={
-                              image.altText ||
-                              product?.name ||
-                              category.name
-                            }
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        ) : (
-                          <span aria-hidden="true">
-                            {category.emoji || "♡"}
-                          </span>
-                        )}
+                  <div className="home-premium__collection-meta">
+                    <div className="home-premium__collection-copy">
+                      <span
+                        className="home-premium__collection-emoji"
+                        aria-hidden="true"
+                      >
+                        {category.emoji || "✦"}
+                      </span>
+                      <div>
+                        <h3>{category.name}</h3>
+                        <p>{collectionDescription(category)}</p>
                       </div>
+                    </div>
 
-                      <div className="home-cute__collection-bottom">
-                        <span>
-                          {previews.length > 0
-                            ? `${previews.length} món nổi bật`
-                            : "Khám phá danh mục"}
-                        </span>
-                        <span
-                          className="home-cute__round-arrow"
-                          aria-hidden="true"
-                        >
-                          <ArrowIcon />
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
-          </div>
+                    <div className="home-premium__collection-bottom">
+                      <span>
+                        {previews.length > 0
+                          ? `Khám phá bộ sưu tập ${category.name}`
+                          : "Khám phá danh mục"}
+                      </span>
+                      <span
+                        className="home-cute__round-arrow"
+                        aria-hidden="true"
+                      >
+                        <ArrowIcon />
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+        </div>
 
-          <div className="home-cute__benefit-strip">
+        <div className="home-cute__benefit-strip">
             <article>
               <span className="home-cute__benefit-icon home-cute__benefit-icon--lavender">
                 <PencilIcon />
@@ -490,40 +596,43 @@ export default function HomePage() {
             </article>
           </div>
 
-          <div className="home-cute__featured">
-            <div className="home-cute__section-heading home-cute__section-heading--compact">
-              <div>
-                <span className="home-cute__section-kicker">Nổi bật</span>
-                <h2>
-                  Sản phẩm nổi bật <span aria-hidden="true">✦</span>
-                </h2>
-              </div>
+          <div className="home-cute__catalog-sections">
+                    {bestSellingProducts.length > 0 && (
+            <HomeProductSection
+              kicker="Bán chạy"
+              title="Sản phẩm bán chạy"
+              symbol="🔥"
+              products={bestSellingProducts}
+              loading={catalogLoading}
+              emptyText="Chưa có dữ liệu sản phẩm bán chạy."
+              href="/san-pham?sap-xep=bestselling"
+            />
+          )}
 
-              <Link to="/san-pham" className="home-cute__text-link">
-                Xem tất cả
-                <ArrowIcon />
-              </Link>
-            </div>
+          <HomeProductSection
+            kicker="Mới nhất"
+            title="Sản phẩm mới"
+            symbol="✨"
+            products={newProducts}
+            loading={catalogLoading}
+            emptyText="Chưa có sản phẩm mới."
+            href="/san-pham?sap-xep=newest"
+          />
 
-            {catalogLoading && featuredProducts.length === 0 ? (
-              <ProductGridSkeleton count={4} />
-            ) : featuredProducts.length > 0 ? (
-              <div className="home-cute__product-grid">
-                {featuredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            ) : (
-              <div className="home-cute__empty-state">
-                <span aria-hidden="true">♡</span>
-                <p>Chưa có sản phẩm nổi bật.</p>
-              </div>
-            )}
-          </div>
+          <HomeProductSection
+            kicker="Nổi bật"
+            title="Sản phẩm nổi bật"
+            symbol="✦"
+            products={featuredProducts}
+            loading={catalogLoading}
+            emptyText="Chưa có sản phẩm nổi bật."
+            href="/san-pham"
+          />
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section className="sf-container home-cute__custom">
+    <section className="sf-container home-cute__custom">
         <div className="home-cute__custom-copy">
           <span className="home-cute__section-kicker">
             Ý tưởng của riêng bạn
