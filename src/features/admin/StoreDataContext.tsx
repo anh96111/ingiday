@@ -1,7 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode } from "react";
-import { useLocation } from "react-router-dom";
 import type { CartItem } from "../../types/cart";
 import { categories as initialCategories, products as initialProducts } from "../../data/mockData";
 import { supabase } from "../../lib/supabase";
@@ -52,6 +51,7 @@ type StoreDataContextValue = {
   loadProductPage: (filters: ProductPageFilters) => Promise<StoreActionResult<ProductPageResult>>;
   bulkDeleteProducts: (ids: string[]) => Promise<DeleteResult>;
   bulkUpdateProductStatus: (ids: string[], status: ProductStatus) => Promise<StoreActionResult>;
+  bulkAddProductsToCategories: (ids: string[], categoryIds: string[]) => Promise<StoreActionResult>;
   createProduct: (input: ProductInput) => Promise<StoreActionResult<Product>>;
   updateProduct: (id: string, input: ProductInput) => Promise<StoreActionResult<Product>>;
   deleteProduct: (id: string) => Promise<DeleteResult>;
@@ -105,6 +105,11 @@ type ProductImageRow = {
   is_primary: boolean;
 };
 
+type ProductCategoryRow = {
+  product_id: string;
+  category_id: string;
+};
+
 type CategoryMetadata = {
   emoji?: string;
   background?: string;
@@ -154,17 +159,33 @@ function relationName(relation: ProductRow["categories"]): string {
   return relation?.name ?? "Chưa phân loại";
 }
 
-function productFromRow(row: ProductRow, fallbackCategoryName?: string, images: ProductImage[] = []): Product {
-  const metadata = parseJsonObject<ProductMetadata>(row.metadata);
-  const status: ProductStatus = row.status === "draft" ? "hidden" : row.status;
+function productFromRow(
+  row: ProductRow,
+  fallbackCategoryName?: string,
+  images: ProductImage[] = [],
+  categoryIds: string[] = [],
+): Product {
+  const metadata = parseJsonObject<ProductMetadata>(
+    row.metadata,
+  );
+  const status: ProductStatus =
+    row.status === "draft" ? "hidden" : row.status;
+  const primaryCategoryId = row.category_id ?? "";
+  const normalizedCategoryIds = [
+    ...new Set(
+      [primaryCategoryId, ...categoryIds].filter(Boolean),
+    ),
+  ];
 
   return {
     id: row.id,
     name: row.name,
     slug: row.slug,
     sku: row.sku ?? undefined,
-    categoryId: row.category_id ?? "",
-    categoryName: fallbackCategoryName ?? relationName(row.categories),
+    categoryId: primaryCategoryId,
+    categoryIds: normalizedCategoryIds,
+    categoryName:
+      fallbackCategoryName ?? relationName(row.categories),
     price: Number(row.price),
     compareAtPrice: row.compare_at_price === null ? undefined : Number(row.compare_at_price),
     emoji: metadata.emoji ?? "📦",
@@ -207,7 +228,26 @@ async function syncProductImages(productId: string, images: ProductImage[]) {
     sort_order: index,
     is_primary: hasPrimary ? image.isPrimary : index === 0,
   }));
-  const { error } = await supabase.from("product_images").insert(payload);
+  const { error } = await supabase
+    .from("product_images")
+    .insert(payload);
+  if (error) throw error;
+}
+
+async function syncProductCategories(
+  productId: string,
+  categoryIds: string[],
+) {
+  const uniqueCategoryIds = [
+    ...new Set(categoryIds.filter(Boolean)),
+  ];
+  const { error } = await supabase.rpc(
+    "admin_set_product_categories",
+    {
+      p_product_id: productId,
+      p_category_ids: uniqueCategoryIds,
+    },
+  );
   if (error) throw error;
 }
 
@@ -237,6 +277,36 @@ function productMetadata(input: ProductInput): ProductMetadata {
     background: input.background || "#dff4ff",
     badge: input.badge,
     variantGroups: input.variantGroups,
+  };
+}
+
+function resolveProductCategories(
+  input: ProductInput,
+  categories: Category[],
+) {
+  const categoryIds = [
+    ...new Set(
+      (
+        input.categoryIds?.length
+          ? input.categoryIds
+          : [input.categoryId]
+      ).filter(Boolean),
+    ),
+  ];
+  if (categoryIds.length === 0) return null;
+
+  const selectedCategories = categoryIds.map((categoryId) =>
+    categories.find(
+      (category) => category.id === categoryId,
+    ),
+  );
+  if (selectedCategories.some((category) => !category)) {
+    return null;
+  }
+
+  return {
+    categoryIds,
+    category: selectedCategories[0] as Category,
   };
 }
 
@@ -345,32 +415,50 @@ async function fetchStoreData(includeProducts = true) {
 
   if (!includeProducts) {
     return {
-      categoryRows: (categoryResult.data ?? []) as CategoryRow[],
+      categoryRows:
+        (categoryResult.data ?? []) as CategoryRow[],
       productRows: [] as ProductRow[],
       imageRows: [] as ProductImageRow[],
+      productCategoryRows: [] as ProductCategoryRow[],
     };
   }
 
-  const [productResult, imageResult] = await Promise.all([
+  const [
+    productResult,
+    imageResult,
+    productCategoryResult,
+  ] = await Promise.all([
     supabase
       .from("products")
       .select(
-        "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
+        "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories!products_category_id_fkey(name)",
       )
       .order("created_at", { ascending: false }),
     supabase
       .from("product_images")
       .select("id,product_id,image_url,public_id,alt_text,sort_order,is_primary")
       .order("sort_order", { ascending: true }),
+    supabase
+      .from("product_categories")
+      .select("product_id,category_id"),
   ]);
 
   if (productResult.error) throw productResult.error;
   if (imageResult.error) throw imageResult.error;
+  if (productCategoryResult.error) {
+    throw productCategoryResult.error;
+  }
 
   return {
-    categoryRows: (categoryResult.data ?? []) as CategoryRow[],
-    productRows: (productResult.data ?? []) as ProductRow[],
-    imageRows: (imageResult.data ?? []) as ProductImageRow[],
+    categoryRows:
+      (categoryResult.data ?? []) as CategoryRow[],
+    productRows:
+      (productResult.data ?? []) as ProductRow[],
+    imageRows:
+      (imageResult.data ?? []) as ProductImageRow[],
+    productCategoryRows:
+      (productCategoryResult.data ??
+        []) as ProductCategoryRow[],
   };
 }
 
@@ -414,8 +502,21 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export function StoreDataProvider({ children }: { children: ReactNode }) {
-  const location = useLocation();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProductsState] = useState<Product[]>([]);
+  const productPageCacheRef = useRef(
+    new Map<string, ProductPageResult>(),
+  );
+  const setProducts = useCallback(
+    (
+      value:
+        | Product[]
+        | ((current: Product[]) => Product[]),
+    ) => {
+      productPageCacheRef.current.clear();
+      setProductsState(value);
+    },
+    [],
+  );
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -425,8 +526,13 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     setError("");
 
     try {
-      const includeProducts = location.pathname !== "/admin/san-pham";
-      let { categoryRows, productRows, imageRows } = await fetchStoreData(includeProducts);
+      const includeProducts = true;
+      let {
+        categoryRows,
+        productRows,
+        imageRows,
+        productCategoryRows,
+      } = await fetchStoreData(includeProducts);
 
       const canSeed =
         categoryRows.length === 0 &&
@@ -436,7 +542,12 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
       if (canSeed) {
         await seedInitialData();
-        ({ categoryRows, productRows, imageRows } = await fetchStoreData(includeProducts));
+        ({
+          categoryRows,
+          productRows,
+          imageRows,
+          productCategoryRows,
+        } = await fetchStoreData(includeProducts));
       }
 
       setCategories(categoryRows.map(categoryFromRow));
@@ -446,9 +557,25 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         list.push(productImageFromRow(imageRow));
         imagesByProduct.set(imageRow.product_id, list);
       }
+      const categoryIdsByProduct = new Map<
+        string,
+        string[]
+      >();
+      for (const row of productCategoryRows) {
+        const list =
+          categoryIdsByProduct.get(row.product_id) ?? [];
+        list.push(row.category_id);
+        categoryIdsByProduct.set(row.product_id, list);
+      }
+
       setProducts(
         productRows.map((row) =>
-          productFromRow(row, undefined, imagesByProduct.get(row.id) ?? []),
+          productFromRow(
+            row,
+            undefined,
+            imagesByProduct.get(row.id) ?? [],
+            categoryIdsByProduct.get(row.id) ?? [],
+          ),
         ),
       );
     } catch (loadError) {
@@ -458,7 +585,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [location.pathname]);
+  }, [setProducts]);
 
   useEffect(() => {
     void refresh();
@@ -482,6 +609,24 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     async loadProductPage(filters) {
       const page = Math.max(1, filters.page);
       const pageSize = Math.min(50, Math.max(1, filters.pageSize));
+      const cacheKey = JSON.stringify({
+        page,
+        pageSize,
+        keyword: filters.keyword.trim(),
+        categoryId: filters.categoryId,
+        status: filters.status,
+      });
+      const cachedPage =
+        productPageCacheRef.current.get(cacheKey);
+
+      if (cachedPage) {
+        setProductsState(cachedPage.products);
+        return {
+          success: true,
+          message: "Đã tải sản phẩm từ bộ nhớ tạm.",
+          data: cachedPage,
+        };
+      }
 
       try {
         const { data: pageData, error: pageError } = await supabase.rpc(
@@ -504,7 +649,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           const { data: productData, error: productError } = await supabase
             .from("products")
             .select(
-              "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories(name)",
+              "id,category_id,name,slug,sku,price,compare_at_price,stock,status,is_featured,description,metadata,created_at,updated_at,categories!products_category_id_fkey(name)",
             )
             .in("id", parsed.ids);
 
@@ -518,7 +663,34 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
           if (imageError) throw imageError;
 
-          const imagesByProduct = new Map<string, ProductImage[]>();
+          const {
+            data: productCategoryData,
+            error: productCategoryError,
+          } = await supabase
+            .from("product_categories")
+            .select("product_id,category_id")
+            .in("product_id", parsed.ids);
+          if (productCategoryError) {
+            throw productCategoryError;
+          }
+
+          const categoryIdsByProduct = new Map<
+            string,
+            string[]
+          >();
+          for (const row of (
+            productCategoryData ?? []
+          ) as ProductCategoryRow[]) {
+            const list =
+              categoryIdsByProduct.get(row.product_id) ?? [];
+            list.push(row.category_id);
+            categoryIdsByProduct.set(row.product_id, list);
+          }
+
+          const imagesByProduct = new Map<
+            string,
+            ProductImage[]
+          >();
           for (const row of (imageData ?? []) as ProductImageRow[]) {
             const list = imagesByProduct.get(row.product_id) ?? [];
             list.push(productImageFromRow(row));
@@ -526,10 +698,17 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           }
 
           const productsById = new Map(
-            ((productData ?? []) as ProductRow[]).map((row) => [
-              row.id,
-              productFromRow(row, undefined, imagesByProduct.get(row.id) ?? []),
-            ]),
+            ((productData ?? []) as ProductRow[]).map(
+              (row) => [
+                row.id,
+                productFromRow(
+                  row,
+                  undefined,
+                  imagesByProduct.get(row.id) ?? [],
+                  categoryIdsByProduct.get(row.id) ?? [],
+                ),
+              ],
+            ),
           );
 
           pageProducts = parsed.ids
@@ -537,9 +716,9 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             .filter((product): product is Product => Boolean(product));
         }
 
-        setProducts(pageProducts);
+        setProductsState(pageProducts);
 
-        return {
+        const result = {
           success: true,
           message: "Đã tải danh sách sản phẩm.",
           data: {
@@ -549,7 +728,12 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             pageSize: parsed.pageSize,
             totalPages: Math.max(1, Math.ceil(parsed.total / parsed.pageSize)),
           },
-        };
+        } satisfies StoreActionResult<ProductPageResult>;
+        productPageCacheRef.current.set(
+          cacheKey,
+          result.data,
+        );
+        return result;
       } catch (loadError) {
         setProducts([]);
         return {
@@ -617,10 +801,99 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
       }
     },
 
+    async bulkAddProductsToCategories(ids, categoryIds) {
+      try {
+        const uniqueIds = [...new Set(ids)].slice(0, 50);
+        const uniqueCategoryIds = [
+          ...new Set(categoryIds.filter(Boolean)),
+        ];
+
+        if (uniqueIds.length === 0) {
+          return {
+            success: false,
+            message: "Chưa chọn sản phẩm.",
+          };
+        }
+
+        if (uniqueCategoryIds.length === 0) {
+          return {
+            success: false,
+            message: "Chưa chọn bộ sưu tập.",
+          };
+        }
+
+        if (
+          uniqueCategoryIds.some(
+            (categoryId) =>
+              !categories.some(
+                (category) => category.id === categoryId,
+              ),
+          )
+        ) {
+          return {
+            success: false,
+            message: "Có bộ sưu tập không tồn tại.",
+          };
+        }
+
+        const { error: rpcError } = await supabase.rpc(
+          "admin_bulk_add_product_categories",
+          {
+            p_product_ids: uniqueIds,
+            p_category_ids: uniqueCategoryIds,
+          },
+        );
+
+        if (rpcError) throw rpcError;
+
+        setProducts((current) =>
+          current.map((product) =>
+            uniqueIds.includes(product.id)
+              ? {
+                  ...product,
+                  categoryIds: [
+                    ...new Set([
+                      ...(
+                        product.categoryIds ?? [
+                          product.categoryId,
+                        ]
+                      ).filter(Boolean),
+                      ...uniqueCategoryIds,
+                    ]),
+                  ],
+                }
+              : product,
+          ),
+        );
+
+        return {
+          success: true,
+          message:
+            `Đã thêm ${uniqueIds.length} sản phẩm vào ${uniqueCategoryIds.length} bộ sưu tập.`,
+        };
+      } catch (actionError) {
+        return {
+          success: false,
+          message: errorMessage(
+            actionError,
+            "Không thể thêm các sản phẩm vào bộ sưu tập.",
+          ),
+        };
+      }
+    },
+
     async createProduct(input) {
       try {
-        const category = categories.find((item) => item.id === input.categoryId);
-        if (!category) return { success: false, message: "Danh mục không tồn tại." };
+        const categorySelection =
+          resolveProductCategories(input, categories);
+        if (!categorySelection) {
+          return {
+            success: false,
+            message: "Bộ sưu tập không tồn tại.",
+          };
+        }
+        const { category, categoryIds } =
+          categorySelection;
 
         const id = crypto.randomUUID();
         const slug = uniqueSlug(input.slug || input.name, products);
@@ -646,9 +919,15 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (insertError) throw insertError;
+        await syncProductCategories(id, categoryIds);
         await syncProductImages(id, input.images ?? []);
 
-        const product = productFromRow(data as ProductRow, category.name, input.images ?? []);
+        const product = productFromRow(
+          data as ProductRow,
+          category.name,
+          input.images ?? [],
+          categoryIds,
+        );
         setProducts((current) => [product, ...current]);
         return { success: true, message: "Đã tạo sản phẩm.", data: product };
       } catch (actionError) {
@@ -658,8 +937,16 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
     async updateProduct(id, input) {
       try {
-        const category = categories.find((item) => item.id === input.categoryId);
-        if (!category) return { success: false, message: "Danh mục không tồn tại." };
+        const categorySelection =
+          resolveProductCategories(input, categories);
+        if (!categorySelection) {
+          return {
+            success: false,
+            message: "Bộ sưu tập không tồn tại.",
+          };
+        }
+        const { category, categoryIds } =
+          categorySelection;
 
         const slug = uniqueSlug(input.slug || input.name, products, id);
         const { data, error: updateError } = await supabase
@@ -682,9 +969,15 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (updateError) throw updateError;
+        await syncProductCategories(id, categoryIds);
         await syncProductImages(id, input.images ?? []);
 
-        const product = productFromRow(data as ProductRow, category.name, input.images ?? []);
+        const product = productFromRow(
+          data as ProductRow,
+          category.name,
+          input.images ?? [],
+          categoryIds,
+        );
         setProducts((current) => current.map((item) => (item.id === id ? product : item)));
         return { success: true, message: "Đã cập nhật sản phẩm.", data: product };
       } catch (actionError) {
@@ -710,8 +1003,10 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
       const input: ProductInput = {
         name: `${source.name} - Bản sao`,
         slug: uniqueSlug(`${source.slug}-ban-sao`, products),
-        categoryId: source.categoryId,
-        categoryName: source.categoryName,
+      categoryId: source.categoryId,
+      categoryIds:
+        source.categoryIds ?? [source.categoryId],
+      categoryName: source.categoryName,
         price: source.price,
         compareAtPrice: source.compareAtPrice,
         emoji: source.emoji,
@@ -726,8 +1021,16 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
       };
 
       try {
-        const category = categories.find((item) => item.id === source.categoryId);
-        if (!category) return { success: false, message: "Danh mục không tồn tại." };
+        const categorySelection =
+          resolveProductCategories(input, categories);
+        if (!categorySelection) {
+          return {
+            success: false,
+            message: "Bộ sưu tập không tồn tại.",
+          };
+        }
+        const { category, categoryIds } =
+          categorySelection;
 
         const newId = crypto.randomUUID();
         const { data, error: insertError } = await supabase
@@ -752,9 +1055,18 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           .single();
 
         if (insertError) throw insertError;
+        await syncProductCategories(
+          newId,
+          categoryIds,
+        );
         await syncProductImages(newId, input.images ?? []);
 
-        const product = productFromRow(data as ProductRow, category.name, input.images ?? []);
+        const product = productFromRow(
+          data as ProductRow,
+          category.name,
+          input.images ?? [],
+          categoryIds,
+        );
         setProducts((current) => [product, ...current]);
         return { success: true, message: "Đã nhân bản sản phẩm.", data: product };
       } catch (actionError) {
@@ -783,7 +1095,12 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
         if (updateError) throw updateError;
 
-        const product = productFromRow(data as ProductRow, source.categoryName);
+        const product = productFromRow(
+          data as ProductRow,
+          source.categoryName,
+          source.images ?? [],
+          source.categoryIds ?? [source.categoryId],
+        );
         setProducts((current) => current.map((item) => (item.id === id ? product : item)));
         return { success: true, message: "Đã cập nhật trạng thái sản phẩm.", data: product };
       } catch (actionError) {
@@ -849,7 +1166,13 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     },
 
     async deleteCategory(id) {
-      if (products.some((product) => product.categoryId === id)) {
+      if (
+        products.some((product) =>
+          (
+            product.categoryIds ?? [product.categoryId]
+          ).includes(id),
+        )
+      ) {
         return { success: false, message: "Không thể xóa danh mục đang có sản phẩm." };
       }
 
@@ -1012,7 +1335,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
       return { success: true, message: "Đã hoàn lại tồn kho." };
     },
-  }), [categories, error, loading, products, refresh]);
+  }), [categories, error, loading, products, refresh, setProducts]);
 
   return <StoreDataContext.Provider value={value}>{children}</StoreDataContext.Provider>;
 }

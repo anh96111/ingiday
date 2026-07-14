@@ -601,7 +601,7 @@ export async function fetchProductBySlug(
           metadata,
           created_at,
           updated_at,
-          categories (
+          categories!products_category_id_fkey (
             name
           ),
           product_images (

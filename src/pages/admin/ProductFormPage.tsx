@@ -32,7 +32,7 @@ import { slugify } from "../../utils/slug";
 type ProductFormState = {
   name: string;
   slug: string;
-  categoryId: string;
+  categoryIds: string[];
   price: string;
   compareAtPrice: string;
   stock: string;
@@ -63,7 +63,11 @@ function createInitialState(product?: Product): ProductFormState {
   return {
     name: product?.name ?? "",
     slug: product?.slug ?? "",
-    categoryId: product?.categoryId ?? "",
+    categoryIds: product?.categoryIds?.length
+      ? [...product.categoryIds]
+      : product?.categoryId
+        ? [product.categoryId]
+        : [],
     price: product ? String(product.price) : "",
     compareAtPrice: product?.compareAtPrice ? String(product.compareAtPrice) : "",
     stock: product ? String(product.stock) : "0",
@@ -442,7 +446,15 @@ export default function ProductFormPage() {
       return;
     }
 
-    const category = categories.find((item) => item.id === form.categoryId);
+    const selectedCategories = form.categoryIds
+      .map((categoryId) =>
+        categories.find((item) => item.id === categoryId),
+      )
+      .filter(
+        (category): category is (typeof categories)[number] =>
+          Boolean(category),
+      );
+    const category = selectedCategories[0];
     const price = Number(form.price);
     const stock = Number(form.stock);
 
@@ -450,8 +462,11 @@ export default function ProductFormPage() {
       setError("Vui lòng nhập tên sản phẩm.");
       return;
     }
-    if (!category) {
-      setError("Vui lòng chọn danh mục.");
+    if (
+      !category ||
+      selectedCategories.length !== form.categoryIds.length
+    ) {
+      setError("Vui lòng chọn ít nhất một bộ sưu tập.");
       return;
     }
     if (!Number.isFinite(price) || price < 0) {
@@ -498,6 +513,7 @@ export default function ProductFormPage() {
       name: form.name.trim(),
       slug: form.slug.trim() || slugify(form.name),
       categoryId: category.id,
+      categoryIds: selectedCategories.map((item) => item.id),
       categoryName: category.name,
       price,
       compareAtPrice: form.compareAtPrice ? Number(form.compareAtPrice) : undefined,
@@ -574,10 +590,24 @@ export default function ProductFormPage() {
           <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#006397]">Sản phẩm</p>
           <h1 className="mt-2 text-3xl font-black sm:text-4xl">{isEditing ? "Sửa sản phẩm" : "Thêm sản phẩm"}</h1>
         </div>
-        <Link to="/admin/san-pham" className="inline-flex min-h-11 items-center rounded-2xl bg-white px-5 font-bold text-[#3f4850] shadow-sm">← Quay lại</Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link to="/admin/san-pham" className="inline-flex min-h-11 items-center rounded-2xl bg-white px-5 font-bold text-[#3f4850] shadow-sm">← Quay lại</Link>
+          <button
+            type="submit"
+            form="product-form"
+            disabled={saving || uploadingImages}
+            className="inline-flex min-h-11 items-center rounded-2xl bg-[#006397] px-5 font-bold text-white shadow-sm transition hover:bg-[#004c73] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving
+              ? "Đang lưu..."
+              : isEditing
+                ? "Lưu thay đổi"
+                : "Thêm sản phẩm"}
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
+      <form id="product-form" onSubmit={handleSubmit} className="mt-8 grid gap-6 xl:grid-cols-[1fr_360px]">
         <div className="space-y-6">
           <article className="rounded-3xl bg-white p-6 shadow-sm">
             <h2 className="text-xl font-black">Thông tin cơ bản</h2>
@@ -601,13 +631,73 @@ export default function ProductFormPage() {
                 <input value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: slugify(event.target.value) }))} className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]" />
               </label>
 
-              <label className="text-sm font-bold">
-                Danh mục <span className="text-[#a43c12]">*</span>
-                <select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))} className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]">
-                  <option value="">Chọn danh mục</option>
-                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.status === "hidden" ? " (đang ẩn)" : ""}</option>)}
-                </select>
-              </label>
+              <div className="text-sm font-bold md:col-span-2">
+                Bộ sưu tập <span className="text-[#a43c12]">*</span>
+                <details className="group mt-2">
+                  <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 py-3 outline-none focus:border-[#006397]">
+                    <span className="min-w-0 flex-1 truncate font-normal">
+                      {form.categoryIds.length > 0
+                        ? categories
+                            .filter((category) =>
+                              form.categoryIds.includes(category.id),
+                            )
+                            .map((category) => category.name)
+                            .join(", ")
+                        : "Chọn bộ sưu tập"}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="text-[#006397] transition group-open:rotate-180"
+                    >
+                      ⌄
+                    </span>
+                  </summary>
+                  <div className="mt-2 max-h-72 space-y-1 overflow-y-auto rounded-2xl border border-[#cfd6dd] bg-white p-3 shadow-sm">
+                    {categories.map((category) => {
+                      const checked = form.categoryIds.includes(
+                        category.id,
+                      );
+
+                      return (
+                        <label
+                          key={category.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 hover:bg-[#f7f9ff]"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setForm((current) => ({
+                                ...current,
+                                categoryIds: checked
+                                  ? current.categoryIds.filter(
+                                      (categoryId) =>
+                                        categoryId !== category.id,
+                                    )
+                                  : [
+                                      ...current.categoryIds,
+                                      category.id,
+                                    ],
+                              }))
+                            }
+                            className="h-4 w-4 accent-[#006397]"
+                          />
+                          <span className="font-normal">
+                            {category.name}
+                            {category.status === "hidden"
+                              ? " (đang ẩn)"
+                              : ""}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </details>
+                <span className="mt-2 block text-xs font-normal text-[#707881]">
+                  Có thể chọn nhiều bộ sưu tập. Bộ sưu tập chọn
+                  đầu tiên là danh mục chính.
+                </span>
+              </div>
 
               <label className="md:col-span-2 text-sm font-bold">
                 Mô tả
@@ -991,9 +1081,7 @@ export default function ProductFormPage() {
 
           {error && <p className="rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]">{error}</p>}
 
-          <button type="submit" disabled={saving || uploadingImages} className="min-h-13 w-full rounded-2xl bg-[#fe7e4f] px-6 font-bold text-white shadow-lg shadow-[#fe7e4f]/20 disabled:cursor-not-allowed disabled:opacity-60">
-            {uploadingImages ? "Đang tải ảnh..." : saving ? "Đang lưu..." : isEditing ? "Lưu thay đổi" : "Lưu và hiển thị"}
-          </button>
+
         </aside>
       </form>
     </section>
