@@ -37,6 +37,7 @@ export default function ProductsAdminPage() {
     loadProductPage,
     bulkDeleteProducts,
     bulkUpdateProductStatus,
+    bulkAddProductsToCategories,
     duplicateProduct,
   } = useStoreData();
 
@@ -48,6 +49,7 @@ export default function ProductsAdminPage() {
   const [pageLoading, setPageLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState<ProductStatus | "">("");
+  const [bulkCategoryIds, setBulkCategoryIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [messageSuccess, setMessageSuccess] = useState(false);
@@ -55,6 +57,7 @@ export default function ProductsAdminPage() {
 
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const bulkCollectionsRef = useRef<HTMLDetailsElement>(null);
   const loadProductPageRef = useRef(loadProductPage);
 
   useEffect(() => {
@@ -67,13 +70,21 @@ export default function ProductsAdminPage() {
 
   useEffect(() => {
     setSelectedIds([]);
+    setBulkCategoryIds([]);
+    if (bulkCollectionsRef.current) {
+      bulkCollectionsRef.current.open = false;
+    }
   }, [categoryId, debouncedKeyword, page, status]);
 
   useEffect(() => {
     if (loading) return;
 
     let active = true;
-    setPageLoading(true);
+    const loadingTimer = window.setTimeout(() => {
+      if (active) {
+        setPageLoading(true);
+      }
+    }, 150);
 
     void loadProductPageRef.current({
       page,
@@ -82,6 +93,7 @@ export default function ProductsAdminPage() {
       categoryId,
       status,
     }).then((result) => {
+      window.clearTimeout(loadingTimer);
       if (!active) return;
 
       if (!result.success || !result.data) {
@@ -103,6 +115,7 @@ export default function ProductsAdminPage() {
 
     return () => {
       active = false;
+      window.clearTimeout(loadingTimer);
     };
   }, [categoryId, debouncedKeyword, loading, page, reloadToken, status]);
 
@@ -140,6 +153,45 @@ export default function ProductsAdminPage() {
     });
   }
 
+  function toggleBulkCategory(categoryId: string) {
+    setBulkCategoryIds((current) =>
+      current.includes(categoryId)
+        ? current.filter((id) => id !== categoryId)
+        : [...current, categoryId],
+    );
+  }
+
+  async function handleBulkAddCategories() {
+    if (selectedIds.length === 0 || busy) return;
+
+    if (bulkCategoryIds.length === 0) {
+      setMessageSuccess(false);
+      setMessage("Vui lòng chọn ít nhất một bộ sưu tập.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("");
+
+    const result = await bulkAddProductsToCategories(
+      selectedIds,
+      bulkCategoryIds,
+    );
+
+    setBusy(false);
+    setMessageSuccess(result.success);
+    setMessage(result.message);
+
+    if (result.success) {
+      setSelectedIds([]);
+      setBulkCategoryIds([]);
+      if (bulkCollectionsRef.current) {
+        bulkCollectionsRef.current.open = false;
+      }
+      setReloadToken((current) => current + 1);
+    }
+  }
+
   async function runBulkStatus(ids: string[], nextStatus: ProductStatus) {
     if (ids.length === 0 || busy) return;
 
@@ -153,6 +205,7 @@ export default function ProductsAdminPage() {
     if (result.success) {
       setSelectedIds([]);
       setBulkStatus("");
+      setBulkCategoryIds([]);
       setReloadToken((current) => current + 1);
     }
   }
@@ -179,6 +232,7 @@ export default function ProductsAdminPage() {
 
     if (result.success) {
       setSelectedIds([]);
+      setBulkCategoryIds([]);
       setReloadToken((current) => current + 1);
     }
   }
@@ -311,6 +365,58 @@ export default function ProductsAdminPage() {
               <span className="text-sm font-bold text-[#006397]">
                 Đã chọn {selectedIds.length}/{products.length}
               </span>
+              <details
+                ref={bulkCollectionsRef}
+                className="w-full sm:w-auto"
+              >
+                <summary className="flex h-10 min-w-56 cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-[#cfd6dd] bg-white px-3 text-sm font-bold text-[#006397]">
+                  <span className="max-w-52 truncate">
+                    {bulkCategoryIds.length > 0
+                      ? categories
+                          .filter((category) =>
+                            bulkCategoryIds.includes(category.id),
+                          )
+                          .map((category) => category.name)
+                          .join(", ")
+                      : "+ Thêm vào bộ sưu tập"}
+                  </span>
+                  <span aria-hidden="true">⌄</span>
+                </summary>
+                <div className="mt-2 w-full min-w-72 rounded-2xl border border-[#dce3ea] bg-white p-3 shadow-lg sm:w-80">
+                  <div className="max-h-56 space-y-1 overflow-y-auto">
+                    {categories.map((category) => (
+                      <label
+                        key={category.id}
+                        className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-[#f7f9ff]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={bulkCategoryIds.includes(category.id)}
+                          onChange={() =>
+                            toggleBulkCategory(category.id)
+                          }
+                          disabled={busy}
+                          className="h-4 w-4 accent-[#006397]"
+                        />
+                        <span>
+                          {category.name}
+                          {category.status === "hidden"
+                            ? " (đang ẩn)"
+                            : ""}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleBulkAddCategories()}
+                    disabled={busy || bulkCategoryIds.length === 0}
+                    className="mt-3 h-10 w-full rounded-xl bg-[#006397] px-4 text-sm font-bold text-white disabled:opacity-60"
+                  >
+                    Thêm vào bộ sưu tập
+                  </button>
+                </div>
+              </details>
               <select
                 value={bulkStatus}
                 onChange={(event) =>

@@ -33,6 +33,7 @@ export type Product = {
   name: string;
   slug: string;
   categoryId: string;
+  categoryIds?: string[];
   categoryName: string;
   price: number;
   compareAtPrice?: number;
