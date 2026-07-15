@@ -523,6 +523,124 @@ export async function deleteAdDataSourceToken(
 ) {
   return requestAdSecret(sourceId, "DELETE");
 }
+
+export type MetaCapiTestResult = {
+  success: boolean;
+  testEventCode: string;
+  status: number;
+  eventsReceived: number | null;
+  metaErrorCode: string | null;
+  metaErrorSubcode: string | number | null;
+  metaErrorType: string | null;
+  message: string;
+  fbtraceId: string | null;
+  retryable: boolean;
+};
+
+type MetaCapiTestApiResponse = {
+  success?: boolean;
+  testEventCode?: string;
+  result?: {
+    status?: number;
+    eventsReceived?: number | null;
+    metaErrorCode?: string | null;
+    metaErrorSubcode?: string | number | null;
+    metaErrorType?: string | null;
+    message?: string;
+    fbtraceId?: string | null;
+    retryable?: boolean;
+  };
+  message?: string;
+  error?: string;
+};
+
+export async function testMetaCapiConnection(
+  sourceId: string,
+  testEventCode: string,
+): Promise<MetaCapiTestResult> {
+  const normalizedCode = testEventCode
+    .trim()
+    .toUpperCase();
+
+  if (!/^TEST\d{1,20}$/.test(normalizedCode)) {
+    throw new Error(
+      "Mã sự kiện thử nghiệm Meta phải có dạng TEST và các chữ số, ví dụ TEST78712.",
+    );
+  }
+
+  const token = await adminAccessToken();
+  const response = await fetch(
+    `/api/admin/ads/test/${encodeURIComponent(sourceId)}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        testEventCode: normalizedCode,
+      }),
+    },
+  );
+
+  let payload: MetaCapiTestApiResponse;
+
+  try {
+    payload =
+      (await response.json()) as MetaCapiTestApiResponse;
+  } catch {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error ||
+        payload.message ||
+        `Không thể kiểm tra Meta CAPI (${response.status}).`,
+    );
+  }
+
+  const result = payload.result ?? {};
+
+  return {
+    success: payload.success === true,
+    testEventCode:
+      payload.testEventCode ?? normalizedCode,
+    status:
+      typeof result.status === "number"
+        ? result.status
+        : response.status,
+    eventsReceived:
+      typeof result.eventsReceived === "number"
+        ? result.eventsReceived
+        : null,
+    metaErrorCode:
+      typeof result.metaErrorCode === "string"
+        ? result.metaErrorCode
+        : null,
+    metaErrorSubcode:
+      typeof result.metaErrorSubcode === "string" ||
+      typeof result.metaErrorSubcode === "number"
+        ? result.metaErrorSubcode
+        : null,
+    metaErrorType:
+      typeof result.metaErrorType === "string"
+        ? result.metaErrorType
+        : null,
+    message:
+      typeof result.message === "string"
+        ? result.message
+        : payload.success
+          ? "Meta đã chấp nhận sự kiện thử nghiệm."
+          : "Meta không chấp nhận sự kiện thử nghiệm.",
+    fbtraceId:
+      typeof result.fbtraceId === "string"
+        ? result.fbtraceId
+        : null,
+    retryable: result.retryable === true,
+  };
+}
+
 type MetaDomainVerificationApiResponse = {
   success?: boolean;
   configured?: boolean;

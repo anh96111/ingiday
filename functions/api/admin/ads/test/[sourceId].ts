@@ -10,6 +10,9 @@ import {
   HttpError,
   jsonResponse,
 } from "../../../../_lib/http";
+import type {
+  DeliveryResult,
+} from "../../../../_lib/meta-capi";
 import {
   supabaseServerFetch,
 } from "../../../../_lib/supabase-server";
@@ -30,6 +33,13 @@ type SourceRow = {
   platform: "meta" | "tiktok";
 };
 
+type TestProcessResult = {
+  accepted: boolean;
+  status?: number;
+  dryRun?: boolean;
+  delivery?: DeliveryResult;
+};
+
 function sourceIdFromContext(
   context: RouteContext,
 ) {
@@ -45,6 +55,29 @@ function sourceIdFromContext(
     throw new HttpError(
       400,
       "Mã cấu hình Pixel không hợp lệ.",
+    );
+  }
+
+  return value;
+}
+
+async function testEventCodeFromRequest(
+  request: Request,
+) {
+  const payload = await request
+    .json()
+    .catch(() => null) as Record<
+      string,
+      unknown
+    > | null;
+  const value = typeof payload?.testEventCode === "string"
+    ? payload.testEventCode.trim().toUpperCase()
+    : "";
+
+  if (!/^TEST\d{1,20}$/.test(value)) {
+    throw new HttpError(
+      400,
+      "Mã sự kiện thử nghiệm Meta phải có dạng TEST và các chữ số, ví dụ TEST78712.",
     );
   }
 
@@ -120,6 +153,23 @@ async function updateTestStatus(
   }
 }
 
+function numberSummaryValue(
+  value: unknown,
+) {
+  return typeof value === "number" &&
+    Number.isFinite(value)
+    ? value
+    : null;
+}
+
+function stringSummaryValue(
+  value: unknown,
+) {
+  return typeof value === "string" && value
+    ? value
+    : null;
+}
+
 export async function onRequestPost(
   context: RouteContext,
 ) {
@@ -139,6 +189,18 @@ export async function onRequestPost(
       context.env,
       sourceId,
     );
+
+    if (source.platform !== "meta") {
+      throw new HttpError(
+        400,
+        "Chức năng này chỉ dùng để kiểm tra Meta CAPI.",
+      );
+    }
+
+    const testEventCode =
+      await testEventCodeFromRequest(
+        context.request,
+      );
     const origin = new URL(
       context.request.url,
     ).origin;
@@ -167,23 +229,64 @@ export async function onRequestPost(
       {
         force: true,
         skipSourceResolution: true,
+        testEventCodeOverride: testEventCode,
+        includeDeliveryDetails: true,
       },
+    ) as TestProcessResult;
+
+    if (result.dryRun) {
+      throw new HttpError(
+        409,
+        "ADS_SERVER_DRY_RUN đang bật nên chưa thể kiểm tra phản hồi thật từ Meta.",
+      );
+    }
+
+    const delivery = result.delivery;
+
+    if (!delivery) {
+      throw new HttpError(
+        500,
+        "Không nhận được chi tiết phản hồi từ Meta CAPI.",
+      );
+    }
+
+    const eventsReceived = numberSummaryValue(
+      delivery.summary.eventsReceived,
     );
+    const traceId = stringSummaryValue(
+      delivery.summary.traceId,
+    );
+    const errorType = stringSummaryValue(
+      delivery.summary.type,
+    );
+    const errorSubcode =
+      delivery.summary.subcode ?? null;
+    const message = delivery.ok
+      ? `Meta đã nhận ${eventsReceived ?? 1} sự kiện thử nghiệm.`
+      : delivery.message ||
+        "Meta không chấp nhận sự kiện kiểm tra.";
 
     await updateTestStatus(
       context.env,
       sourceId,
-      result.accepted
-        ? "success"
-        : "failed",
-      result.accepted
-        ? "Kết nối Server đã hoạt động."
-        : "Nền tảng không chấp nhận sự kiện kiểm tra.",
+      delivery.ok ? "success" : "failed",
+      message,
     );
 
     return jsonResponse({
-      success: result.accepted,
-      result,
+      success: delivery.ok,
+      testEventCode,
+      result: {
+        status: delivery.status,
+        eventsReceived,
+        metaErrorCode:
+          delivery.code || null,
+        metaErrorSubcode: errorSubcode,
+        metaErrorType: errorType,
+        message,
+        fbtraceId: traceId,
+        retryable: delivery.retryable,
+      },
     });
   } catch (error) {
     if (adminAuthorized) {
