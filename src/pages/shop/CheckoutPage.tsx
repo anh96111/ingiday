@@ -421,10 +421,10 @@ export default function CheckoutPage() {
       void trackPurchase({
         orderCode: result.data.code,
         items,
-        subtotal,
-        discount,
-        shipping,
-        total,
+        subtotal: result.data.subtotal,
+        discount: result.data.discount,
+        shipping: result.data.shipping,
+        total: result.data.total,
       });
       clearCart();
       navigate(

@@ -236,12 +236,19 @@ export function parseEventEnvelope(
   const eventId = cleanNullableString(
     row.eventId,
   );
+  const eventTime = Math.round(Number(row.eventTime));
   const pageUrl = cleanNullableString(
     row.pageUrl,
   );
   const anonymousId = cleanNullableString(
     row.anonymousId,
   );
+  const externalId =
+    cleanNullableString(row.externalId) ?? anonymousId;
+  const customerPhone = cleanNullableString(
+    row.customerPhone,
+  );
+  const now = Math.floor(Date.now() / 1_000);
 
   if (
     !sourceId ||
@@ -250,10 +257,17 @@ export function parseEventEnvelope(
     !isEventName(eventName) ||
     !eventId ||
     eventId.length > 300 ||
+    !Number.isInteger(eventTime) ||
+    eventTime <
+      now - 7 * 24 * 60 * 60 ||
+    eventTime > now + 5 * 60 ||
     !pageUrl ||
     pageUrl.length > 2000 ||
     !anonymousId ||
-    anonymousId.length > 200
+    anonymousId.length > 200 ||
+    !externalId ||
+    externalId.length > 200 ||
+    (customerPhone?.length ?? 0) > 50
   ) {
     throw new HttpError(
       400,
@@ -266,6 +280,7 @@ export function parseEventEnvelope(
     platform,
     eventName,
     eventId,
+    eventTime,
     productIds: cleanProductIds(
       row.productIds,
     ),
@@ -277,6 +292,8 @@ export function parseEventEnvelope(
       row.referrer,
     ),
     anonymousId,
+    externalId,
+    customerPhone,
     fbp: cleanNullableString(row.fbp),
     fbc: cleanNullableString(row.fbc),
     fbclid: cleanNullableString(row.fbclid),
@@ -926,8 +943,12 @@ export async function processAdEvent(
   try {
     const matching = await buildMatchingData({
       anonymousId: envelope.anonymousId,
+      externalId: envelope.externalId,
       customerName: prepared.customerName,
-      customerPhone: prepared.customerPhone,
+      customerPhone:
+        prepared.customerPhone ??
+        envelope.customerPhone ??
+        undefined,
       province: prepared.province,
       country: "vn",
       clientIp:
@@ -1002,9 +1023,7 @@ export async function processAdEvent(
         secret.initialization_vector,
         requireEncryptionKey(env),
       );
-    const eventTime = Math.floor(
-      Date.now() / 1000,
-    );
+    const eventTime = envelope.eventTime;
     const delivery = await deliverWithRetry(
       () =>
         prepared.source.platform === "meta"

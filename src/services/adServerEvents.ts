@@ -1,9 +1,5 @@
-import type {
-  RuntimeAdSource,
-} from "../types/adTracking";
-import type {
-  AdEventName,
-} from "../types/ads";
+import type { RuntimeAdSource } from "../types/adTracking";
+import type { AdEventName } from "../types/ads";
 import {
   isAdsDebugEnabled,
   sourceSupportsEvent,
@@ -11,6 +7,14 @@ import {
 
 const ANONYMOUS_ID_STORAGE_KEY =
   "ingiday-ads-anonymous-id-v1";
+const SERVER_EVENT_QUEUE_STORAGE_KEY =
+  "ingiday-ads-server-event-queue-v1";
+const CHECKOUT_CUSTOMER_STORAGE_KEY =
+  "ingiday-checkout-customer";
+const SERVER_EVENT_QUEUE_MAX_ITEMS = 200;
+const SERVER_EVENT_QUEUE_MAX_AGE_MS =
+  7 * 24 * 60 * 60 * 1_000;
+const SERVER_EVENT_RETRY_DELAY_MS = 5_000;
 
 type SendServerAdEventInput = {
   source: RuntimeAdSource;
@@ -20,6 +24,65 @@ type SendServerAdEventInput = {
   productIds?: string[];
   orderCode?: string;
 };
+
+type ServerAdEventEnvelope = {
+  sourceId: string;
+  platform: RuntimeAdSource["platform"];
+  eventName: AdEventName;
+  eventId: string;
+  eventTime: number;
+  productIds: string[];
+  orderCode: string | null;
+  pageUrl: string;
+  referrer: string | null;
+  anonymousId: string;
+  externalId: string;
+  customerPhone: string | null;
+  fbp: string | null;
+  fbc: string | null;
+  fbclid: string | null;
+  ttp: string | null;
+  ttclid: string | null;
+  payload: Record<string, unknown>;
+};
+
+type QueuedServerAdEvent = {
+  key: string;
+  queuedAt: number;
+  envelope: ServerAdEventEnvelope;
+};
+
+type IntakeResponse = {
+  accepted?: unknown;
+  eventId?: unknown;
+};
+
+type QueueDeliveryResult =
+  | "accepted"
+  | "retry"
+  | "discard";
+
+let volatileQueue: QueuedServerAdEvent[] = [];
+let flushPromise: Promise<void> | null = null;
+let retryTimer: number | null = null;
+
+function debugWarn(
+  message: string,
+  ...details: unknown[]
+) {
+  if (isAdsDebugEnabled()) {
+    console.warn(message, ...details);
+  }
+}
+
+function debugInfo(
+  message: string,
+  details: Record<string, unknown>,
+) {
+  if (isAdsDebugEnabled()) {
+    console.info(message, details);
+  }
+}
 
 function createAnonymousId() {
   if (
@@ -39,7 +102,6 @@ function anonymousId() {
     const existing = localStorage.getItem(
       ANONYMOUS_ID_STORAGE_KEY,
     );
-
     if (existing) {
       return existing;
     }
@@ -52,6 +114,37 @@ function anonymousId() {
     return created;
   } catch {
     return createAnonymousId();
+  }
+}
+
+function readSavedCustomerPhone() {
+  try {
+    const raw = localStorage.getItem(
+      CHECKOUT_CUSTOMER_STORAGE_KEY,
+    );
+    if (!raw) {
+      return null;
+    }
+
+    const saved = JSON.parse(raw) as unknown;
+    if (
+      !saved ||
+      typeof saved !== "object" ||
+      Array.isArray(saved)
+    ) {
+      return null;
+    }
+
+    const phone = (
+      saved as Record<string, unknown>
+    ).phone;
+
+    return typeof phone === "string" &&
+      phone.trim()
+      ? phone.trim()
+      : null;
+  } catch {
+    return null;
   }
 }
 
@@ -77,8 +170,11 @@ function readCookie(name: string) {
 
 function queryValue(name: string) {
   try {
-    return new URL(window.location.href)
-      .searchParams.get(name) ?? "";
+    return (
+      new URL(window.location.href).searchParams.get(
+        name,
+      ) ?? ""
+    );
   } catch {
     return "";
   }
@@ -94,6 +190,321 @@ function uniqueProductIds(productIds: string[]) {
   );
 }
 
+function isRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value),
+  );
+}
+
+function isServerAdEventEnvelope(
+  value: unknown,
+): value is ServerAdEventEnvelope {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.sourceId === "string" &&
+    (value.platform === "meta" ||
+      value.platform === "tiktok") &&
+    typeof value.eventName === "string" &&
+    typeof value.eventId === "string" &&
+    Number.isInteger(value.eventTime) &&
+    Array.isArray(value.productIds) &&
+    (value.orderCode === null ||
+      typeof value.orderCode === "string") &&
+    typeof value.pageUrl === "string" &&
+    (value.referrer === null ||
+      typeof value.referrer === "string") &&
+    typeof value.anonymousId === "string" &&
+    typeof value.externalId === "string" &&
+    (value.customerPhone === null ||
+      typeof value.customerPhone === "string") &&
+    isRecord(value.payload)
+  );
+}
+
+function isQueuedServerAdEvent(
+  value: unknown,
+): value is QueuedServerAdEvent {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    Number.isFinite(value.queuedAt) &&
+    isServerAdEventEnvelope(value.envelope)
+  );
+}
+
+function pruneQueue(
+  queue: QueuedServerAdEvent[],
+) {
+  const cutoff =
+    Date.now() - SERVER_EVENT_QUEUE_MAX_AGE_MS;
+  const deduplicated = new Map<
+    string,
+    QueuedServerAdEvent
+  >();
+
+  for (const item of queue) {
+    if (item.queuedAt < cutoff) {
+      continue;
+    }
+
+    deduplicated.set(item.key, item);
+  }
+
+  return Array.from(deduplicated.values())
+    .sort(
+      (left, right) =>
+        left.queuedAt - right.queuedAt,
+    )
+    .slice(-SERVER_EVENT_QUEUE_MAX_ITEMS);
+}
+
+function readPersistedQueue() {
+  try {
+    const raw = localStorage.getItem(
+      SERVER_EVENT_QUEUE_STORAGE_KEY,
+    );
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isQueuedServerAdEvent);
+  } catch {
+    return [];
+  }
+}
+
+function readQueue() {
+  return pruneQueue([
+    ...readPersistedQueue(),
+    ...volatileQueue,
+  ]);
+}
+
+function writeQueue(
+  queue: QueuedServerAdEvent[],
+) {
+  const normalized = pruneQueue(queue);
+  volatileQueue = normalized;
+
+  try {
+    localStorage.setItem(
+      SERVER_EVENT_QUEUE_STORAGE_KEY,
+      JSON.stringify(normalized),
+    );
+  } catch (error) {
+    debugWarn(
+      "[InGiDay Ads Server] Không thể lưu hàng đợi CAPI",
+      error,
+    );
+  }
+
+  return normalized;
+}
+
+function queueKey(
+  envelope: ServerAdEventEnvelope,
+) {
+  return [
+    envelope.sourceId,
+    envelope.eventName,
+    envelope.eventId,
+  ].join(":");
+}
+
+function enqueueServerAdEvent(
+  envelope: ServerAdEventEnvelope,
+) {
+  const key = queueKey(envelope);
+  const queue = readQueue().filter(
+    (item) => item.key !== key,
+  );
+
+  queue.push({
+    key,
+    queuedAt: Date.now(),
+    envelope,
+  });
+
+  writeQueue(queue);
+  return key;
+}
+
+function removeQueuedServerAdEvent(key: string) {
+  writeQueue(
+    readQueue().filter(
+      (item) => item.key !== key,
+    ),
+  );
+}
+
+function isRetryableIntakeStatus(status: number) {
+  return (
+    status === 408 ||
+    status === 425 ||
+    status === 429 ||
+    status >= 500
+  );
+}
+
+async function postQueuedServerAdEvent(
+  item: QueuedServerAdEvent,
+): Promise<QueueDeliveryResult> {
+  try {
+    const response = await fetch(
+      "/api/ads/events",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "same-origin",
+        keepalive: true,
+        body: JSON.stringify(item.envelope),
+      },
+    );
+
+    let intake: IntakeResponse | null = null;
+
+    try {
+      const payload = (await response.json()) as unknown;
+      if (isRecord(payload)) {
+        intake = payload as IntakeResponse;
+      }
+    } catch {
+      intake = null;
+    }
+
+    if (
+      response.ok &&
+      intake?.accepted === true &&
+      intake.eventId === item.envelope.eventId
+    ) {
+      debugInfo(
+        "[InGiDay Ads Server] Đã tiếp nhận",
+        {
+          platform: item.envelope.platform,
+          sourceId: item.envelope.sourceId,
+          eventName: item.envelope.eventName,
+          eventId: item.envelope.eventId,
+        },
+      );
+      return "accepted";
+    }
+
+    if (isRetryableIntakeStatus(response.status)) {
+      debugWarn(
+        "[InGiDay Ads Server] CAPI intake tạm thời thất bại",
+        response.status,
+        item.envelope.eventId,
+      );
+      return "retry";
+    }
+
+    debugWarn(
+      "[InGiDay Ads Server] Loại sự kiện CAPI không hợp lệ khỏi hàng đợi",
+      response.status,
+      item.envelope.eventId,
+    );
+    return "discard";
+  } catch (error) {
+    debugWarn(
+      "[InGiDay Ads Server] Lỗi mạng, giữ sự kiện trong hàng đợi",
+      error,
+    );
+    return "retry";
+  }
+}
+
+function scheduleServerAdEventFlush(
+  delay = 0,
+) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (retryTimer !== null) {
+    window.clearTimeout(retryTimer);
+  }
+
+  retryTimer = window.setTimeout(() => {
+    retryTimer = null;
+    void flushServerAdEventQueue();
+  }, delay);
+}
+
+export function flushServerAdEventQueue() {
+  if (flushPromise) {
+    return flushPromise;
+  }
+
+  flushPromise = (async () => {
+    while (true) {
+      const queue = readQueue();
+      if (queue.length === 0) {
+        return;
+      }
+
+      let retryNeeded = false;
+
+      for (const item of queue) {
+        const result =
+          await postQueuedServerAdEvent(item);
+
+        if (result === "retry") {
+          retryNeeded = true;
+          continue;
+        }
+
+        removeQueuedServerAdEvent(item.key);
+      }
+
+      if (retryNeeded) {
+        scheduleServerAdEventFlush(
+          SERVER_EVENT_RETRY_DELAY_MS,
+        );
+        return;
+      }
+    }
+  })().finally(() => {
+    flushPromise = null;
+  });
+
+  return flushPromise;
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => {
+    scheduleServerAdEventFlush();
+  });
+
+  window.addEventListener("pageshow", () => {
+    scheduleServerAdEventFlush();
+  });
+
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (document.visibilityState === "visible") {
+        scheduleServerAdEventFlush();
+      }
+    },
+  );
+
+  scheduleServerAdEventFlush();
+}
+
 export async function sendServerAdEvent(
   input: SendServerAdEventInput,
 ) {
@@ -107,18 +518,22 @@ export async function sendServerAdEvent(
     return;
   }
 
-  const requestBody = {
+  const visitorId = anonymousId();
+  const envelope: ServerAdEventEnvelope = {
     sourceId: input.source.id,
     platform: input.source.platform,
     eventName: input.eventName,
     eventId: input.eventId,
+    eventTime: Math.floor(Date.now() / 1_000),
     productIds: uniqueProductIds(
       input.productIds ?? [],
     ),
     orderCode: input.orderCode?.trim() || null,
     pageUrl: window.location.href,
     referrer: document.referrer || null,
-    anonymousId: anonymousId(),
+    anonymousId: visitorId,
+    externalId: visitorId,
+    customerPhone: readSavedCustomerPhone(),
     fbp: readCookie("_fbp") || null,
     fbc: readCookie("_fbc") || null,
     fbclid: queryValue("fbclid") || null,
@@ -127,47 +542,7 @@ export async function sendServerAdEvent(
     payload: input.payload,
   };
 
-  try {
-    const response = await fetch(
-      "/api/ads/events",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "same-origin",
-        keepalive: true,
-        body: JSON.stringify(requestBody),
-      },
-    );
+  enqueueServerAdEvent(envelope);
 
-    if (!response.ok) {
-      if (isAdsDebugEnabled()) {
-        console.warn(
-          "[InGiDay Ads Server] Không thể nhận sự kiện",
-          response.status,
-        );
-      }
-      return;
-    }
-
-    if (isAdsDebugEnabled()) {
-      console.info(
-        "[InGiDay Ads Server] Đã tiếp nhận",
-        {
-          platform: input.source.platform,
-          sourceId: input.source.id,
-          eventName: input.eventName,
-          eventId: input.eventId,
-        },
-      );
-    }
-  } catch (error) {
-    if (isAdsDebugEnabled()) {
-      console.warn(
-        "[InGiDay Ads Server] Lỗi mạng",
-        error,
-      );
-    }
-  }
+  await flushServerAdEventQueue();
 }
