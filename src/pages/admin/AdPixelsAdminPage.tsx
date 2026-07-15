@@ -17,11 +17,15 @@ import {
   loadMetaDomainVerification,
   saveAdDataSourceToken,
   saveMetaDomainVerification,
+  testMetaCapiConnection,
   updateAdDataSource,
 } from "../../services/ads";
 import {
   AD_EVENT_NAMES,
 } from "../../types/ads";
+import type {
+  MetaCapiTestResult,
+} from "../../services/ads";
 import type {
   AdDataSource,
   AdDataSourceInput,
@@ -128,6 +132,13 @@ export default function AdPixelsAdminPage() {
   const [removingTokenId, setRemovingTokenId] =
     useState("");
   const [accessToken, setAccessToken] = useState("");
+  const [metaTestCodes, setMetaTestCodes] = useState<
+    Record<string, string>
+  >({});
+  const [testingMetaId, setTestingMetaId] = useState("");
+  const [metaTestResults, setMetaTestResults] = useState<
+    Record<string, MetaCapiTestResult | undefined>
+  >({});
   const [
     domainVerification,
     setDomainVerification,
@@ -416,6 +427,55 @@ export default function AdPixelsAdminPage() {
       );
     } finally {
       setRemovingTokenId("");
+    }
+  }
+
+  async function testMetaCapi(
+    source: AdDataSource,
+  ) {
+    const testEventCode =
+      (metaTestCodes[source.id] ?? "")
+        .trim()
+        .toUpperCase();
+
+    if (!/^TEST\d{1,20}$/.test(testEventCode)) {
+      setError(
+        "Mã sự kiện thử nghiệm Meta phải có dạng TEST và các chữ số, ví dụ TEST78712.",
+      );
+      return;
+    }
+
+    setTestingMetaId(source.id);
+    setError("");
+    setNotice("");
+    setMetaTestResults((current) => ({
+      ...current,
+      [source.id]: undefined,
+    }));
+
+    try {
+      const result = await testMetaCapiConnection(
+        source.id,
+        testEventCode,
+      );
+
+      setMetaTestCodes((current) => ({
+        ...current,
+        [source.id]: testEventCode,
+      }));
+      setMetaTestResults((current) => ({
+        ...current,
+        [source.id]: result,
+      }));
+      await loadSources();
+    } catch (testError) {
+      setError(
+        testError instanceof Error
+          ? testError.message
+          : "Không thể kiểm tra Meta CAPI.",
+      );
+    } finally {
+      setTestingMetaId("");
     }
   }
 
@@ -1116,6 +1176,106 @@ export default function AdPixelsAdminPage() {
                           </div>
                         </div>
                       </div>
+
+                      {source.platform === "meta" && (
+                        <div className="mt-4 rounded-2xl border border-[#cfe0ef] bg-[#f7fbff] p-4">
+                          <p className="font-bold">
+                            Kiểm tra Meta CAPI
+                          </p>
+                          <p className="mt-1 text-sm leading-6 text-[#707881]">
+                            Nhập mã trong Meta Events Manager → Test Events. Mã chỉ dùng cho lần kiểm tra này và không được lưu vào cấu hình production.
+                          </p>
+
+                          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                            <input
+                              value={
+                                metaTestCodes[source.id] ?? ""
+                              }
+                              onChange={(event) =>
+                                setMetaTestCodes((current) => ({
+                                  ...current,
+                                  [source.id]:
+                                    event.target.value.toUpperCase(),
+                                }))
+                              }
+                              disabled={testingMetaId === source.id}
+                              className="h-12 flex-1 rounded-2xl border border-[#cfd6dd] bg-white px-4 font-mono text-sm outline-none focus:border-[#006397] disabled:opacity-60"
+                              placeholder="TEST78712"
+                              autoComplete="off"
+                            />
+                            <button
+                              type="button"
+                              disabled={
+                                testingMetaId === source.id ||
+                                !source.tokenConfigured
+                              }
+                              onClick={() =>
+                                void testMetaCapi(source)
+                              }
+                              className="h-12 rounded-2xl bg-[#1769aa] px-5 text-sm font-bold text-white disabled:opacity-60"
+                            >
+                              {testingMetaId === source.id
+                                ? "Đang gửi Meta..."
+                                : "Kiểm tra Meta CAPI"}
+                            </button>
+                          </div>
+
+                          {!source.tokenConfigured && (
+                            <p className="mt-3 text-sm font-semibold text-[#a43c12]">
+                              Cần thiết lập Access Token trước khi kiểm tra.
+                            </p>
+                          )}
+
+                          {metaTestResults[source.id] && (
+                            <div className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                              metaTestResults[source.id]?.success
+                                ? "bg-[#ecf8f1] text-[#23734d]"
+                                : "bg-[#fff0eb] text-[#a43c12]"
+                            }`}>
+                              <p className="font-black">
+                                {metaTestResults[source.id]?.success
+                                  ? "Kết nối Meta CAPI thành công"
+                                  : "Meta CAPI từ chối sự kiện"}
+                              </p>
+                              <p className="mt-2 leading-6">
+                                {metaTestResults[source.id]?.message}
+                              </p>
+                              <div className="mt-3 space-y-1 font-mono text-xs leading-5">
+                                <p>
+                                  test_event_code: {metaTestResults[source.id]?.testEventCode}
+                                </p>
+                                <p>
+                                  HTTP: {metaTestResults[source.id]?.status}
+                                </p>
+                                <p>
+                                  events_received: {metaTestResults[source.id]?.eventsReceived ?? "—"}
+                                </p>
+                                {metaTestResults[source.id]?.metaErrorCode && (
+                                  <p>
+                                    Meta code: {metaTestResults[source.id]?.metaErrorCode}
+                                  </p>
+                                )}
+                                {metaTestResults[source.id]?.metaErrorSubcode !== null &&
+                                  metaTestResults[source.id]?.metaErrorSubcode !== undefined && (
+                                    <p>
+                                      Meta subcode: {metaTestResults[source.id]?.metaErrorSubcode}
+                                    </p>
+                                  )}
+                                {metaTestResults[source.id]?.metaErrorType && (
+                                  <p>
+                                    Meta type: {metaTestResults[source.id]?.metaErrorType}
+                                  </p>
+                                )}
+                                {metaTestResults[source.id]?.fbtraceId && (
+                                  <p className="break-all">
+                                    fbtrace_id: {metaTestResults[source.id]?.fbtraceId}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

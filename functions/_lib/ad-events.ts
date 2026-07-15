@@ -102,6 +102,8 @@ type ProcessingOptions = {
   skipSourceResolution?: boolean;
   clientIp?: string;
   userAgent?: string;
+  testEventCodeOverride?: string;
+  includeDeliveryDetails?: boolean;
 };
 
 type PreparedEvent = {
@@ -1013,8 +1015,12 @@ export async function processAdEvent(
               apiVersion:
                 prepared.source.api_version,
               testMode:
-                prepared.source.test_mode,
+                options.testEventCodeOverride !==
+                undefined
+                  ? true
+                  : prepared.source.test_mode,
               testEventCode:
+                options.testEventCodeOverride ??
                 prepared.source.test_event_code,
               eventName:
                 envelope.eventName,
@@ -1072,6 +1078,9 @@ export async function processAdEvent(
     return {
       accepted: delivery.result.ok,
       status: delivery.result.status,
+      ...(options.includeDeliveryDetails
+        ? { delivery: delivery.result }
+        : {}),
     };
   } catch (error) {
     await finishServerLog(
