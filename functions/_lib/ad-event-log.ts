@@ -19,11 +19,14 @@ export type StoredEventEnvelope = {
   platform: "meta" | "tiktok";
   eventName: string;
   eventId: string;
+  eventTime: number;
   productIds: string[];
   orderCode: string | null;
   pageUrl: string;
   referrer: string | null;
   anonymousId: string;
+  externalId: string;
+  customerPhone: string | null;
   fbp: string | null;
   fbc: string | null;
   fbclid: string | null;

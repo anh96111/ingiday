@@ -94,6 +94,7 @@ export function normalizeFbc(
 
 export type MatchingInput = {
   anonymousId?: string;
+  externalId?: string;
   customerName?: string;
   customerPhone?: string;
   province?: string;
@@ -129,7 +130,7 @@ export async function buildMatchingData(
     input.country ?? "vn",
   );
   const externalId = normalizeText(
-    input.anonymousId ?? "",
+    input.externalId ?? input.anonymousId ?? "",
   );
   const fbc = normalizeFbc(
     input.fbc ?? null,
