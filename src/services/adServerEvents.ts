@@ -444,7 +444,191 @@ function scheduleServerAdEventFlush(
   }, delay);
 }
 
-export function flushServerAdEventQueue() {
+type QueueLockManager = {
+  request<T>(
+    name: string,
+    options: {
+      mode: "exclusive";
+      ifAvailable: true;
+    },
+    callback: (lock: object | null) => Promise<T> | T,
+  ): Promise<T>;
+};
+
+type ServerEventQueueLease = {
+  ownerId: string;
+  expiresAt: number;
+};
+
+const SERVER_EVENT_QUEUE_LOCK_NAME =
+  "ingiday-ads-server-event-queue-flush-v1";
+const SERVER_EVENT_QUEUE_LEASE_KEY =
+  "ingiday-ads-server-event-queue-lease-v1";
+const SERVER_EVENT_QUEUE_LEASE_DURATION_MS = 30_000;
+const SERVER_EVENT_QUEUE_LEASE_REFRESH_MS = 10_000;
+const SERVER_EVENT_QUEUE_LOCK_RETRY_DELAY_MS = 1_000;
+const serverEventQueueLockOwnerId = createServerEventQueueLockOwnerId();
+
+function createServerEventQueueLockOwnerId() {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function readServerEventQueueLease(): ServerEventQueueLease | null {
+  try {
+    const raw = localStorage.getItem(SERVER_EVENT_QUEUE_LEASE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const value = JSON.parse(raw) as Partial<ServerEventQueueLease>;
+    if (
+      typeof value.ownerId !== "string" ||
+      typeof value.expiresAt !== "number"
+    ) {
+      return null;
+    }
+
+    return {
+      ownerId: value.ownerId,
+      expiresAt: value.expiresAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeServerEventQueueLease(expiresAt: number) {
+  localStorage.setItem(
+    SERVER_EVENT_QUEUE_LEASE_KEY,
+    JSON.stringify({
+      ownerId: serverEventQueueLockOwnerId,
+      expiresAt,
+    } satisfies ServerEventQueueLease),
+  );
+}
+
+function acquireServerEventQueueLease() {
+  try {
+    const now = Date.now();
+    const existing = readServerEventQueueLease();
+    if (
+      existing &&
+      existing.ownerId !== serverEventQueueLockOwnerId &&
+      existing.expiresAt > now
+    ) {
+      return false;
+    }
+
+    writeServerEventQueueLease(
+      now + SERVER_EVENT_QUEUE_LEASE_DURATION_MS,
+    );
+
+    return (
+      readServerEventQueueLease()?.ownerId ===
+      serverEventQueueLockOwnerId
+    );
+  } catch {
+    return true;
+  }
+}
+
+function refreshServerEventQueueLease() {
+  try {
+    if (
+      readServerEventQueueLease()?.ownerId !==
+      serverEventQueueLockOwnerId
+    ) {
+      return;
+    }
+
+    writeServerEventQueueLease(
+      Date.now() + SERVER_EVENT_QUEUE_LEASE_DURATION_MS,
+    );
+  } catch {
+    // Server dedup remains the final safety layer.
+  }
+}
+
+function releaseServerEventQueueLease() {
+  try {
+    if (
+      readServerEventQueueLease()?.ownerId ===
+      serverEventQueueLockOwnerId
+    ) {
+      localStorage.removeItem(SERVER_EVENT_QUEUE_LEASE_KEY);
+    }
+  } catch {
+    // Ignore storage failures during cleanup.
+  }
+}
+
+async function runWithServerEventQueueLease(
+  task: () => Promise<void>,
+) {
+  if (!acquireServerEventQueueLease()) {
+    return false;
+  }
+
+  const refreshTimer = window.setInterval(
+    refreshServerEventQueueLease,
+    SERVER_EVENT_QUEUE_LEASE_REFRESH_MS,
+  );
+
+  try {
+    await task();
+    return true;
+  } finally {
+    window.clearInterval(refreshTimer);
+    releaseServerEventQueueLease();
+  }
+}
+
+async function withServerEventQueueCrossTabLock(
+  task: () => Promise<void>,
+) {
+  const lockManager =
+    typeof navigator === "undefined"
+      ? undefined
+      : (navigator as unknown as { locks?: QueueLockManager }).locks;
+
+  if (lockManager) {
+    try {
+      return await lockManager.request(
+        SERVER_EVENT_QUEUE_LOCK_NAME,
+        {
+          mode: "exclusive",
+          ifAvailable: true,
+        },
+        async (lock) => {
+          if (!lock) {
+            return false;
+          }
+
+          await task();
+          return true;
+        },
+      );
+    } catch (error) {
+      if (isAdsDebugEnabled()) {
+        console.warn(
+          "[InGiDay Ads Server] Navigator lock lỗi, dùng lease fallback",
+          error,
+        );
+      }
+    }
+  }
+
+  return runWithServerEventQueueLease(task);
+}
+
+function flushServerAdEventQueueWithinTab() {
   if (flushPromise) {
     return flushPromise;
   }
@@ -482,6 +666,18 @@ export function flushServerAdEventQueue() {
   });
 
   return flushPromise;
+}
+
+export function flushServerAdEventQueue() {
+  return withServerEventQueueCrossTabLock(async () => {
+    await flushServerAdEventQueueWithinTab();
+  }).then((lockAcquired) => {
+    if (!lockAcquired) {
+      scheduleServerAdEventFlush(
+        SERVER_EVENT_QUEUE_LOCK_RETRY_DELAY_MS,
+      );
+    }
+  });
 }
 
 if (typeof window !== "undefined") {

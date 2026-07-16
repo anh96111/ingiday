@@ -65,6 +65,8 @@ let sourceCache: {
 
 const assignmentCache = new Map<string, CachedAssignment>();
 const initializedMetaPixels = new Set<string>();
+const META_BROWSER_EVENT_DEDUP_LIMIT = 2_000;
+const sentMetaBrowserEventKeys = new Set<string>();
 const tikTokQueues = new Map<string, TikTokQueue>();
 let metaBootstrapReady = false;
 
@@ -436,6 +438,39 @@ function initializeSource(source: RuntimeAdSource) {
   createTikTokQueue(source);
 }
 
+function metaBrowserEventKey(
+  source: RuntimeAdSource,
+  eventName: AdEventName,
+  eventId: string,
+) {
+  return [source.pixelId, eventName, eventId].join(":");
+}
+
+function claimMetaBrowserEvent(
+  source: RuntimeAdSource,
+  eventName: AdEventName,
+  eventId: string,
+) {
+  const key = metaBrowserEventKey(source, eventName, eventId);
+  if (sentMetaBrowserEventKeys.has(key)) {
+    return null;
+  }
+
+  sentMetaBrowserEventKeys.add(key);
+  if (sentMetaBrowserEventKeys.size > META_BROWSER_EVENT_DEDUP_LIMIT) {
+    const oldestKey = sentMetaBrowserEventKeys.values().next().value;
+    if (typeof oldestKey === "string" && oldestKey !== key) {
+      sentMetaBrowserEventKeys.delete(oldestKey);
+    }
+  }
+
+  return key;
+}
+
+function releaseMetaBrowserEvent(key: string) {
+  sentMetaBrowserEventKeys.delete(key);
+}
+
 export function sendBrowserAdEvent(
   source: RuntimeAdSource,
   eventName: AdEventName,
@@ -462,15 +497,38 @@ export function sendBrowserAdEvent(
     initializeSource(source);
 
     if (source.platform === "meta") {
-      window.fbq?.(
-        "trackSingle",
-        source.pixelId,
-        eventName,
-        payload,
-        {
-          eventID: eventId,
-        },
-      );
+      const dedupKey = claimMetaBrowserEvent(source, eventName, eventId);
+      if (!dedupKey) {
+        if (DEBUG_ENABLED) {
+          console.info("[InGiDay Ads Debug] Bỏ qua browser event trùng", {
+            pixelId: source.pixelId,
+            eventName,
+            eventId,
+          });
+        }
+        return;
+      }
+
+      try {
+        const fbq = window.fbq;
+        if (!fbq) {
+          throw new Error("Meta Pixel chưa sẵn sàng.");
+        }
+
+        fbq(
+          "trackSingle",
+          source.pixelId,
+          eventName,
+          payload,
+          {
+            eventID: eventId,
+          },
+        );
+      } catch (error) {
+        releaseMetaBrowserEvent(dedupKey);
+        throw error;
+      }
+
       return;
     }
 
