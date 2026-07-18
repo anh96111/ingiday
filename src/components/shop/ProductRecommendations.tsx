@@ -20,14 +20,14 @@ const emptyState: RecommendationState = {
 
 function CardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
       {Array.from({ length: 6 }).map((_item, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-[26px] border border-[rgba(88,63,80,0.06)] bg-white shadow-[0_12px_30px_rgba(86,53,74,0.06)]"
+          className="grid aspect-[7/10] grid-rows-[7fr_3fr] overflow-hidden rounded-[26px] border border-[rgba(88,63,80,0.06)] bg-white shadow-[0_12px_30px_rgba(86,53,74,0.06)]"
           aria-hidden="true"
         >
-          <div className="aspect-square animate-pulse bg-[#f5eff2]" />
+          <div className="min-h-0 animate-pulse bg-[#f5eff2]" />
           <div className="space-y-3 p-4">
             <div className="h-3 w-2/3 animate-pulse rounded-full bg-[var(--sf-pink-soft)]" />
             <div className="h-5 animate-pulse rounded-full bg-[#f0e9ed]" />
@@ -70,9 +70,13 @@ function RecommendationGroup({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         {products.map((item) => (
-          <ProductCard key={item.id} product={item} />
+          <ProductCard
+              key={item.id}
+              product={item}
+              variant="featured"
+            />
         ))}
       </div>
     </section>
