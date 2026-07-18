@@ -73,6 +73,9 @@ export default function ProductDetailPage() {
     useState<ProductCustomOptions | null>(null);
   const [customText, setCustomText] = useState("");
   const [customColorId, setCustomColorId] = useState("");
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionCanExpand, setDescriptionCanExpand] = useState(false);
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
   const trackedProductIdRef = useRef("");
 
   usePageMeta({
@@ -87,6 +90,9 @@ export default function ProductDetailPage() {
       : `/san-pham/${slug}`,
   });
 
+  const descriptionText =
+    product?.description || "Thông tin sản phẩm đang được cập nhật.";
+
   useEffect(() => {
     setProduct(null);
     setQuantity(1);
@@ -96,8 +102,33 @@ export default function ProductDetailPage() {
     setCustomOptions(null);
     setCustomText("");
     setCustomColorId("");
+    setDescriptionExpanded(false);
+    setDescriptionCanExpand(false);
     trackedProductIdRef.current = "";
   }, [slug]);
+
+  useEffect(() => {
+    const element = descriptionRef.current;
+
+    if (!element || descriptionExpanded) {
+      return;
+    }
+
+    const updateOverflow = () => {
+      setDescriptionCanExpand(
+        element.scrollHeight > element.clientHeight + 1,
+      );
+    };
+
+    updateOverflow();
+
+    const resizeObserver = new ResizeObserver(updateOverflow);
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [descriptionExpanded, descriptionText]);
 
   useEffect(() => {
     let active = true;
@@ -740,13 +771,6 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="product-detail__total">
-              <span>Tổng tạm tính</span>
-              <strong>
-                {formatCurrency(unitPrice * quantity)}
-              </strong>
-            </div>
-
             <div className="product-detail__actions">
               <button
                 type="button"
@@ -843,10 +867,34 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="product-detail__description">
-            <p>
-              {product.description ||
-                "Thông tin sản phẩm đang được cập nhật."}
-            </p>
+            <div
+              className={`product-detail__description-copy${
+                descriptionExpanded ? " is-expanded" : ""
+              }`}
+            >
+              <p ref={descriptionRef}>{descriptionText}</p>
+              {descriptionCanExpand && !descriptionExpanded && (
+                <span
+                  className="product-detail__description-fade"
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+            {descriptionCanExpand && (
+              <button
+                type="button"
+                className="product-detail__description-toggle"
+                onClick={() =>
+                  setDescriptionExpanded((current) => !current)
+                }
+                aria-expanded={descriptionExpanded}
+              >
+                {descriptionExpanded ? "Thu gọn" : "Xem thêm"}
+                <span aria-hidden="true">
+                  {descriptionExpanded ? "↑" : "↓"}
+                </span>
+              </button>
+            )}
 
             <div className="product-detail__note">
               <strong>Lưu ý nhỏ</strong>
