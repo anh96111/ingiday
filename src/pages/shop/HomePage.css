@@ -1673,3 +1673,328 @@
     padding-top: 36px;
   }
 }
+
+/* IGD_REFINED_STOREFRONT_UI_20260718: home */
+.home-cute__hero-points {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.home-cute__hero-points > div {
+  min-height: 64px;
+  width: auto;
+  align-items: flex-start;
+  border: 1px solid rgba(88, 63, 80, 0.07);
+  border-radius: 17px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.home-cute__hero-points strong,
+.home-cute__hero-points small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.home-cute__collection-track {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-auto-columns: calc((100% - 14px) / 2);
+  gap: 14px;
+  margin-top: 22px;
+  padding-bottom: 6px;
+}
+
+.home-cute__collection-card,
+.home-cute__collection-skeleton {
+  min-height: 250px;
+  scroll-snap-align: start;
+}
+
+.home-premium__collection-card {
+  grid-template-rows: minmax(120px, 1fr) auto;
+  gap: 10px;
+  border-radius: 23px;
+  padding: 12px;
+  box-shadow: 0 12px 30px rgba(86, 53, 74, 0.07);
+}
+
+.home-premium__collection-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 38px rgba(86, 53, 74, 0.1);
+}
+
+.home-premium__collection-card--pink {
+  background: linear-gradient(145deg, #fff1f5, #ffe2ec);
+}
+
+.home-premium__collection-card--yellow {
+  background: linear-gradient(145deg, #fff9e5, #ffedb8);
+}
+
+.home-premium__collection-card--lavender {
+  background: linear-gradient(145deg, #f7f2ff, #e9ddff);
+}
+
+.home-premium__collection-card--mint {
+  background: linear-gradient(145deg, #effcf7, #d8f5e8);
+}
+
+.home-premium__collection-gallery {
+  position: relative;
+  min-height: 126px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.home-premium__collection-shot {
+  position: absolute;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(86, 53, 74, 0.1);
+}
+
+.home-premium__collection-shot img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.home-premium__collection-shot--1 {
+  inset: 9px 35% 9px 9px;
+}
+
+.home-premium__collection-shot--2 {
+  top: 12px;
+  right: 9px;
+  width: 38%;
+  height: 44%;
+  transform: rotate(2deg);
+}
+
+.home-premium__collection-shot--3 {
+  right: 13px;
+  bottom: 10px;
+  width: 35%;
+  height: 40%;
+  transform: rotate(-2deg);
+}
+
+.home-premium__collection-fallback {
+  min-height: 126px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  color: var(--sf-ink-soft);
+  text-align: center;
+}
+
+.home-premium__collection-fallback span {
+  font-size: 32px;
+}
+
+.home-premium__collection-fallback small {
+  font-size: 10px;
+}
+
+.home-premium__collection-meta {
+  display: grid;
+  gap: 8px;
+}
+
+.home-premium__collection-copy {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.home-premium__collection-emoji {
+  width: 35px;
+  height: 35px;
+  flex: 0 0 35px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  font-size: 17px;
+}
+
+.home-premium__collection-copy h3 {
+  margin: 1px 0 3px;
+  color: var(--sf-ink);
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.home-premium__collection-copy p {
+  margin: 0;
+  color: var(--sf-ink-soft);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.home-premium__collection-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--sf-ink-soft);
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.home-premium__collection-bottom > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-cute__benefit-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  border-radius: 22px;
+  padding: 10px;
+}
+
+.home-cute__benefit-strip article {
+  min-height: 72px;
+  border: 1px solid rgba(88, 63, 80, 0.055);
+  border-radius: 16px;
+  padding: 11px 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+@media (max-width: 680px) {
+  .home-cute__hero-points {
+    gap: 8px;
+  }
+
+  .home-cute__hero-points > div {
+    min-height: 76px;
+    gap: 7px;
+    border-radius: 14px;
+    padding: 10px 9px;
+  }
+
+  .home-cute__hero-points svg {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
+  }
+
+  .home-cute__hero-points strong {
+    font-size: 10px;
+  }
+
+  .home-cute__hero-points small {
+    font-size: 9px;
+  }
+
+  .home-cute__collection-track {
+    grid-auto-columns: calc((100% - 8px) / 2);
+    gap: 8px;
+  }
+
+  .home-cute__collection-card,
+  .home-cute__collection-skeleton {
+    min-height: 205px;
+  }
+
+  .home-premium__collection-card {
+    grid-template-rows: 92px auto;
+    gap: 7px;
+    border-radius: 17px;
+    padding: 8px;
+  }
+
+  .home-premium__collection-gallery {
+    min-height: 92px;
+    border-radius: 13px;
+  }
+
+  .home-premium__collection-shot {
+    border-width: 2px;
+    border-radius: 10px;
+  }
+
+  .home-premium__collection-shot--1 {
+    inset: 6px 34% 6px 6px;
+  }
+
+  .home-premium__collection-shot--2 {
+    top: 7px;
+    right: 6px;
+  }
+
+  .home-premium__collection-shot--3 {
+    right: 8px;
+    bottom: 7px;
+  }
+
+  .home-premium__collection-emoji {
+    width: 29px;
+    height: 29px;
+    flex-basis: 29px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .home-premium__collection-copy {
+    gap: 6px;
+  }
+
+  .home-premium__collection-copy h3 {
+    font-size: 12px;
+  }
+
+  .home-premium__collection-copy p {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 8px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .home-premium__collection-bottom {
+    display: none;
+  }
+
+  .home-cute__benefit-strip {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .home-cute__benefit-strip article {
+    min-height: 86px;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .home-cute__benefit-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 12px;
+  }
+
+  .home-cute__benefit-strip h3 {
+    font-size: 11px;
+  }
+
+  .home-cute__benefit-strip p {
+    font-size: 9px;
+    line-height: 1.45;
+  }
+}

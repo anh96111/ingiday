@@ -69,6 +69,7 @@ export default function ProductDetailPage() {
   >({});
   const [message, setMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState("");
+  const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
   const [customOptions, setCustomOptions] =
     useState<ProductCustomOptions | null>(null);
   const [customText, setCustomText] = useState("");
@@ -129,6 +130,27 @@ export default function ProductDetailPage() {
       resizeObserver.disconnect();
     };
   }, [descriptionExpanded, descriptionText]);
+
+  useEffect(() => {
+    if (!isImageZoomOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsImageZoomOpen(false);
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isImageZoomOpen]);
 
   useEffect(() => {
     let active = true;
@@ -472,6 +494,27 @@ export default function ProductDetailPage() {
           <div className="product-detail__gallery">
             <div
               className="product-detail__image-stage"
+          role={selectedImage ? "button" : undefined}
+          tabIndex={selectedImage ? 0 : -1}
+          aria-label={
+            selectedImage
+              ? "Phóng to ảnh sản phẩm"
+              : undefined
+          }
+          onClick={() => {
+            if (selectedImage) {
+              setIsImageZoomOpen(true);
+            }
+          }}
+          onKeyDown={(event) => {
+            if (
+              selectedImage &&
+              (event.key === "Enter" || event.key === " ")
+            ) {
+              event.preventDefault();
+              setIsImageZoomOpen(true);
+            }
+          }}
               style={{
                 backgroundColor:
                   product.background || "var(--sf-cream)",
@@ -488,7 +531,13 @@ export default function ProductDetailPage() {
                 </span>
               )}
 
-              {selectedImage ? (
+              {selectedImage && (
+          <span className="product-detail__zoom-hint">
+            <span aria-hidden="true">⌕</span>
+            Nhấn để phóng to
+          </span>
+        )}
+        {selectedImage ? (
                 <img
                   src={optimizeCloudinaryUrl(
                     selectedImage.url,
@@ -912,8 +961,56 @@ export default function ProductDetailPage() {
           </div>
         </section>
 
-        <ProductRecommendations product={product} />
+        {isImageZoomOpen && selectedImage && (
+        <div
+          className="product-detail__zoom"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Ảnh sản phẩm phóng to"
+        >
+          <button
+            type="button"
+            className="product-detail__zoom-backdrop"
+            onClick={() => setIsImageZoomOpen(false)}
+            aria-label="Đóng ảnh phóng to"
+          />
+          <div className="product-detail__zoom-content">
+            <button
+              type="button"
+              className="product-detail__zoom-close"
+              onClick={() => setIsImageZoomOpen(false)}
+              aria-label="Đóng ảnh phóng to"
+              autoFocus
+            >
+              ×
+            </button>
+            <div
+              className="product-detail__zoom-stage"
+              style={{
+                backgroundColor:
+                  product.background || "var(--sf-cream)",
+              }}
+            >
+              <img
+                src={optimizeCloudinaryUrl(
+                  selectedImage.url,
+                  1800,
+                )}
+                alt={selectedImage.altText || product.name}
+                width="1800"
+                height="1800"
+                decoding="async"
+              />
+            </div>
+            <p>Nhấn nút ×, vùng tối hoặc phím Esc để thoát.</p>
+          </div>
+        </div>
+      )}
+
+      <ProductRecommendations product={product} />
       </div>
     </main>
   );
 }
+
+// IGD_REFINED_STOREFRONT_UI_20260718
