@@ -476,12 +476,12 @@ export default function CheckoutPage() {
   return (
     <main className="pb-20">
       <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_58%,#f5f1ff_100%)]">
-        <div className="sf-container py-11 sm:py-14">
+        <div className="sf-container py-8 sm:py-10">
           <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
             <span className="h-2 w-2 rounded-full bg-[var(--sf-pink)] shadow-[0_0_0_5px_rgba(255,95,143,0.10)]" />
             Thanh toán
           </span>
-          <h1 className="mt-4 text-4xl font-black tracking-[-0.055em] text-[var(--sf-ink)] sm:text-5xl">
+          <h1 className="mt-3 text-3xl font-black tracking-[-0.045em] text-[var(--sf-ink)] sm:text-4xl">
             Hoàn tất đơn hàng COD ♡
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--sf-ink-soft)] sm:text-base">
@@ -493,9 +493,9 @@ export default function CheckoutPage() {
       <section className="sf-container pt-8">
         <form
           onSubmit={handleSubmit}
-          className="grid gap-7 lg:grid-cols-[minmax(0,1fr)_400px]"
+          className="grid gap-4"
         >
-          <div className="rounded-[30px] border border-[rgba(88,63,80,0.07)] bg-white p-5 shadow-[0_18px_48px_rgba(86,53,74,0.08)] sm:p-7">
+          <div className="order-2 rounded-[24px] border border-[rgba(88,63,80,0.07)] bg-white p-4 shadow-[0_14px_38px_rgba(86,53,74,0.07)] sm:p-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--sf-pink-strong)]">
                 Giao hàng
@@ -508,7 +508,7 @@ export default function CheckoutPage() {
               </p>
             </div>
 
-            <div className="mt-7 grid gap-5 sm:grid-cols-2">
+            <div className="mt-5 grid grid-cols-2 gap-3 [&>*]:min-w-0">
               <label className="block text-sm font-black text-[var(--sf-ink)]">
                 Họ và tên{" "}
                 <span className="text-[var(--sf-pink-strong)]">*</span>
@@ -569,7 +569,7 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-2 gap-3 [&>*]:min-w-0">
               <SearchableAddressSelect
                 label="Tỉnh/Thành phố"
                 value={customer.province}
@@ -665,12 +665,12 @@ export default function CheckoutPage() {
                 name="note"
                 value={customer.note}
                 onChange={handleChange}
-                className="mt-2 min-h-28 w-full resize-y rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] p-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
+                className="mt-2 min-h-20 w-full resize-y rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] p-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
                 placeholder="Màu mong muốn hoặc lưu ý khi giao hàng..."
               />
             </label>
 
-            <div className="mt-6 rounded-[22px] border border-[rgba(255,95,143,0.16)] bg-[linear-gradient(135deg,var(--sf-pink-wash),#fff8f2)] p-5">
+            <div className="mt-4 rounded-[20px] border border-[rgba(255,95,143,0.16)] bg-[linear-gradient(135deg,var(--sf-pink-wash),#fff8f2)] p-4">
               <div className="flex items-start gap-3">
                 <span
                   className="grid h-11 w-11 flex-none place-items-center rounded-2xl bg-white text-xl shadow-sm"
@@ -697,9 +697,50 @@ export default function CheckoutPage() {
                 {error}
               </p>
             )}
+
+            <p className="mt-6 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
+              Khi đặt hàng, bạn xác nhận đã đọc{" "}
+              <Link
+                to="/dieu-khoan-su-dung"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Điều khoản sử dụng
+              </Link>
+              ,{" "}
+              <Link
+                to="/chinh-sach-giao-hang"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Chính sách giao hàng
+              </Link>{" "}
+              và{" "}
+              <Link
+                to="/chinh-sach-doi-tra"
+                className="font-black text-[var(--sf-pink-strong)]"
+              >
+                Chính sách đổi trả
+              </Link>
+              .
+            </p>
+
+            <button
+              type="submit"
+              disabled={
+                submitting ||
+                addressLoading ||
+                Boolean(addressLoadError)
+              }
+              className="mt-6 min-h-13 w-full rounded-full bg-[var(--sf-pink)] px-6 font-black text-white shadow-[0_12px_28px_rgba(255,95,143,0.26)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-pink-strong)] hover:shadow-[0_16px_34px_rgba(255,95,143,0.34)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
+            </button>
+
+            <p className="mt-3 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
+              Tổng tiền và tồn kho được hệ thống kiểm tra lại trước khi tạo đơn.
+            </p>
           </div>
 
-          <aside className="h-fit rounded-[30px] border border-[rgba(88,63,80,0.07)] bg-white p-6 shadow-[0_20px_54px_rgba(86,53,74,0.09)] lg:sticky lg:top-28">
+          <aside className="order-1 h-fit rounded-[24px] border border-[rgba(88,63,80,0.07)] bg-white p-4 shadow-[0_14px_38px_rgba(86,53,74,0.07)] sm:p-5">
             <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--sf-pink-strong)]">
               Kiểm tra lần cuối
             </p>
@@ -707,7 +748,7 @@ export default function CheckoutPage() {
               Tóm tắt đơn hàng
             </h2>
 
-            <div className="mt-5 max-h-80 space-y-4 overflow-auto pr-1">
+            <div className="mt-4 grid max-h-64 gap-3 overflow-auto pr-1 sm:grid-cols-2">
               {items.map((item) => (
                 <div
                   key={item.key}
@@ -886,49 +927,12 @@ export default function CheckoutPage() {
               </div>
             </dl>
 
-            <p className="mt-6 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
-              Khi đặt hàng, bạn xác nhận đã đọc{" "}
-              <Link
-                to="/dieu-khoan-su-dung"
-                className="font-black text-[var(--sf-pink-strong)]"
-              >
-                Điều khoản sử dụng
-              </Link>
-              ,{" "}
-              <Link
-                to="/chinh-sach-giao-hang"
-                className="font-black text-[var(--sf-pink-strong)]"
-              >
-                Chính sách giao hàng
-              </Link>{" "}
-              và{" "}
-              <Link
-                to="/chinh-sach-doi-tra"
-                className="font-black text-[var(--sf-pink-strong)]"
-              >
-                Chính sách đổi trả
-              </Link>
-              .
-            </p>
 
-            <button
-              type="submit"
-              disabled={
-                submitting ||
-                addressLoading ||
-                Boolean(addressLoadError)
-              }
-              className="mt-6 min-h-13 w-full rounded-full bg-[var(--sf-pink)] px-6 font-black text-white shadow-[0_12px_28px_rgba(255,95,143,0.26)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-pink-strong)] hover:shadow-[0_16px_34px_rgba(255,95,143,0.34)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
-            </button>
-
-            <p className="mt-3 text-center text-xs leading-5 text-[var(--sf-ink-soft)]">
-              Tổng tiền và tồn kho được hệ thống kiểm tra lại trước khi tạo đơn.
-            </p>
           </aside>
         </form>
       </section>
     </main>
   );
 }
+
+// IGD_REFINED_STOREFRONT_UI_20260718: checkout layout

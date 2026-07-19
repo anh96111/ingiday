@@ -289,7 +289,7 @@ export default function HomePage() {
     const cardWidth = firstCard?.offsetWidth ?? 280;
     const styles = window.getComputedStyle(track);
     const gap = Number.parseFloat(styles.columnGap || styles.gap) || 16;
-    const distance = cardWidth + gap;
+    const distance = (cardWidth + gap) * 2;
 
     track.scrollBy({
       left: direction === "right" ? distance : -distance,
@@ -369,6 +369,13 @@ export default function HomePage() {
                   <small>Sẵn sàng gửi đến bạn</small>
                 </span>
               </div>
+          <div>
+            <HeadsetIcon />
+            <span>
+              <strong>Hỗ trợ tận tâm</strong>
+              <small>Tư vấn đúng nhu cầu thực tế</small>
+            </span>
+          </div>
             </div>
           </div>
 
@@ -487,7 +494,7 @@ export default function HomePage() {
               return (
                 <Link
                   key={category.id}
-                  className={`home-premium__collection-card home-premium__collection-card--${tone}`}
+                  className={`home-cute__collection-card home-premium__collection-card home-premium__collection-card--${tone}`}
                   to={`/san-pham?danh-muc=${encodeURIComponent(category.slug)}`}
                 >
                   <div
@@ -724,3 +731,5 @@ export default function HomePage() {
     </main>
   );
 }
+
+// IGD_REFINED_STOREFRONT_UI_20260718
