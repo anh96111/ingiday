@@ -446,7 +446,7 @@ export default function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <main className="sf-container py-12 sm:py-20">
+      <main className="storefront-page storefront-checkout-empty sf-container py-12 sm:py-20">
         <section className="grid min-h-[460px] place-items-center rounded-[36px] border border-dashed border-[rgba(255,95,143,0.28)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,231,239,0.88),transparent_20rem),#fff] p-8 text-center shadow-[0_20px_54px_rgba(86,53,74,0.07)]">
           <div>
             <span
@@ -474,7 +474,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <main className="pb-20">
+    <main className="storefront-page storefront-checkout-page pb-20">
       <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_58%,#f5f1ff_100%)]">
         <div className="sf-container py-8 sm:py-10">
           <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">

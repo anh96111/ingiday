@@ -8,7 +8,7 @@ import { formatCurrency } from "../../utils/currency";
 const navItems = [
   { label: "Trang chủ", to: "/" },
   { label: "Sản phẩm", to: "/san-pham" },
-  { label: "Yêu cầu riêng", to: "/in-rieng" },
+  { label: "In theo yêu cầu", to: "/in-rieng" },
 ];
 
 function SearchIcon() {
@@ -87,7 +87,7 @@ export default function Header() {
             ) : (
               <span className="storefront-brand__wordmark">
                 {settings.storeName}
-                <span aria-hidden="true">♡</span>
+                <span aria-hidden="true">?</span>
               </span>
             )}
           </Link>

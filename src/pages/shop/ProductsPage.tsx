@@ -228,7 +228,7 @@ export default function ProductsPage() {
     Number(inStock);
 
   return (
-    <main className="pb-20">
+    <main className="storefront-page storefront-products-page pb-20">
       <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_56%,#f5f1ff_100%)]">
         <div className="sf-container py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
@@ -466,7 +466,7 @@ export default function ProductsPage() {
           {loading && !hasPreviousData ? (
             <ProductGridSkeleton count={PAGE_SIZE} />
           ) : data.products.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-7 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {data.products.map((product) => (
                 <ProductCard
                   key={product.id}

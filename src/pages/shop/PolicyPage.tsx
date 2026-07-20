@@ -76,7 +76,7 @@ export default function PolicyPage({
 
   if (loading) {
     return (
-      <main className="sf-container py-10 sm:py-16" aria-label="Đang tải chính sách">
+      <main className="storefront-page storefront-policy-page sf-container py-10 sm:py-16" aria-label="Đang tải chính sách">
         <div className="overflow-hidden rounded-[36px] border border-[rgba(88,63,80,0.07)] bg-white shadow-[0_20px_54px_rgba(86,53,74,0.08)]">
           <div className="h-56 animate-pulse bg-[linear-gradient(100deg,#f5eff2_18%,#fff_34%,#f5eff2_50%)] bg-[length:260%_100%]" />
 
@@ -98,7 +98,7 @@ export default function PolicyPage({
 
   if (error) {
     return (
-      <main className="sf-container py-10 sm:py-16">
+      <main className="storefront-page storefront-policy-page sf-container py-10 sm:py-16">
         <section className="grid min-h-[460px] place-items-center rounded-[36px] border border-[rgba(214,117,80,0.18)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,231,239,0.86),transparent_18rem),#fff] p-8 text-center shadow-[0_20px_54px_rgba(86,53,74,0.07)]">
           <div>
             <span
@@ -130,7 +130,7 @@ export default function PolicyPage({
 
   if (!policy) {
     return (
-      <main className="sf-container py-10 sm:py-16">
+      <main className="storefront-page storefront-policy-page sf-container py-10 sm:py-16">
         <section className="grid min-h-[460px] place-items-center rounded-[36px] border border-dashed border-[rgba(255,95,143,0.28)] bg-[radial-gradient(circle_at_50%_0%,rgba(255,231,239,0.86),transparent_18rem),#fff] p-8 text-center shadow-[0_20px_54px_rgba(86,53,74,0.07)]">
           <div>
             <span
@@ -163,7 +163,7 @@ export default function PolicyPage({
   const currentVisual = getPolicyVisual(policy.slug);
 
   return (
-    <main className="pb-20">
+    <main className="storefront-page storefront-policy-page pb-20">
       <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff1f5_56%,#f5f1ff_100%)]">
         <div className="sf-container py-10 sm:py-14">
           <nav
