@@ -20,18 +20,18 @@ const emptyState: RecommendationState = {
 
 function CardsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+    <div className="sf-product-card-grid">
       {Array.from({ length: 6 }).map((_item, index) => (
         <div
           key={index}
-          className="grid aspect-[7/10] grid-rows-[7fr_3fr] overflow-hidden rounded-[26px] border border-[rgba(88,63,80,0.06)] bg-white shadow-[0_12px_30px_rgba(86,53,74,0.06)]"
+          className="sf-product-card-skeleton"
           aria-hidden="true"
         >
-          <div className="min-h-0 animate-pulse bg-[#f5eff2]" />
-          <div className="space-y-3 p-4">
-            <div className="h-3 w-2/3 animate-pulse rounded-full bg-[var(--sf-pink-soft)]" />
-            <div className="h-5 animate-pulse rounded-full bg-[#f0e9ed]" />
-            <div className="h-5 w-1/2 animate-pulse rounded-full bg-[#eee5ff]" />
+          <div className="sf-product-card-skeleton__media animate-pulse" />
+          <div className="sf-product-card-skeleton__body">
+            <div className="sf-product-card-skeleton__line sf-product-card-skeleton__line--short animate-pulse" />
+            <div className="sf-product-card-skeleton__line animate-pulse" />
+            <div className="sf-product-card-skeleton__line sf-product-card-skeleton__line--price animate-pulse" />
           </div>
         </div>
       ))}
@@ -56,27 +56,13 @@ function RecommendationGroup({
 
   return (
     <section>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
-            {eyebrow}
-          </p>
-          <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--sf-ink)] sm:text-3xl">
-            {title}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--sf-ink-soft)]">
-            {description}
-          </p>
-        </div>
-      </div>
+      <p className="sf-recommendations__eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <p className="sf-recommendations__description">{description}</p>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+      <div className="sf-product-card-grid sf-recommendations__grid">
         {products.map((item) => (
-          <ProductCard
-              key={item.id}
-              product={item}
-              variant="featured"
-            />
+          <ProductCard key={item.id} product={item} variant="featured" />
         ))}
       </div>
     </section>
@@ -130,32 +116,30 @@ export default function ProductRecommendations({
 
   if (loading) {
     return (
-      <div className="mt-16 border-t border-[var(--sf-border)] pt-12">
-        <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--sf-pink-strong)]">
-          Có thể bạn sẽ thích
-        </p>
-        <h2 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--sf-ink)] sm:text-3xl">
-          Đang tải sản phẩm gợi ý
-        </h2>
-        <div className="mt-6">
+      <section className="sf-recommendations">
+        <p className="sf-recommendations__eyebrow">Có thể bạn sẽ thích</p>
+        <h2>Đang tải sản phẩm gợi ý</h2>
+        <div className="sf-recommendations__grid">
           <CardsSkeleton />
         </div>
-      </div>
+      </section>
     );
   }
 
   if (error) {
     return (
-      <div className="mt-16 rounded-[28px] border border-[rgba(214,117,80,0.18)] bg-[#fff5ed] p-6 text-center">
-        <p className="font-bold text-[#884426]">{error}</p>
-        <button
-          type="button"
-          onClick={() => setRetryVersion((current) => current + 1)}
-          className="mt-4 rounded-full border border-[rgba(255,95,143,0.18)] bg-white px-5 py-3 text-sm font-black text-[var(--sf-pink-strong)] shadow-sm transition hover:-translate-y-0.5"
-        >
-          Tải lại gợi ý
-        </button>
-      </div>
+      <section className="sf-recommendations">
+        <div className="sf-recommendations__error">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={() => setRetryVersion((current) => current + 1)}
+            className="sf-button mt-4 border border-[var(--sf-border)] bg-white text-[var(--sf-ink)]"
+          >
+            Tải lại gợi ý
+          </button>
+        </div>
+      </section>
     );
   }
 
@@ -167,20 +151,22 @@ export default function ProductRecommendations({
   }
 
   return (
-    <div className="mt-16 space-y-14 border-t border-[var(--sf-border)] pt-12">
-      <RecommendationGroup
-        eyebrow="Cùng mood"
-        title="Có thể bạn sẽ thích"
-        description="Những món cùng nhóm sản phẩm để bạn khám phá thêm."
-        products={data.similar}
-      />
+    <div className="sf-recommendations">
+      <div className="sf-recommendations__groups">
+        <RecommendationGroup
+          eyebrow="Cùng cảm hứng"
+          title="Có thể bạn sẽ thích"
+          description="Những món cùng nhóm sản phẩm để bạn khám phá thêm."
+          products={data.similar}
+        />
 
-      <RecommendationGroup
-        eyebrow="Được quan tâm"
-        title="Những món đang được chọn nhiều"
-        description="Gợi ý thêm từ các sản phẩm bán chạy trong cửa hàng."
-        products={data.bestselling}
-      />
+        <RecommendationGroup
+          eyebrow="Được quan tâm"
+          title="Những món đang được chọn nhiều"
+          description="Gợi ý thêm từ các sản phẩm bán chạy trong cửa hàng."
+          products={data.bestselling}
+        />
+      </div>
     </div>
   );
 }

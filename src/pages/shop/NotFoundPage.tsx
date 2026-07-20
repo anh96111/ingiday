@@ -43,7 +43,7 @@ export default function NotFoundPage() {
   }
 
   return (
-    <main className="sf-container py-10 sm:py-16">
+    <main className="storefront-page storefront-not-found-page sf-container py-10 sm:py-16">
       <section className="relative grid min-h-[560px] place-items-center overflow-hidden rounded-[38px] border border-[rgba(88,63,80,0.07)] bg-[radial-gradient(circle_at_12%_12%,rgba(255,231,239,0.9),transparent_18rem),radial-gradient(circle_at_88%_88%,rgba(223,247,236,0.88),transparent_18rem),#fff] p-6 text-center shadow-[0_24px_70px_rgba(86,53,74,0.10)] sm:p-10">
         <span
           className="pointer-events-none absolute left-[8%] top-[14%] text-5xl text-[#b49cff]"

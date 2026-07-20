@@ -6,12 +6,17 @@ import ProductGridSkeleton from "../../components/shop/ProductGridSkeleton";
 import { useBanners } from "../../features/banners/BannersContext";
 import { useSettings } from "../../features/settings/SettingsContext";
 import {
+  getCloudinarySrcSet,
+  optimizeCloudinaryUrl,
+} from "../../lib/cloudinary";
+import {
   fetchActiveCategories,
   fetchCollectionProductPreviews,
   fetchFeaturedProducts,
   searchProducts,
 } from "../../services/products";
 import type { Category, Product } from "../../types/product";
+import { formatCurrency } from "../../utils/currency";
 import "./HomePage.css";
 
 const COLLECTION_TONES = ["pink", "yellow", "lavender", "mint"] as const;
@@ -201,7 +206,11 @@ export default function HomePage() {
   >({});
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState("");
-  const collectionTrackRef = useRef<HTMLDivElement | null>(null);
+  const [heroSlideIndex, setHeroSlideIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
+  const [collectionPageIndex, setCollectionPageIndex] = useState(0);
+  const [collectionPageSize, setCollectionPageSize] = useState(8);
+  const collectionSwipeStartRef = useRef<number | null>(null);
 
   const loadCatalog = useCallback(async (force = false) => {
     setCatalogLoading(true);
@@ -277,24 +286,127 @@ export default function HomePage() {
     banner?.imageAlt?.trim() ||
     "Móc khóa thỏ, đèn decor và mô hình robot 3D phong cách InGiDay";
 
-  const scrollCollections = (direction: "left" | "right") => {
-    const track = collectionTrackRef.current;
-    if (!track) {
+  const featuredHeroProducts = featuredProducts
+    .filter((item) => Boolean(primaryImage(item)))
+    .slice(0, 5);
+  const heroSlideCount = featuredHeroProducts.length;
+  const activeHeroProduct =
+    heroSlideCount > 0
+      ? featuredHeroProducts[heroSlideIndex % heroSlideCount]
+      : undefined;
+  const activeHeroImage = primaryImage(activeHeroProduct);
+  const activeHeroHref = activeHeroProduct
+    ? `/san-pham/${activeHeroProduct.slug}`
+    : banner?.primaryLink || "/san-pham";
+  const activeHeroAlt =
+    activeHeroImage?.altText ||
+    activeHeroProduct?.name ||
+    heroImageAlt;
+  const customPreviewProduct =
+    featuredProducts[1] ||
+    featuredProducts[0] ||
+    newProducts[0] ||
+    bestSellingProducts[0];
+  const customPreviewImage = primaryImage(customPreviewProduct);
+
+  useEffect(() => {
+    setHeroSlideIndex((current) =>
+      heroSlideCount > 0 ? current % heroSlideCount : 0,
+    );
+  }, [heroSlideCount]);
+
+  useEffect(() => {
+    if (heroPaused || heroSlideCount <= 1) {
       return;
     }
 
-    const firstCard = track.querySelector<HTMLElement>(
-      ".home-cute__collection-card",
-    );
-    const cardWidth = firstCard?.offsetWidth ?? 280;
-    const styles = window.getComputedStyle(track);
-    const gap = Number.parseFloat(styles.columnGap || styles.gap) || 16;
-    const distance = (cardWidth + gap) * 2;
+    const timer = window.setInterval(() => {
+      setHeroSlideIndex((current) => (current + 1) % heroSlideCount);
+    }, 8000);
 
-    track.scrollBy({
-      left: direction === "right" ? distance : -distance,
-      behavior: "smooth",
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [heroPaused, heroSlideCount]);
+
+  const moveHeroSlide = (direction: "previous" | "next") => {
+    if (heroSlideCount <= 1) {
+      return;
+    }
+
+    setHeroSlideIndex((current) => {
+      const offset = direction === "next" ? 1 : -1;
+      return (current + offset + heroSlideCount) % heroSlideCount;
     });
+  };
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 700px)");
+
+    const syncCollectionPageSize = () => {
+      setCollectionPageSize(mediaQuery.matches ? 4 : 8);
+      setCollectionPageIndex(0);
+    };
+
+    syncCollectionPageSize();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncCollectionPageSize);
+      return () => {
+        mediaQuery.removeEventListener("change", syncCollectionPageSize);
+      };
+    }
+
+    mediaQuery.addListener(syncCollectionPageSize);
+    return () => {
+      mediaQuery.removeListener(syncCollectionPageSize);
+    };
+  }, []);
+
+  const collectionPageCount = Math.max(
+    1,
+    Math.ceil(categories.length / collectionPageSize),
+  );
+  const collectionPages = Array.from(
+    { length: collectionPageCount },
+    (_item, pageIndex) =>
+      categories.slice(
+        pageIndex * collectionPageSize,
+        (pageIndex + 1) * collectionPageSize,
+      ),
+  );
+
+  useEffect(() => {
+    setCollectionPageIndex((current) =>
+      Math.min(current, collectionPageCount - 1),
+    );
+  }, [collectionPageCount]);
+
+  const moveCollectionPage = (direction: "left" | "right") => {
+    if (collectionPageCount <= 1) {
+      return;
+    }
+
+    setCollectionPageIndex((current) =>
+      direction === "right"
+        ? (current + 1) % collectionPageCount
+        : (current - 1 + collectionPageCount) % collectionPageCount,
+    );
+  };
+
+  const handleCollectionTouchStart = (clientX: number) => {
+    collectionSwipeStartRef.current = clientX;
+  };
+
+  const handleCollectionTouchEnd = (clientX: number) => {
+    const startX = collectionSwipeStartRef.current;
+    collectionSwipeStartRef.current = null;
+
+    if (startX === null || Math.abs(clientX - startX) < 44) {
+      return;
+    }
+
+    moveCollectionPage(clientX < startX ? "right" : "left");
   };
 
   return (
@@ -310,7 +422,7 @@ export default function HomePage() {
         <div className="sf-container home-cute__hero-grid">
           <div className="home-cute__hero-copy">
             <span className="home-cute__eyebrow">
-              {banner?.badge || "In 3D theo cách dễ thương hơn"}
+              {banner?.badge || "Đồ nhỏ xinh, làm thật chỉn chu"}
             </span>
 
             <h1>
@@ -318,15 +430,15 @@ export default function HomePage() {
                 banner.title
               ) : (
                 <>
-                  In 3D tạo nên
-                  <span>điều đáng yêu ♡</span>
+                  Mỗi món đồ đều có
+                  <span>một chút “bạn” trong đó.</span>
                 </>
               )}
             </h1>
 
             <p>
               {banner?.description ||
-                "Móc khóa, mô hình mini và sản phẩm in riêng được tạo ra dành riêng cho bạn."}
+                "Móc khóa, mô hình mini và sản phẩm in riêng được hoàn thiện tinh gọn, dễ thương vừa đủ và đẹp trong từng góc nhìn."}
             </p>
 
             <div className="home-cute__hero-actions">
@@ -334,7 +446,7 @@ export default function HomePage() {
                 className="sf-button sf-button--primary"
                 to={banner?.primaryLink || "/san-pham"}
               >
-                {banner?.primaryLabel || "Khám phá ngay"}
+                {banner?.primaryLabel || "Khám phá sản phẩm"}
                 <ArrowIcon />
               </Link>
 
@@ -342,66 +454,97 @@ export default function HomePage() {
                 className="sf-button home-cute__button-secondary"
                 to={banner?.secondaryLink || "/in-rieng"}
               >
-                {banner?.secondaryLabel || "Yêu cầu thiết kế"}
+                {banner?.secondaryLabel || "Đặt in theo ý tưởng"}
                 <PencilIcon />
               </Link>
             </div>
 
-            <div className="home-cute__hero-points" aria-label="Điểm nổi bật">
-              <div>
-                <SparkIcon />
-                <span>
-                  <strong>Thiết kế tỉ mỉ</strong>
-                  <small>Đáng yêu từng chi tiết</small>
-                </span>
-              </div>
-              <div>
-                <SparkIcon />
-                <span>
-                  <strong>Chất liệu phù hợp</strong>
-                  <small>Chọn theo từng sản phẩm</small>
-                </span>
-              </div>
-              <div>
-                <SparkIcon />
-                <span>
-                  <strong>Đóng gói cẩn thận</strong>
-                  <small>Sẵn sàng gửi đến bạn</small>
-                </span>
-              </div>
-          <div>
-            <HeadsetIcon />
-            <span>
-              <strong>Hỗ trợ tận tâm</strong>
-              <small>Tư vấn đúng nhu cầu thực tế</small>
-            </span>
-          </div>
-            </div>
           </div>
 
-          <div className="home-cute__hero-visual">
-            <span className="home-cute__hero-spark home-cute__hero-spark--one">
-              ✦
-            </span>
-            <span className="home-cute__hero-spark home-cute__hero-spark--two">
-              ♡
-            </span>
-            <span className="home-cute__hero-spark home-cute__hero-spark--three">
-              ✧
-            </span>
+          <div
+            className="home-cute__hero-visual home-premium__hero-carousel"
+            onMouseEnter={() => setHeroPaused(true)}
+            onMouseLeave={() => setHeroPaused(false)}
+          >
+            <Link
+              className="home-premium__hero-slide"
+              to={activeHeroHref}
+              aria-label={
+                activeHeroProduct
+                  ? `Xem sản phẩm ${activeHeroProduct.name}`
+                  : "Khám phá sản phẩm InGiDay"
+              }
+              style={{
+                backgroundColor:
+                  activeHeroProduct?.background || "#e9e4dc",
+              }}
+            >
+              <img
+                key={activeHeroProduct?.id || heroImageUrl}
+                src={
+                  activeHeroImage
+                    ? optimizeCloudinaryUrl(activeHeroImage.url, 1400)
+                    : heroImageUrl
+                }
+                srcSet={
+                  activeHeroImage
+                    ? getCloudinarySrcSet(activeHeroImage.url, [
+                        640,
+                        900,
+                        1200,
+                        1400,
+                      ])
+                    : undefined
+                }
+                sizes="(max-width: 1020px) calc(100vw - 40px), 54vw"
+                alt={activeHeroAlt}
+                fetchPriority="high"
+              />
 
-            <img
-              src={heroImageUrl}
-              alt={heroImageAlt}
-              width="770"
-              height="455"
-              fetchPriority="high"
-            />
+              {activeHeroProduct && (
+                <span className="home-premium__hero-product-card">
+                  <small>{activeHeroProduct.categoryName}</small>
+                  <strong>{activeHeroProduct.name}</strong>
+                  <em>{formatCurrency(activeHeroProduct.price)}</em>
+                </span>
+              )}
+            </Link>
 
-            {banner?.emoji && (
-              <span className="home-cute__hero-emoji" aria-hidden="true">
-                {banner.emoji}
-              </span>
+            {heroSlideCount > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="home-premium__hero-arrow home-premium__hero-arrow--previous"
+                  onClick={() => moveHeroSlide("previous")}
+                  aria-label="Xem sản phẩm nổi bật trước"
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  className="home-premium__hero-arrow home-premium__hero-arrow--next"
+                  onClick={() => moveHeroSlide("next")}
+                  aria-label="Xem sản phẩm nổi bật tiếp theo"
+                >
+                  →
+                </button>
+
+                <div
+                  className="home-premium__hero-counter"
+                  aria-label={`Sản phẩm nổi bật ${
+                    (heroSlideIndex % heroSlideCount) + 1
+                  } trên ${heroSlideCount}`}
+                >
+                  <span>
+                    {String((heroSlideIndex % heroSlideCount) + 1).padStart(
+                      2,
+                      "0",
+                    )}
+                  </span>
+                  <span aria-hidden="true">/</span>
+                  <span>{String(heroSlideCount).padStart(2, "0")}</span>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -434,30 +577,38 @@ export default function HomePage() {
             <div>
               <span className="home-cute__section-kicker">Bộ sưu tập</span>
               <h2>
-                Khám phá theo mood <span aria-hidden="true">🌸</span>
+                Chọn theo điều bạn đang thích
               </h2>
             </div>
 
             <div className="home-cute__section-actions">
-              <div
-                className="home-cute__collection-nav"
-                aria-label="Điều hướng bộ sưu tập"
-              >
-                <button
-                  type="button"
-                  onClick={() => scrollCollections("left")}
-                  aria-label="Xem bộ sưu tập phía trước"
+              {collectionPageCount > 1 && (
+                <div
+                  className="home-cute__collection-nav"
+                  aria-label="Điều hướng bộ sưu tập"
                 >
-                  ←
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollCollections("right")}
-                  aria-label="Xem bộ sưu tập tiếp theo"
-                >
-                  →
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => moveCollectionPage("left")}
+                    aria-label="Xem nhóm bộ sưu tập phía trước"
+                  >
+                    ←
+                  </button>
+                  <span aria-live="polite">
+                    {String(collectionPageIndex + 1).padStart(2, "0")} /{
+                      " "
+                    }
+                    {String(collectionPageCount).padStart(2, "0")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => moveCollectionPage("right")}
+                    aria-label="Xem nhóm bộ sưu tập tiếp theo"
+                  >
+                    →
+                  </button>
+                </div>
+              )}
 
               <Link to="/san-pham" className="home-cute__text-link">
                 Xem tất cả
@@ -467,101 +618,174 @@ export default function HomePage() {
           </div>
 
           <div
-            ref={collectionTrackRef}
-            className="home-cute__collection-track"
+            className="home-cute__collection-carousel"
+            onTouchStart={(event) =>
+              handleCollectionTouchStart(event.touches[0]?.clientX ?? 0)
+            }
+            onTouchEnd={(event) =>
+              handleCollectionTouchEnd(event.changedTouches[0]?.clientX ?? 0)
+            }
+            onTouchCancel={() => {
+              collectionSwipeStartRef.current = null;
+            }}
           >
-            {catalogLoading && categories.length === 0
-              ? Array.from({ length: 4 }).map((_item, index) => (
-                  <div
-                    className="home-cute__collection-skeleton"
-                    key={index}
-                    aria-hidden="true"
-                  />
-                ))
-              : categories.map((category, index) => {
-              const previews = collectionProducts[category.id] ?? [];
-              const previewImages = previews
-                .map((previewProduct) => ({
-                  product: previewProduct,
-                  image: primaryImage(previewProduct),
-                }))
-                .filter((item) => Boolean(item.image))
-                .slice(0, 3);
-              const tone =
-                COLLECTION_TONES[index % COLLECTION_TONES.length];
-              const gallerySize = Math.max(1, previewImages.length);
-
-              return (
-                <Link
-                  key={category.id}
-                  className={`home-cute__collection-card home-premium__collection-card home-premium__collection-card--${tone}`}
-                  to={`/san-pham?danh-muc=${encodeURIComponent(category.slug)}`}
+            <div
+              className="home-cute__collection-pages"
+              style={{
+                transform: `translate3d(-${collectionPageIndex * 100}%, 0, 0)`,
+              }}
+            >
+              {catalogLoading && categories.length === 0 ? (
+                <div
+                  className="home-cute__collection-page"
+                  aria-hidden="true"
                 >
+                  {Array.from({ length: collectionPageSize }).map(
+                    (_item, index) => (
+                      <div
+                        className="home-cute__collection-skeleton"
+                        key={index}
+                        aria-hidden="true"
+                      />
+                    ),
+                  )}
+                </div>
+              ) : (
+                collectionPages.map((pageCategories, pageIndex) => (
                   <div
-                    className={`home-premium__collection-gallery home-premium__collection-gallery--${gallerySize}`}
+                    className="home-cute__collection-page"
+                    key={`collection-page-${pageIndex}`}
+                    aria-hidden={pageIndex !== collectionPageIndex}
                   >
-                    {previewImages.length > 0 ? (
-                      previewImages.map(
-                        ({ product: previewProduct, image }, previewIndex) => (
-                          <div
-                            className={`home-premium__collection-shot home-premium__collection-shot--${previewIndex + 1}`}
-                            key={previewProduct.id}
-                          >
-                            <img
-                              src={image?.url}
-                              alt={
-                                image?.altText ||
-                                previewProduct.name ||
-                                category.name
-                              }
-                              loading="lazy"
-                              decoding="async"
-                            />
+                    {pageCategories.map((category, cardIndex) => {
+                      const globalIndex =
+                        pageIndex * collectionPageSize + cardIndex;
+                      const previews = collectionProducts[category.id] ?? [];
+                      const previewImages = previews
+                        .map((previewProduct) => ({
+                          product: previewProduct,
+                          image: primaryImage(previewProduct),
+                        }))
+                        .filter((item) => Boolean(item.image))
+                        .slice(0, 3);
+                      const tone =
+                        COLLECTION_TONES[
+                          globalIndex % COLLECTION_TONES.length
+                        ];
+
+                      return (
+                        <Link
+                          key={category.id}
+                          className={`home-cute__collection-card home-premium__collection-card home-premium__collection-card--${tone}`}
+                          to={`/san-pham?danh-muc=${encodeURIComponent(
+                            category.slug,
+                          )}`}
+                          tabIndex={
+                            pageIndex === collectionPageIndex ? 0 : -1
+                          }
+                        >
+                          <div className="home-premium__collection-visual">
+                            <span className="home-premium__collection-number">
+                              {String(globalIndex + 1).padStart(2, "0")}
+                            </span>
+
+                            {previewImages.length > 0 ? (
+                              <>
+                                <div className="home-premium__collection-main-shot">
+                                  <img
+                                    src={optimizeCloudinaryUrl(
+                                      previewImages[0].image?.url || "",
+                                      900,
+                                    )}
+                                    srcSet={getCloudinarySrcSet(
+                                      previewImages[0].image?.url || "",
+                                      [360, 520, 720, 900],
+                                    )}
+                                    sizes="(max-width: 700px) 50vw, 25vw"
+                                    alt={
+                                      previewImages[0].image?.altText ||
+                                      previewImages[0].product.name ||
+                                      category.name
+                                    }
+                                    loading="lazy"
+                                    decoding="async"
+                                  />
+                                </div>
+
+                                {previewImages.length > 1 && (
+                                  <div
+                                    className="home-premium__collection-preview-stack"
+                                    aria-hidden="true"
+                                  >
+                                    {previewImages.slice(1, 3).map(
+                                      ({
+                                        product: previewProduct,
+                                        image,
+                                      }) => (
+                                        <span key={previewProduct.id}>
+                                          <img
+                                            src={optimizeCloudinaryUrl(
+                                              image?.url || "",
+                                              220,
+                                            )}
+                                            alt=""
+                                            loading="lazy"
+                                            decoding="async"
+                                          />
+                                        </span>
+                                      ),
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="home-premium__collection-fallback">
+                                <span aria-hidden="true">
+                                  {category.emoji || "✦"}
+                                </span>
+                                <small>Đang cập nhật sản phẩm</small>
+                              </div>
+                            )}
                           </div>
-                        ),
-                      )
-                    ) : (
-                      <div className="home-premium__collection-fallback">
-                        <span aria-hidden="true">{category.emoji || "✦"}</span>
-                        <small>Đang cập nhật sản phẩm</small>
-                      </div>
-                    )}
+
+                          <div className="home-premium__collection-meta">
+                            <div className="home-premium__collection-copy">
+                              <span
+                                className="home-premium__collection-emoji"
+                                aria-hidden="true"
+                              >
+                                {category.emoji || "✦"}
+                              </span>
+                              <div>
+                                <h3>{category.name}</h3>
+                                <p>{collectionDescription(category)}</p>
+                              </div>
+                            </div>
+
+                            <div className="home-premium__collection-bottom">
+                              <span>
+                                {previews.length > 0
+                                  ? `Khám phá bộ sưu tập ${category.name}`
+                                  : "Khám phá danh mục"}
+                              </span>
+                              <span
+                                className="home-cute__round-arrow"
+                                aria-hidden="true"
+                              >
+                                <ArrowIcon />
+                              </span>
+                            </div>
+                          </div>
+                        </Link>
+                      );
+                    })}
                   </div>
+                ))
+              )}
+            </div>
+          </div>
 
-                  <div className="home-premium__collection-meta">
-                    <div className="home-premium__collection-copy">
-                      <span
-                        className="home-premium__collection-emoji"
-                        aria-hidden="true"
-                      >
-                        {category.emoji || "✦"}
-                      </span>
-                      <div>
-                        <h3>{category.name}</h3>
-                        <p>{collectionDescription(category)}</p>
-                      </div>
-                    </div>
-
-                    <div className="home-premium__collection-bottom">
-                      <span>
-                        {previews.length > 0
-                          ? `Khám phá bộ sưu tập ${category.name}`
-                          : "Khám phá danh mục"}
-                      </span>
-                      <span
-                        className="home-cute__round-arrow"
-                        aria-hidden="true"
-                      >
-                        <ArrowIcon />
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-        </div>
-
-        <div className="home-cute__benefit-strip">
+          <div className="home-cute__benefit-strip">
             <article>
               <span className="home-cute__benefit-icon home-cute__benefit-icon--lavender">
                 <PencilIcon />
@@ -712,20 +936,46 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="home-cute__custom-art" aria-hidden="true">
-          <div className="home-cute__custom-bubble home-cute__custom-bubble--one">
-            your idea
-          </div>
-          <div className="home-cute__custom-bubble home-cute__custom-bubble--two">
-            one of one
-          </div>
-          <span className="home-cute__custom-star">✦</span>
-          <span className="home-cute__custom-heart">♡</span>
-          <div className="home-cute__custom-object">
-            <span>3D</span>
-            <strong>+</strong>
-            <span>YOU</span>
-          </div>
+        <div
+          className="home-cute__custom-art home-premium__custom-visual"
+          aria-hidden="true"
+          style={{
+            backgroundColor:
+              customPreviewProduct?.background || "#ddd7ce",
+          }}
+        >
+          <span className="home-premium__custom-label">
+            CUSTOM · ONE OF ONE
+          </span>
+
+          <img
+            src={
+              customPreviewImage
+                ? optimizeCloudinaryUrl(customPreviewImage.url, 1200)
+                : "/images/ingiday-hero-default.webp"
+            }
+            srcSet={
+              customPreviewImage
+                ? getCloudinarySrcSet(customPreviewImage.url, [
+                    520,
+                    800,
+                    1000,
+                    1200,
+                  ])
+                : undefined
+            }
+            sizes="(max-width: 1020px) calc(100vw - 24px), 46vw"
+            alt=""
+            width="1200"
+            height="1200"
+            loading="lazy"
+            decoding="async"
+          />
+
+          <span className="home-premium__custom-caption">
+            <strong>Thiết kế theo ý tưởng</strong>
+            <small>Một sản phẩm dành riêng cho bạn</small>
+          </span>
         </div>
       </section>
     </main>

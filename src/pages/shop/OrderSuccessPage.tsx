@@ -27,7 +27,7 @@ export default function OrderSuccessPage() {
   const code = searchParams.get("ma") ?? order?.code ?? "";
 
   return (
-    <main className="sf-container py-10 sm:py-16">
+    <main className="storefront-page storefront-success-page sf-container py-10 sm:py-16">
       <section className="relative overflow-hidden rounded-[38px] border border-[rgba(88,63,80,0.07)] bg-[radial-gradient(circle_at_12%_12%,rgba(255,231,239,0.88),transparent_18rem),radial-gradient(circle_at_90%_88%,rgba(223,247,236,0.86),transparent_18rem),#fff] px-5 py-10 text-center shadow-[0_24px_70px_rgba(86,53,74,0.10)] sm:px-10 sm:py-14">
         <span
           className="pointer-events-none absolute left-[8%] top-[16%] text-4xl text-[#b49cff]"

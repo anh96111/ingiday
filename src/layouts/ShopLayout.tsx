@@ -5,6 +5,7 @@ import Header from "../components/shop/Header";
 import AdTrackingBridge from "../features/ads/AdTrackingBridge";
 import "../styles/storefront-theme.css";
 import "../styles/storefront-a11y.css";
+import "../styles/storefront-premium-pages.css";
 
 export default function ShopLayout() {
   return (

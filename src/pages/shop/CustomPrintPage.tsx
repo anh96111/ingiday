@@ -39,7 +39,7 @@ export default function CustomPrintPage() {
   ];
 
   return (
-    <main className="pb-20">
+    <main className="storefront-page storefront-custom-page pb-20">
       <section className="border-b border-[rgba(88,63,80,0.06)] bg-[linear-gradient(135deg,#fff8f2_0%,#fff0f5_54%,#f2edff_100%)]">
         <div className="sf-container grid min-h-[540px] items-center gap-10 py-12 lg:grid-cols-[minmax(0,1.02fr)_minmax(390px,0.98fr)] lg:py-16">
           <div>

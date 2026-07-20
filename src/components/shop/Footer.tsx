@@ -45,7 +45,7 @@ export default function Footer() {
               ) : (
                 <span className="storefront-brand__wordmark">
                   {settings.storeName}
-                  <span aria-hidden="true">♡</span>
+                  <span aria-hidden="true">?</span>
                 </span>
               )}
             </Link>
@@ -135,7 +135,7 @@ export default function Footer() {
             © {new Date().getFullYear()} {settings.storeName}. All rights
             reserved.
           </span>
-          <span>Được tạo bằng nhiều lớp nhựa và một chút đáng yêu ♡</span>
+          <span>Thiết kế và hoàn thiện sản phẩm in 3D tại Việt Nam.</span>
         </div>
       </div>
     </footer>
