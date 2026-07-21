@@ -70,6 +70,9 @@ const OrderSuccessPage = lazy(
 const PolicyPage = lazy(
   () => import("../pages/shop/PolicyPage"),
 );
+const ProductShortLinkPage = lazy(
+  () => import("../pages/shop/ProductShortLinkPage"),
+);
 const ProductDetailPage = lazy(
   () => import("../pages/shop/ProductDetailPage"),
 );
@@ -86,6 +89,10 @@ export const router = createBrowserRouter([
       {
         path: "/san-pham/:slug",
         element: <ProductDetailPage />,
+      },
+      {
+        path: "/p/:sku",
+        element: <ProductShortLinkPage />,
       },
       { path: "/gio-hang", element: <CartPage /> },
       { path: "/thanh-toan", element: <CheckoutPage /> },

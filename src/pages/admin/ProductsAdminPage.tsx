@@ -28,6 +28,46 @@ function primaryImage(product: Product) {
   );
 }
 
+function productShortUrl(product: Product) {
+  const sku = product.sku?.trim().toUpperCase();
+
+  if (!sku) {
+    return "";
+  }
+
+  return new URL(
+    `/p/${encodeURIComponent(sku)}`,
+    window.location.origin,
+  ).toString();
+}
+
+async function copyText(text: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall back to the legacy copy path below.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error("Trình duyệt không cho phép sao chép tự động.");
+  }
+}
+
 export default function ProductsAdminPage() {
   const {
     products,
@@ -261,6 +301,28 @@ export default function ProductsAdminPage() {
     }
   }
 
+  async function handleCopyShortLink(product: Product) {
+    const shortUrl = productShortUrl(product);
+
+    if (!shortUrl) {
+      setMessageSuccess(false);
+      setMessage(`Sản phẩm "${product.name}" chưa có mã SKU.`);
+      return;
+    }
+
+    try {
+      await copyText(shortUrl);
+      setMessageSuccess(true);
+      setMessage(`Đã sao chép link ngắn: ${shortUrl}`);
+    } catch (copyError) {
+      setMessageSuccess(false);
+      setMessage(
+        copyError instanceof Error
+          ? copyError.message
+          : "Không thể sao chép link ngắn.",
+      );
+    }
+  }
   if (loading) {
     return (
       <section className="rounded-3xl bg-white p-8 text-center shadow-sm">
@@ -541,8 +603,21 @@ export default function ProductsAdminPage() {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <Link
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+              type="button"
+              onClick={() => void handleCopyShortLink(product)}
+              disabled={busy || !product.sku}
+              title={
+                product.sku
+                  ? `Sao chép ${window.location.origin}/p/${product.sku}`
+                  : "Sản phẩm chưa có mã SKU"
+              }
+              className="rounded-xl bg-[#e8f7f2] px-3 py-2 text-xs font-bold text-[#14633d] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Copy link ngắn
+            </button>
+            <Link
                             to={`/admin/san-pham/${product.id}/sua`}
                             className="rounded-xl bg-[#edf4ff] px-3 py-2 text-xs font-bold text-[#006397]"
                           >
