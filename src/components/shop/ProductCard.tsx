@@ -1,27 +1,34 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
+import { useAdTracking } from "../../features/ads/AdTrackingContext";
+import { useCart } from "../../features/cart/CartContext";
 import {
   getCloudinarySrcSet,
   optimizeCloudinaryUrl,
 } from "../../lib/cloudinary";
+import { fetchProductCustomOptions } from "../../services/customProductOptions";
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 
-function ArrowIcon() {
+function CartIcon() {
   return (
     <svg
       viewBox="0 0 24 24"
-      width="17"
-      height="17"
+      width="18"
+      height="18"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M5 12h14" />
-      <path d="m13 6 6 6-6 6" />
+      <circle cx="9" cy="20" r="1" />
+      <circle cx="18" cy="20" r="1" />
+      <path d="M3 4h2l2.4 10.2a2 2 0 0 0 2 1.5h7.8a2 2 0 0 0 2-1.6L21 7H6" />
+      <path d="M12 9v4" />
+      <path d="M10 11h4" />
     </svg>
   );
 }
@@ -35,11 +42,21 @@ export default function ProductCard({
   product: Product;
   variant?: ProductCardVariant;
 }) {
+  const navigate = useNavigate();
+  const { addItem } = useCart();
+  const { trackAddToCart } = useAdTracking();
+  const [quickAddState, setQuickAddState] = useState<
+    "idle" | "checking" | "added"
+  >("idle");
   const primaryImage =
     (product.images ?? []).find((image) => image.isPrimary) ??
     (product.images ?? [])[0];
   const isOutOfStock =
     product.status === "out_of_stock" || product.stock <= 0;
+  const hasVariants = (product.variantGroups ?? []).some(
+    (group) => group.options.length > 0,
+  );
+  const isQuickAddBusy = quickAddState === "checking";
   const discountPercent =
     product.compareAtPrice && product.compareAtPrice > product.price
       ? Math.round(
@@ -49,9 +66,54 @@ export default function ProductCard({
         )
       : 0;
 
+  async function handleQuickAdd() {
+    if (isOutOfStock || isQuickAddBusy) {
+      return;
+    }
+
+    if (hasVariants) {
+      navigate(`/san-pham/${product.slug}`);
+      return;
+    }
+
+    setQuickAddState("checking");
+
+    try {
+      const customOptions = await fetchProductCustomOptions(product.id);
+
+      if (customOptions.enabled) {
+        navigate(`/san-pham/${product.slug}`);
+        return;
+      }
+
+      addItem(product, 1, []);
+      void trackAddToCart({
+        product,
+        quantity: 1,
+        unitPrice: product.price,
+        selectedVariants: [],
+      });
+
+      setQuickAddState("added");
+      window.setTimeout(() => setQuickAddState("idle"), 1800);
+    } catch (error) {
+      console.warn("Cannot verify product quick-add options:", error);
+      navigate(`/san-pham/${product.slug}`);
+    }
+  }
+
+  const quickAddLabel = isOutOfStock
+    ? "Sản phẩm tạm hết hàng"
+    : hasVariants
+      ? `Chọn tùy chọn cho ${product.name}`
+      : quickAddState === "checking"
+        ? `Đang kiểm tra ${product.name}`
+        : quickAddState === "added"
+          ? `Đã thêm ${product.name} vào giỏ hàng`
+          : `Thêm ${product.name} vào giỏ hàng`;
   return (
     <article
-      className={`sf-product-card${
+      className={`sf-product-card relative${
         variant === "featured" ? " sf-product-card--featured" : ""
       }`}
     >
@@ -114,13 +176,53 @@ export default function ProductCard({
               )}
             </div>
 
-            <span className="sf-product-card__arrow" aria-hidden="true">
-              Xem
-              <ArrowIcon />
+            <span
+              className="sf-product-card__arrow invisible"
+              aria-hidden="true"
+            >
+              <CartIcon />
             </span>
           </div>
         </div>
       </Link>
+
+      <button
+        type="button"
+        onClick={() => void handleQuickAdd()}
+        disabled={isOutOfStock || isQuickAddBusy}
+        className={`absolute z-20 grid flex-none place-items-center rounded-full border border-[rgba(255,95,143,0.22)] bg-[#fff8fa] text-[var(--sf-pink-strong)] shadow-[0_7px_18px_rgba(86,53,74,0.08)] transition duration-300 ease-out hover:border-[var(--sf-pink)] hover:bg-[var(--sf-pink)] hover:text-white focus-visible:outline focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[rgba(255,95,143,0.32)] disabled:cursor-not-allowed disabled:opacity-45 ${
+          variant === "featured"
+            ? "bottom-3 right-3 h-8 w-8"
+            : "bottom-4 right-4 h-10 w-10"
+        }`}
+        aria-label={quickAddLabel}
+        title={
+          hasVariants
+            ? "Chọn tùy chọn sản phẩm"
+            : quickAddState === "added"
+              ? "Đã thêm vào giỏ"
+              : "Thêm vào giỏ"
+        }
+      >
+        {quickAddState === "checking" ? (
+          <span
+            className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"
+            aria-hidden="true"
+          />
+        ) : quickAddState === "added" ? (
+          <span className="text-sm font-black" aria-hidden="true">
+            ✓
+          </span>
+        ) : (
+          <CartIcon />
+        )}
+      </button>
+
+      <span className="sr-only" role="status" aria-live="polite">
+        {quickAddState === "added"
+          ? `Đã thêm ${product.name} vào giỏ hàng.`
+          : ""}
+      </span>
     </article>
   );
 }
