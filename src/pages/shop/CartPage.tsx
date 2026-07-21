@@ -1,5 +1,10 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+
+import CartRecommendations from "../../components/shop/CartRecommendations";
 import { useCart } from "../../features/cart/CartContext";
+import { searchProducts } from "../../services/products";
+import type { Product } from "../../types/product";
 import { useSettings } from "../../features/settings/SettingsContext";
 import { formatCurrency } from "../../utils/currency";
 import { calculateShipping } from "../../utils/shipping";
@@ -25,6 +30,49 @@ function ArrowIcon() {
 export default function CartPage() {
   const { items, subtotal, updateQuantity, removeItem } = useCart();
   const { settings } = useSettings();
+  const [recommendationProducts, setRecommendationProducts] = useState<
+    Product[]
+  >([]);
+  const [recommendationsLoading, setRecommendationsLoading] =
+    useState(true);
+  const cartProductIds = useMemo(
+    () => [...new Set(items.map((item) => item.productId))],
+    [items],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecommendationProducts() {
+      try {
+        const result = await searchProducts({
+          page: 1,
+          pageSize: 48,
+          sort: "bestselling",
+        });
+
+        if (!cancelled) {
+          setRecommendationProducts(result.products);
+        }
+      } catch (error) {
+        console.warn("Cannot load cart recommendations:", error);
+
+        if (!cancelled) {
+          setRecommendationProducts([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRecommendationsLoading(false);
+        }
+      }
+    }
+
+    void loadRecommendationProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const shipping = calculateShipping(
     subtotal,
@@ -100,7 +148,7 @@ export default function CartPage() {
             {items.map((item) => (
               <article
                 key={item.key}
-                className="grid min-w-0 gap-4 rounded-[28px] border border-[rgba(88,63,80,0.07)] bg-white p-4 shadow-[0_14px_38px_rgba(86,53,74,0.07)] sm:grid-cols-[132px_minmax(0,1fr)_auto] sm:items-center sm:p-5"
+                className="storefront-cart-item grid min-w-0 gap-4 rounded-[28px] border border-[rgba(88,63,80,0.07)] bg-white p-4 shadow-[0_14px_38px_rgba(86,53,74,0.07)] sm:grid-cols-[132px_minmax(0,1fr)_auto] sm:items-center sm:p-5"
               >
                 <Link
                   to={`/san-pham/${item.slug}`}
@@ -315,6 +363,13 @@ export default function CartPage() {
           </aside>
         </div>
       </section>
+
+      <CartRecommendations
+        products={recommendationProducts}
+        cartProductIds={cartProductIds}
+        remainingForFreeShipping={remainingForFreeShipping}
+        loading={recommendationsLoading}
+      />
     </main>
   );
 }
