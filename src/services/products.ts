@@ -572,6 +572,41 @@ export async function fetchFeaturedProducts(
   return result.products;
 }
 
+export async function fetchProductSlugBySku(
+  sku: string,
+  options: FetchOptions = {},
+): Promise<string | null> {
+  const normalizedSku = sku.trim().toUpperCase();
+
+  if (!/^IGD\d+$/.test(normalizedSku)) {
+    return null;
+  }
+
+  return cached<string | null>(
+    `catalog:short-link:${normalizedSku}`,
+    async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("slug")
+        .eq("sku", normalizedSku)
+        .in("status", ["active", "out_of_stock"])
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || typeof data.slug !== "string") {
+        return null;
+      }
+
+      const slug = data.slug.trim();
+
+      return slug || null;
+    },
+    options,
+  );
+}
 export async function fetchProductBySlug(
   slug: string,
   options: FetchOptions = {},
