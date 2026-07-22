@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SearchableAddressSelect from "../../components/address/SearchableAddressSelect";
@@ -16,6 +16,7 @@ import type { CheckoutCustomer, LocalOrder } from "../../types/cart";
 import type { Coupon } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
 import { calculateShipping } from "../../utils/shipping";
+import { getCurrentUtmAttribution } from "../../utils/utmAttribution";
 
 const CHECKOUT_CUSTOMER_STORAGE_KEY = "ingiday-checkout-customer";
 
@@ -403,6 +404,7 @@ export default function CheckoutPage() {
       subtotal,
       discount,
       couponCode: appliedCoupon?.code,
+      utmAttribution: getCurrentUtmAttribution(),
       shipping,
       total,
     };

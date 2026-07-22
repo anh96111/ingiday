@@ -57,6 +57,9 @@ const CartPage = lazy(() => import("../pages/shop/CartPage"));
 const CheckoutPage = lazy(
   () => import("../pages/shop/CheckoutPage"),
 );
+const ContactPage = lazy(
+  () => import("../pages/shop/ContactPage"),
+);
 const CustomPrintPage = lazy(
   () => import("../pages/shop/CustomPrintPage"),
 );
@@ -101,6 +104,7 @@ export const router = createBrowserRouter([
         element: <OrderSuccessPage />,
       },
       { path: "/in-rieng", element: <CustomPrintPage /> },
+      { path: "/lien-he", element: <ContactPage /> },
       {
         path: "/chinh-sach-giao-hang",
         element: (

@@ -46,6 +46,7 @@ type PendingOrderRequest = {
         selectedCustomOptions?: LocalOrder["items"][number]["selectedCustomOptions"];
     }>;
     couponCode?: string;
+    utmAttribution?: LocalOrder["utmAttribution"];
   };
 };
 
@@ -136,6 +137,7 @@ function buildOrderSnapshot(
       };
     }),
     couponCode: order.couponCode?.trim().toUpperCase(),
+    utmAttribution: order.utmAttribution,
   };
 }
 
@@ -367,6 +369,8 @@ export async function submitStoreOrder(
             p_items: payloadItems,
             p_coupon_code:
               order.couponCode ?? null,
+            p_attribution:
+              pending.orderSnapshot.utmAttribution ?? null,
           },
         ),
       );

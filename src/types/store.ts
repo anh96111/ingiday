@@ -1,3 +1,4 @@
+import type { StoreSocialLinks } from "../utils/externalUrl";
 import type { LocalOrder } from "./cart";
 
 export type OrderStatus = "new" | "confirmed" | "preparing" | "shipping" | "completed" | "cancelled";
@@ -65,6 +66,7 @@ export type StoreSettings = {
   email: string;
   address: string;
   messengerUrl: string;
+  socialLinks: StoreSocialLinks;
   footerDescription: string;
   shippingFee: number;
   freeShippingThreshold: number;

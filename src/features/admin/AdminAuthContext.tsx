@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import { getSessionUserId } from "../../utils/authSessionChange";
 
 export type AdminProfile = {
   id: string;
@@ -59,9 +60,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
+  const sessionUserIdRef = useRef("");
+  const profileUserIdRef = useRef("");
 
   async function applySession(nextSession: Session | null) {
     if (!nextSession) {
+      sessionUserIdRef.current = "";
+      profileUserIdRef.current = "";
       setSession(null);
       setProfile(null);
       setLoading(false);
@@ -70,10 +75,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const nextProfile = await readAdminProfile(nextSession.user.id);
+      sessionUserIdRef.current = nextSession.user.id;
+      profileUserIdRef.current = nextProfile.id;
       setSession(nextSession);
       setProfile(nextProfile);
     } catch {
       await supabase.auth.signOut();
+      sessionUserIdRef.current = "";
+      profileUserIdRef.current = "";
       setSession(null);
       setProfile(null);
     } finally {
@@ -101,7 +110,31 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === "INITIAL_SESSION") {
+        return;
+      }
+
+      const previousUserId = sessionUserIdRef.current;
+      const nextUserId = getSessionUserId(nextSession);
+      const sameValidatedUser =
+        Boolean(nextUserId) &&
+        previousUserId === nextUserId &&
+        profileUserIdRef.current === nextUserId;
+
+      if (
+        event === "TOKEN_REFRESHED" ||
+        sameValidatedUser
+      ) {
+        sessionUserIdRef.current = nextUserId;
+        setSession(nextSession);
+        return;
+      }
+
+      if (event === "SIGNED_OUT" && !previousUserId) {
+        return;
+      }
+
       window.setTimeout(() => {
         if (mounted) {
           void applySession(nextSession);

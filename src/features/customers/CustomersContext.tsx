@@ -5,11 +5,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 import type { OrderStatus } from "../../types/store";
 
 export type CustomerSummary = {
@@ -187,6 +192,7 @@ export function CustomersProvider({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const authUserIdRef = useRef("");
 
   const loadCustomers = useCallback(
     async (session?: Session | null) => {
@@ -231,6 +237,8 @@ export function CustomersProvider({
     let mounted = true;
 
     void supabase.auth.getSession().then(({ data }) => {
+      authUserIdRef.current = getSessionUserId(data.session);
+
       if (mounted) {
         void loadCustomers(data.session);
       }
@@ -238,7 +246,20 @@ export function CustomersProvider({
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
       window.setTimeout(() => {
         if (mounted) {
           void loadCustomers(session);

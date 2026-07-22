@@ -5,12 +5,23 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 import type { StoreSettings } from "../../types/store";
+import {
+  createEmptySocialLinks,
+  normalizeExternalUrl,
+  normalizeSocialLinks,
+} from "../../utils/externalUrl";
+import type { StoreSocialLinks } from "../../utils/externalUrl";
 
 const LEGACY_STORAGE_KEY = "ingiday-settings";
 const DEFAULT_SOCIAL_SHARE_TITLE =
@@ -24,6 +35,7 @@ const initialSettings: StoreSettings = {
   email: "",
   address: "",
   messengerUrl: "",
+  socialLinks: createEmptySocialLinks(),
   footerDescription:
     "Những sản phẩm in 3D nhỏ xinh, độc đáo và được tạo ra để làm ngày của bạn vui hơn.",
   shippingFee: 15000,
@@ -61,6 +73,7 @@ type StoreSettingsRow = {
   email: string | null;
   address: string | null;
   messenger_url: string | null;
+  social_links: Partial<StoreSocialLinks> | null;
   footer_text: string | null;
   shipping_fee: number | string;
   free_shipping_threshold: number | string;
@@ -114,6 +127,7 @@ const settingsSelect = `
   email,
   address,
   messenger_url,
+  social_links,
   footer_text,
   shipping_fee,
   free_shipping_threshold,
@@ -146,7 +160,8 @@ function settingsFromRow(row: StoreSettingsRow): StoreSettings {
     phone: row.phone ?? "",
     email: row.email ?? "",
     address: row.address ?? "",
-    messengerUrl: row.messenger_url ?? "",
+    messengerUrl: normalizeExternalUrl(row.messenger_url ?? ""),
+    socialLinks: normalizeSocialLinks(row.social_links),
     footerDescription:
       row.footer_text ?? initialSettings.footerDescription,
     shippingFee: Number(row.shipping_fee),
@@ -208,7 +223,8 @@ function settingsToRow(value: StoreSettings) {
     phone: value.phone.trim() || null,
     email: value.email.trim() || null,
     address: value.address.trim() || null,
-    messenger_url: value.messengerUrl.trim() || null,
+    messenger_url: normalizeExternalUrl(value.messengerUrl) || null,
+    social_links: normalizeSocialLinks(value.socialLinks),
     footer_text:
       value.footerDescription.trim() ||
       initialSettings.footerDescription,
@@ -283,6 +299,10 @@ function readLegacySettings(): StoreSettings | null {
     return {
       ...initialSettings,
       ...parsed,
+      messengerUrl: normalizeExternalUrl(
+        parsed.messengerUrl ?? "",
+      ),
+      socialLinks: normalizeSocialLinks(parsed.socialLinks),
       currency: "VND",
     };
   } catch {
@@ -317,6 +337,7 @@ export function SettingsProvider({
     useState<StoreSettings>(initialSettings);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const authUserIdRef = useRef("");
 
   const loadSettings = useCallback(
     async (session?: Session | null) => {
@@ -377,14 +398,33 @@ export function SettingsProvider({
     let mounted = true;
 
     void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) void loadSettings(data.session);
+      authUserIdRef.current = getSessionUserId(data.session);
+
+      if (mounted) {
+        void loadSettings(data.session);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
       window.setTimeout(() => {
-        if (mounted) void loadSettings(session);
+        if (mounted) {
+          void loadSettings(session);
+        }
       }, 0);
     });
 
@@ -418,6 +458,12 @@ export function SettingsProvider({
           freeShippingThreshold: Math.max(
             0,
             Math.round(nextSettings.freeShippingThreshold),
+          ),
+          messengerUrl: normalizeExternalUrl(
+            nextSettings.messengerUrl,
+          ),
+          socialLinks: normalizeSocialLinks(
+            nextSettings.socialLinks,
           ),
           logoUrl: nextSettings.logoUrl.trim(),
           logoPublicId: nextSettings.logoPublicId.trim(),

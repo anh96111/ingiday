@@ -1,10 +1,15 @@
-﻿/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useOrders } from "../../features/orders/OrdersContext";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { OrderStatus, StoreOrder } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
+import {
+  getUtmAttributionTitle,
+  getUtmSecondaryLabel,
+  getUtmSourceLabel,
+} from "../../utils/utmAttribution";
 
 const PAGE_SIZE = 50;
 
@@ -25,6 +30,10 @@ const statusClasses: Record<OrderStatus, string> = {
   completed: "bg-[#dcf8eb] text-[#14633d]",
   cancelled: "bg-[#fff0eb] text-[#a43c12]",
 };
+
+function shortOrderCode(code: string) {
+  return code.length > 6 ? `${code.slice(0, 6)}…` : code;
+}
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -335,7 +344,7 @@ export default function OrdersAdminPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1120px] w-full text-left text-sm">
+          <table className="min-w-[1260px] w-full text-left text-sm">
             <thead className="bg-[#edf4ff] text-[#3f4850]">
               <tr>
                 <th className="w-12 px-5 py-4">
@@ -349,7 +358,8 @@ export default function OrdersAdminPage() {
                     className="h-4 w-4 accent-[#006397]"
                   />
                 </th>
-                <th className="px-4 py-4">Mã đơn</th>
+                <th className="w-28 px-4 py-4">Mã đơn</th>
+                <th className="w-48 px-4 py-4">UTM</th>
                 <th className="px-5 py-4">Khách hàng</th>
                 <th className="px-5 py-4">Sản phẩm</th>
                 <th className="px-5 py-4">Tổng tiền</th>
@@ -362,7 +372,7 @@ export default function OrdersAdminPage() {
             <tbody className="divide-y divide-[#edf0f3]">
               {pageLoading && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-[#707881]">
+                  <td colSpan={9} className="px-5 py-12 text-center text-[#707881]">
                     Đang tải đơn hàng...
                   </td>
                 </tr>
@@ -387,7 +397,23 @@ export default function OrdersAdminPage() {
                         />
                       </td>
                       <td className="px-4 py-4 font-black text-[#006397]">
-                        {order.code}
+                        <span
+                          title={order.code}
+                          aria-label={`Mã đơn đầy đủ: ${order.code}`}
+                        >
+                          {shortOrderCode(order.code)}
+                        </span>
+                      </td>
+                      <td
+                        className="max-w-48 px-4 py-4"
+                        title={getUtmAttributionTitle(order.utmAttribution)}
+                      >
+                        <p className="truncate font-bold text-[#3f4850]">
+                          {getUtmSourceLabel(order.utmAttribution)}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-[#707881]">
+                          {getUtmSecondaryLabel(order.utmAttribution)}
+                        </p>
                       </td>
                       <td className="px-5 py-4">
                         <p className="font-bold">{order.customer.fullName}</p>
@@ -428,7 +454,7 @@ export default function OrdersAdminPage() {
 
               {!pageLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-[#707881]">
+                  <td colSpan={9} className="px-5 py-12 text-center text-[#707881]">
                     Không tìm thấy đơn hàng phù hợp.
                   </td>
                 </tr>

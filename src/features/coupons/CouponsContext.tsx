@@ -5,11 +5,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 import type { Coupon, CouponInput } from "../../types/store";
 
 const LEGACY_STORAGE_KEY = "ingiday-coupons";
@@ -156,6 +161,7 @@ export function CouponsProvider({ children }: { children: ReactNode }) {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const authUserIdRef = useRef("");
 
   const loadCoupons = useCallback(async (session?: Session | null) => {
     const activeSession =
@@ -240,14 +246,33 @@ export function CouponsProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) void loadCoupons(data.session);
+      authUserIdRef.current = getSessionUserId(data.session);
+
+      if (mounted) {
+        void loadCoupons(data.session);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
       window.setTimeout(() => {
-        if (mounted) void loadCoupons(session);
+        if (mounted) {
+          void loadCoupons(session);
+        }
       }, 0);
     });
 

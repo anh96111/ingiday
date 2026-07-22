@@ -266,6 +266,7 @@ export default function ProductDetailPage() {
           optionLabel: option.label,
           priceDelta: option.priceDelta ?? 0,
           stock: option.stock,
+          imageId: option.imageId,
         },
       ];
     });
@@ -307,6 +308,44 @@ export default function ProductDetailPage() {
             : undefined,
         }
       : undefined;
+
+  const productImages = useMemo(
+    () => product?.images ?? [],
+    [product?.images],
+  );
+  const primaryImage =
+    productImages.find((image) => image.isPrimary) ??
+    productImages[0];
+  const selectedVariantImageId =
+    selectedVariants.find((variant) => variant.imageId)?.imageId ??
+    "";
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    if (selectedVariantImageId) {
+      const hasVariantImage = productImages.some(
+        (image) => image.id === selectedVariantImageId,
+      );
+
+      if (hasVariantImage && selectedImageId !== selectedVariantImageId) {
+        setSelectedImageId(selectedVariantImageId);
+      }
+
+      return;
+    }
+
+    if (primaryImage && selectedImageId !== primaryImage.id) {
+      setSelectedImageId(primaryImage.id);
+      return;
+    }
+
+    if (selectedImageId && !productImages.some((image) => image.id === selectedImageId)) {
+      setSelectedImageId(primaryImage?.id ?? "");
+    }
+  }, [product, primaryImage, productImages, selectedImageId, selectedVariantImageId]);
 
   useEffect(() => {
     if (
@@ -382,10 +421,6 @@ export default function ProductDetailPage() {
     );
   }
 
-  const productImages = product.images ?? [];
-  const primaryImage =
-    productImages.find((image) => image.isPrimary) ??
-    productImages[0];
   const selectedImage =
     productImages.find(
       (image) => image.id === selectedImageId,
@@ -670,7 +705,7 @@ export default function ProductDetailPage() {
                         />
                         <span>
                           {option.label}
-                          {option.priceDelta
+                          {option.priceDelta && option.showPriceDelta !== false
                             ? ` (+${formatCurrency(
                                 option.priceDelta,
                               )})`
