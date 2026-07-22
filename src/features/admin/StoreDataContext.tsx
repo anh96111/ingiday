@@ -123,6 +123,8 @@ type ProductMetadata = {
   emoji?: string;
   background?: string;
   badge?: string;
+  stockNoteEnabled?: boolean;
+  stockNote?: string;
   variantGroups?: Product["variantGroups"];
 };
 
@@ -195,6 +197,13 @@ function productFromRow(
     emoji: metadata.emoji ?? "📦",
     background: metadata.background ?? "#dff4ff",
     badge: metadata.badge,
+    stockNoteEnabled:
+      metadata.stockNoteEnabled === true,
+    stockNote:
+      typeof metadata.stockNote === "string" &&
+      metadata.stockNote.trim()
+        ? metadata.stockNote.trim()
+        : undefined,
     featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",
@@ -280,6 +289,8 @@ function productMetadata(input: ProductInput): ProductMetadata {
     emoji: input.emoji || "📦",
     background: input.background || "#dff4ff",
     badge: input.badge,
+    stockNoteEnabled: Boolean(input.stockNoteEnabled),
+    stockNote: input.stockNote?.trim() || undefined,
     variantGroups: input.variantGroups,
   };
 }
@@ -392,6 +403,10 @@ async function seedInitialData() {
           emoji: product.emoji || "📦",
           background: product.background || "#dff4ff",
           badge: product.badge,
+          stockNoteEnabled:
+            Boolean(product.stockNoteEnabled),
+          stockNote:
+            product.stockNote?.trim() || undefined,
           variantGroups: product.variantGroups,
         } satisfies ProductMetadata,
       };
@@ -1045,6 +1060,9 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         emoji: source.emoji,
         background: source.background,
         badge: source.badge,
+        stockNoteEnabled:
+          Boolean(source.stockNoteEnabled),
+        stockNote: source.stockNote,
         featured: false,
         stock: source.stock,
         description: source.description,

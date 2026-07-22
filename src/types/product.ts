@@ -42,6 +42,8 @@ export type Product = {
   emoji: string;
   background: string;
   badge?: string;
+  stockNoteEnabled?: boolean;
+  stockNote?: string;
   featured?: boolean;
   stock: number;
   description: string;
