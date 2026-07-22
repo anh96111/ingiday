@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import OrderQuickPreview from "../../components/admin/OrderQuickPreview";
 import { useOrders } from "../../features/orders/OrdersContext";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import type { OrderStatus, StoreOrder } from "../../types/store";
@@ -358,10 +359,10 @@ export default function OrdersAdminPage() {
                     className="h-4 w-4 accent-[#006397]"
                   />
                 </th>
-                <th className="w-28 px-4 py-4">Mã đơn</th>
+                <th className="w-64 px-4 py-4">Mã đơn / sản phẩm</th>
                 <th className="w-48 px-4 py-4">UTM</th>
                 <th className="px-5 py-4">Khách hàng</th>
-                <th className="px-5 py-4">Sản phẩm</th>
+                <th className="px-5 py-4">Tổng SL</th>
                 <th className="px-5 py-4">Tổng tiền</th>
                 <th className="px-5 py-4">Trạng thái</th>
                 <th className="px-5 py-4">Ngày tạo</th>
@@ -396,13 +397,11 @@ export default function OrdersAdminPage() {
                           className="h-4 w-4 accent-[#006397]"
                         />
                       </td>
-                      <td className="px-4 py-4 font-black text-[#006397]">
-                        <span
-                          title={order.code}
-                          aria-label={`Mã đơn đầy đủ: ${order.code}`}
-                        >
-                          {shortOrderCode(order.code)}
-                        </span>
+                      <td className="px-4 py-4 align-top">
+                        <OrderQuickPreview
+                          order={order}
+                          shortCode={shortOrderCode(order.code)}
+                        />
                       </td>
                       <td
                         className="max-w-48 px-4 py-4"
@@ -421,11 +420,13 @@ export default function OrdersAdminPage() {
                           {order.customer.phone}
                         </p>
                       </td>
-                      <td className="px-5 py-4">
-                        {order.items.reduce(
-                          (sum, item) => sum + item.quantity,
-                          0,
-                        )}
+                      <td className="px-5 py-4 align-top">
+                        <span className="inline-flex min-w-10 justify-center rounded-full bg-[#f1f5f9] px-3 py-1 font-bold text-[#3f4850]">
+                          {order.items.reduce(
+                            (sum, item) => sum + item.quantity,
+                            0,
+                          )}
+                        </span>
                       </td>
                       <td className="px-5 py-4 font-bold">
                         {formatCurrency(order.total)}

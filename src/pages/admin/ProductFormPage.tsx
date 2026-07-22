@@ -39,6 +39,8 @@ type ProductFormState = {
   emoji: string;
   background: string;
   badge: string;
+  stockNoteEnabled: boolean;
+  stockNote: string;
   description: string;
   images: ProductImage[];
   featured: boolean;
@@ -105,6 +107,9 @@ function createInitialState(product?: Product): ProductFormState {
     emoji: product?.emoji ?? "📦",
     background: product?.background ?? "#dff4ff",
     badge: product?.badge ?? "",
+    stockNoteEnabled:
+      product?.stockNoteEnabled ?? false,
+    stockNote: product?.stockNote ?? "",
     description: product?.description ?? "",
     images: product?.images?.map((image) => ({ ...image })) ?? [],
     featured: product?.featured ?? false,
@@ -537,6 +542,19 @@ export default function ProductFormPage() {
       setError("Tồn kho không hợp lệ.");
       return;
     }
+    if (
+      form.stockNoteEnabled &&
+      !form.stockNote.trim()
+    ) {
+      setError(
+        "Vui lòng nhập chú thích hiển thị dưới tồn kho.",
+      );
+      return;
+    }
+    if (form.stockNote.length > 300) {
+      setError("Chú thích tồn kho tối đa 300 ký tự.");
+      return;
+    }
 
     if (customOptions.enabled && customOptions.textEnabled) {
       if (!customOptions.textLabel.trim()) {
@@ -595,6 +613,8 @@ export default function ProductFormPage() {
       emoji: form.emoji.trim() || "📦",
       background: form.background,
       badge: form.badge.trim() || undefined,
+      stockNoteEnabled: form.stockNoteEnabled,
+      stockNote: form.stockNote.trim() || undefined,
       featured: form.featured,
       stock,
       description: form.description.trim(),
@@ -796,6 +816,53 @@ export default function ProductFormPage() {
                 Tồn kho
                 <input type="number" min="0" value={form.stock} onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))} className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]" />
               </label>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-[#dce3ea] bg-[#f7f9ff] p-4">
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.stockNoteEnabled}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      stockNoteEnabled:
+                        event.target.checked,
+                    }))
+                  }
+                  className="mt-0.5 h-5 w-5 flex-none accent-[#006397]"
+                />
+                <span>
+                  <span className="block font-bold">
+                    Hiển thị chú thích dưới tồn kho
+                  </span>
+                  <span className="mt-1 block font-normal leading-6 text-[#707881]">
+                    Chú thích xuất hiện ngay dưới trạng thái
+                    còn hàng trên trang chi tiết sản phẩm.
+                  </span>
+                </span>
+              </label>
+
+              {form.stockNoteEnabled && (
+                <label className="mt-4 block text-sm font-bold">
+                  Nội dung chú thích
+                  <textarea
+                    value={form.stockNote}
+                    maxLength={300}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        stockNote: event.target.value,
+                      }))
+                    }
+                    className="mt-2 min-h-24 w-full resize-y rounded-2xl border border-[#cfd6dd] bg-white p-4 font-normal leading-6 outline-none focus:border-[#006397]"
+                    placeholder="Ví dụ: Sản phẩm được in theo đơn, thời gian hoàn thiện từ 2–3 ngày."
+                  />
+                  <span className="mt-2 block text-right text-xs font-normal text-[#707881]">
+                    {form.stockNote.length}/300 ký tự
+                  </span>
+                </label>
+              )}
             </div>
           </article>
 

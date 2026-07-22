@@ -671,6 +671,13 @@ export default function ProductDetailPage() {
                 : "Tạm hết hàng"}
             </span>
 
+            {product.stockNoteEnabled &&
+              product.stockNote && (
+                <p className="product-detail__stock-note">
+                  {product.stockNote}
+                </p>
+              )}
+
             <div className="product-detail__divider" />
 
             {product.variantGroups?.map((group) => {

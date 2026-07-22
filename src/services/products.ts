@@ -157,6 +157,13 @@ function metadataFields(
       typeof metadata.badge === "string"
         ? metadata.badge
         : undefined,
+    stockNoteEnabled:
+      metadata.stockNoteEnabled === true,
+    stockNote:
+      typeof metadata.stockNote === "string" &&
+      metadata.stockNote.trim()
+        ? metadata.stockNote.trim()
+        : undefined,
     variantGroups: Array.isArray(
       metadata.variantGroups,
     )
@@ -214,6 +221,8 @@ function productFromCatalogRow(
     emoji: metadata.emoji,
     background: metadata.background,
     badge: metadata.badge,
+    stockNoteEnabled: metadata.stockNoteEnabled,
+    stockNote: metadata.stockNote,
     featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",
@@ -251,6 +260,8 @@ function productFromDetailRow(
     emoji: metadata.emoji,
     background: metadata.background,
     badge: metadata.badge,
+    stockNoteEnabled: metadata.stockNoteEnabled,
+    stockNote: metadata.stockNote,
     featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",
