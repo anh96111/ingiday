@@ -25,7 +25,7 @@ import type {
   CustomOptionColor,
   ProductCustomOptionsInput,
 } from "../../types/customProductOptions";
-import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup } from "../../types/product";
+import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup, ProductVariantOption } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import { slugify } from "../../utils/slug";
 
@@ -59,6 +59,37 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function sanitizeVariantOptionsForImages(
+  variantGroups: ProductVariantGroup[],
+  images: ProductImage[],
+) {
+  const validImageIds = new Set(images.map((image) => image.id));
+
+  return variantGroups.map((group, groupIndex) => ({
+    ...group,
+    options: group.options.map((option) => ({
+      ...option,
+      imageId:
+        groupIndex === 0 &&
+        option.imageId &&
+        validImageIds.has(option.imageId)
+          ? option.imageId
+          : undefined,
+      showPriceDelta: option.showPriceDelta !== false,
+    })),
+  }));
+}
+
+function createVariantOption(): ProductVariantOption {
+  return {
+    id: makeId("lua-chon"),
+    label: "",
+    priceDelta: 0,
+    stock: 0,
+    showPriceDelta: true,
+  };
+}
+
 function createInitialState(product?: Product): ProductFormState {
   return {
     name: product?.name ?? "",
@@ -78,10 +109,13 @@ function createInitialState(product?: Product): ProductFormState {
     images: product?.images?.map((image) => ({ ...image })) ?? [],
     featured: product?.featured ?? false,
     status: product?.status ?? "active",
-    variantGroups: product?.variantGroups?.map((group) => ({
-      ...group,
-      options: group.options.map((option) => ({ ...option })),
-    })) ?? [],
+    variantGroups: sanitizeVariantOptionsForImages(
+      product?.variantGroups?.map((group) => ({
+        ...group,
+        options: group.options.map((option) => ({ ...option })),
+      })) ?? [],
+      product?.images ?? [],
+    ),
   };
 }
 
@@ -270,7 +304,7 @@ export default function ProductFormPage() {
         {
           id: makeId("nhom"),
           name: "",
-          options: [{ id: makeId("lua-chon"), label: "", priceDelta: 0, stock: 0 }],
+          options: [createVariantOption()],
         },
       ],
     }));
@@ -288,7 +322,7 @@ export default function ProductFormPage() {
       ...current,
       variantGroups: current.variantGroups.map((group, index) => index === groupIndex ? {
         ...group,
-        options: [...group.options, { id: makeId("lua-chon"), label: "", priceDelta: 0, stock: 0 }],
+        options: [...group.options, createVariantOption()],
       } : group),
     }));
   }
@@ -301,6 +335,32 @@ export default function ProductFormPage() {
         options: group.options.map((option, currentOptionIndex) => currentOptionIndex === optionIndex ? {
           ...option,
           [field]: field === "label" ? value : Math.max(0, Number(value) || 0),
+        } : option),
+      } : group),
+    }));
+  }
+
+  function updateVariantOptionImage(groupIndex: number, optionIndex: number, imageId: string) {
+    setForm((current) => ({
+      ...current,
+      variantGroups: current.variantGroups.map((group, index) => index === groupIndex ? {
+        ...group,
+        options: group.options.map((option, currentOptionIndex) => currentOptionIndex === optionIndex ? {
+          ...option,
+          imageId: imageId || undefined,
+        } : option),
+      } : group),
+    }));
+  }
+
+  function updateVariantOptionPriceVisibility(groupIndex: number, optionIndex: number, showPriceDelta: boolean) {
+    setForm((current) => ({
+      ...current,
+      variantGroups: current.variantGroups.map((group, index) => index === groupIndex ? {
+        ...group,
+        options: group.options.map((option, currentOptionIndex) => currentOptionIndex === optionIndex ? {
+          ...option,
+          showPriceDelta,
         } : option),
       } : group),
     }));
@@ -497,13 +557,28 @@ export default function ProductFormPage() {
       }
     }
 
+    const validImageIds = new Set(form.images.map((image) => image.id));
     const variantGroups = form.variantGroups
-      .map((group) => ({
+      .map((group, groupIndex) => ({
         ...group,
         name: group.name.trim(),
         options: group.options
           .filter((option) => option.label.trim())
-          .map((option) => ({ ...option, label: option.label.trim() })),
+          .map((option) => ({
+            ...option,
+            label: option.label.trim(),
+            priceDelta: Math.max(0, Math.round(Number(option.priceDelta) || 0)),
+            stock: typeof option.stock === "number"
+              ? Math.max(0, Math.round(option.stock))
+              : Math.max(0, Math.round(Number(option.stock) || 0)),
+            imageId:
+              groupIndex === 0 &&
+              option.imageId &&
+              validImageIds.has(option.imageId)
+                ? option.imageId
+                : undefined,
+            showPriceDelta: option.showPriceDelta !== false,
+          })),
       }))
       .filter((group) => group.name && group.options.length > 0);
     const customOptionsInput = buildCustomOptionsInput();
@@ -730,7 +805,11 @@ export default function ProductFormPage() {
             productName={form.name}
             disabled={saving}
             onUploadingChange={setUploadingImages}
-            onChange={(images) => setForm((current) => ({ ...current, images }))}
+            onChange={(images) => setForm((current) => ({
+              ...current,
+              images,
+              variantGroups: sanitizeVariantOptionsForImages(current.variantGroups, images),
+            }))}
           />
         <article className="rounded-3xl bg-white p-6 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -947,7 +1026,7 @@ export default function ProductFormPage() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black">Biến thể</h2>
-                <p className="mt-1 text-sm text-[#707881]">Dùng cho màu sắc, kích thước hoặc lựa chọn riêng.</p>
+                <p className="mt-1 text-sm text-[#707881]">Dùng cho màu sắc, kích thước hoặc lựa chọn riêng. Chỉ nhóm đầu tiên có thể gán ảnh đại diện cho từng lựa chọn.</p>
               </div>
               <button type="button" onClick={addVariantGroup} className="rounded-2xl bg-[#edf4ff] px-5 py-3 text-sm font-bold text-[#006397]">+ Thêm nhóm</button>
             </div>
@@ -965,11 +1044,52 @@ export default function ProductFormPage() {
 
                   <div className="mt-4 space-y-3">
                     {group.options.map((option, optionIndex) => (
-                      <div key={option.id} className="grid gap-3 rounded-2xl bg-[#f7f9ff] p-3 md:grid-cols-[1fr_150px_130px_auto]">
-                        <input value={option.label} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "label", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Tên lựa chọn" />
-                        <input type="number" min="0" step="1000" value={option.priceDelta ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "priceDelta", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Giá cộng" />
-                        <input type="number" min="0" value={option.stock ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "stock", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Tồn kho" />
-                        <button type="button" onClick={() => removeVariantOption(groupIndex, optionIndex)} className="h-10 rounded-xl bg-[#fff0eb] px-3 text-sm font-bold text-[#a43c12]">Xóa</button>
+                      <div key={option.id} className="space-y-3 rounded-2xl bg-[#f7f9ff] p-3">
+                        <div className="grid gap-3 md:grid-cols-[1fr_150px_130px_auto]">
+                          <input value={option.label} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "label", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Tên lựa chọn" />
+                          <input type="number" min="0" step="1000" value={option.priceDelta ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "priceDelta", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Giá cộng" />
+                          <input type="number" min="0" value={option.stock ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "stock", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Tồn kho" />
+                          <button type="button" onClick={() => removeVariantOption(groupIndex, optionIndex)} className="h-10 rounded-xl bg-[#fff0eb] px-3 text-sm font-bold text-[#a43c12]">Xóa</button>
+                        </div>
+
+                        <div className={`grid gap-3 ${groupIndex === 0 ? "lg:grid-cols-[minmax(0,240px)_1fr]" : ""}`}>
+                          {groupIndex === 0 && (
+                            <label className="text-sm font-bold">
+                              Ảnh đại diện khi khách chọn
+                              <select
+                                value={option.imageId ?? ""}
+                                onChange={(event) => updateVariantOptionImage(groupIndex, optionIndex, event.target.value)}
+                                className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                              >
+                                <option value="">Dùng ảnh mặc định của sản phẩm</option>
+                                {form.images.map((image, imageIndex) => (
+                                  <option key={image.id} value={image.id}>
+                                    {image.altText?.trim() || `Ảnh ${imageIndex + 1}`}
+                                    {image.isPrimary ? " (ảnh chính)" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                              <span className="mt-2 block text-xs font-normal leading-5 text-[#707881]">
+                                Chỉ nhóm biến thể đầu tiên mới được gán ảnh đại diện. Nếu xóa ảnh này khỏi sản phẩm, liên kết sẽ tự được bỏ.
+                              </span>
+                            </label>
+                          )}
+
+                          <label className="flex items-start gap-3 rounded-2xl border border-[#dce3ea] bg-white px-4 py-3 text-sm font-bold">
+                            <input
+                              type="checkbox"
+                              checked={option.showPriceDelta !== false}
+                              onChange={(event) => updateVariantOptionPriceVisibility(groupIndex, optionIndex, event.target.checked)}
+                              className="mt-1 h-5 w-5 accent-[#006397]"
+                            />
+                            <span>
+                              Hiển thị phụ phí cho khách
+                              <span className="mt-1 block font-normal leading-5 text-[#707881]">
+                                Bật để hiện phần cộng thêm cạnh biến thể. Tắt chỉ ẩn con số ở giao diện khách, giá thực tế vẫn được cộng đúng.
+                              </span>
+                            </span>
+                          </label>
+                        </div>
                       </div>
                     ))}
                   </div>

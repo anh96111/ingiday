@@ -1,5 +1,14 @@
 import type { SelectedCustomOptions } from "./customProductOptions";
 
+export type UtmAttribution = {
+  source?: string;
+  medium?: string;
+  campaign?: string;
+  content?: string;
+  term?: string;
+  capturedAt?: string;
+};
+
 export type SelectedVariant = {
   groupId: string;
   groupName: string;
@@ -7,6 +16,7 @@ export type SelectedVariant = {
   optionLabel: string;
   priceDelta: number;
   stock?: number;
+  imageId?: string;
 };
 
 export type CartItem = {
@@ -46,6 +56,7 @@ export type LocalOrder = {
   subtotal: number;
   discount: number;
   couponCode?: string;
+  utmAttribution?: UtmAttribution;
   shipping: number;
   total: number;
 };

@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect, react-refresh/only-export-components */
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import type { CartItem } from "../../types/cart";
@@ -6,6 +6,10 @@ import { categories as initialCategories, products as initialProducts } from "..
 import { supabase } from "../../lib/supabase";
 import type { Category, CategoryInput, Product, ProductImage, ProductInput, ProductStatus } from "../../types/product";
 import { slugify } from "../../utils/slug";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 
 const LEGACY_PRODUCTS_KEY = "ingiday-admin-products";
 const LEGACY_CATEGORIES_KEY = "ingiday-admin-categories";
@@ -518,6 +522,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
     [],
   );
   const [categories, setCategories] = useState<Category[]>([]);
+  const authUserIdRef = useRef("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -588,15 +593,43 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
   }, [setProducts]);
 
   useEffect(() => {
-    void refresh();
+    let mounted = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      authUserIdRef.current = getSessionUserId(data.session);
+
+      if (mounted) {
+        void refresh();
+      }
+    });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      window.setTimeout(() => void refresh(), 0);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
+      window.setTimeout(() => {
+        if (mounted) {
+          void refresh();
+        }
+      }, 0);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [refresh]);
 
   const value = useMemo<StoreDataContextValue>(() => ({

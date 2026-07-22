@@ -9,6 +9,7 @@ const navItems = [
   { label: "Trang chủ", to: "/" },
   { label: "Sản phẩm", to: "/san-pham" },
   { label: "In theo yêu cầu", to: "/in-rieng" },
+  { label: "Liên hệ", to: "/lien-he" },
 ];
 
 function SearchIcon() {

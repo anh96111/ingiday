@@ -19,6 +19,8 @@ export type ProductVariantOption = {
   label: string;
   priceDelta?: number;
   stock?: number;
+  imageId?: string;
+  showPriceDelta?: boolean;
 };
 
 export type ProductVariantGroup = {

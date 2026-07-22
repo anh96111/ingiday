@@ -1,12 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 import { submitStoreOrder } from "../../services/orders";
 import type { CartItem, CheckoutCustomer, LocalOrder, SelectedVariant } from "../../types/cart";
 import type { SelectedCustomOptions } from "../../types/customProductOptions";
 import type { OrderStatus, StoreOrder } from "../../types/store";
+import { normalizeUtmAttribution } from "../../utils/utmAttribution";
 
 type OrdersActionResult<T = undefined> = {
   success: boolean;
@@ -69,6 +74,7 @@ type OrderRow = {
   payment_method: string;
   status: OrderStatus;
   inventory_reserved: boolean;
+  utm_attribution: unknown;
   created_at: string;
   updated_at: string;
   order_items: OrderItemRow[] | null;
@@ -127,6 +133,7 @@ const ORDER_SELECT = `
   payment_method,
   status,
   inventory_reserved,
+  utm_attribution,
   created_at,
   updated_at,
   order_items (
@@ -265,6 +272,7 @@ function orderFromRow(row: OrderRow): StoreOrder {
     subtotal: Number(row.subtotal),
     discount: Number(row.discount_amount),
     couponCode: row.coupon_code ?? undefined,
+    utmAttribution: normalizeUtmAttribution(row.utm_attribution),
     shipping: Number(row.shipping_fee),
     total: Number(row.total_amount),
     status: row.status,
@@ -321,6 +329,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<StoreOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const authUserIdRef = useRef("");
 
   const loadOrders = useCallback(async (session?: Session | null) => {
     const activeSession =
@@ -371,14 +380,33 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("ingiday-last-order");
 
     void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) void loadOrders(data.session);
+      authUserIdRef.current = getSessionUserId(data.session);
+
+      if (mounted) {
+        void loadOrders(data.session);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
       window.setTimeout(() => {
-        if (mounted) void loadOrders(session);
+        if (mounted) {
+          void loadOrders(session);
+        }
       }, 0);
     });
 

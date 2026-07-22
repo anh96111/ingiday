@@ -1,9 +1,14 @@
 import { Link } from "react-router-dom";
 import { useSettings } from "../../features/settings/SettingsContext";
+import {
+  configuredSocialLinks,
+  normalizeExternalUrl,
+} from "../../utils/externalUrl";
 
 const exploreLinks = [
   { label: "Tất cả sản phẩm", to: "/san-pham" },
   { label: "Yêu cầu in riêng", to: "/in-rieng" },
+  { label: "Liên hệ", to: "/lien-he" },
   { label: "Giỏ hàng", to: "/gio-hang" },
 ];
 
@@ -25,6 +30,12 @@ function ArrowIcon() {
 
 export default function Footer() {
   const { settings } = useSettings();
+  const messengerUrl = normalizeExternalUrl(
+    settings.messengerUrl,
+  );
+  const socialLinks = configuredSocialLinks(
+    settings.socialLinks,
+  );
 
   return (
     <footer className="storefront-footer">
@@ -107,9 +118,9 @@ export default function Footer() {
                 </p>
               )}
 
-              {settings.messengerUrl && (
+              {messengerUrl && (
                 <a
-                  href={settings.messengerUrl}
+                  href={messengerUrl}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -118,10 +129,23 @@ export default function Footer() {
                 </a>
               )}
 
+              {socialLinks.map((social) => (
+                <a
+                  key={social.key}
+                  href={social.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>Mạng xã hội</span>
+                  {social.label} ↗
+                </a>
+              ))}
+
               {!settings.phone &&
                 !settings.email &&
                 !settings.address &&
-                !settings.messengerUrl && (
+                !messengerUrl &&
+                socialLinks.length === 0 && (
                   <p className="storefront-footer__muted">
                     Thông tin liên hệ sẽ được cập nhật trong trang quản trị.
                   </p>

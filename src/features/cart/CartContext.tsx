@@ -80,7 +80,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       product.price +
       selectedVariants.reduce((sum, variant) => sum + variant.priceDelta, 0) +
       customPriceDelta;
+    const variantImageId =
+      selectedVariants.find((variant) => variant.imageId)?.imageId ?? "";
     const primaryImage =
+      (variantImageId
+        ? product.images?.find((image) => image.id === variantImageId)
+        : undefined) ??
       product.images?.find((image) => image.isPrimary) ??
       [...(product.images ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)[0];
 

@@ -5,11 +5,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import type { ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import {
+  authChangeNeedsDataReload,
+  getSessionUserId,
+} from "../../utils/authSessionChange";
 import type { Banner, BannerInput } from "../../types/store";
 
 const LEGACY_STORAGE_KEY = "ingiday-banners";
@@ -158,6 +163,7 @@ export function BannersProvider({ children }: { children: ReactNode }) {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const authUserIdRef = useRef("");
 
   const loadBanners = useCallback(async (session?: Session | null) => {
     const activeSession =
@@ -234,14 +240,33 @@ export function BannersProvider({ children }: { children: ReactNode }) {
     let mounted = true;
 
     void supabase.auth.getSession().then(({ data }) => {
-      if (mounted) void loadBanners(data.session);
+      authUserIdRef.current = getSessionUserId(data.session);
+
+      if (mounted) {
+        void loadBanners(data.session);
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      const previousUserId = authUserIdRef.current;
+      authUserIdRef.current = getSessionUserId(session);
+
+      if (
+        !authChangeNeedsDataReload(
+          event,
+          previousUserId,
+          session,
+        )
+      ) {
+        return;
+      }
+
       window.setTimeout(() => {
-        if (mounted) void loadBanners(session);
+        if (mounted) {
+          void loadBanners(session);
+        }
       }, 0);
     });
 

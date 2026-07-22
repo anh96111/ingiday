@@ -5,6 +5,10 @@ import { useSettings } from "../../features/settings/SettingsContext";
 import { uploadSiteBrandImage } from "../../lib/cloudinary";
 import type { SiteBrandImageKind } from "../../lib/cloudinary";
 import type { StoreSettings } from "../../types/store";
+import {
+  normalizeExternalUrl,
+  storeSocialPlatforms,
+} from "../../utils/externalUrl";
 
 type MessageType = "success" | "error";
 
@@ -167,15 +171,26 @@ export default function SettingsAdminPage() {
 
     if (
       form.messengerUrl.trim() &&
-      !/^https?:\/\//i.test(form.messengerUrl.trim())
+      !normalizeExternalUrl(form.messengerUrl)
     ) {
       showMessage(
-        "Link Messenger phải bắt đầu bằng http:// hoặc https://.",
+        "Link Messenger không hợp lệ. Có thể nhập dạng m.me/920062987858914 hoặc link https:// đầy đủ.",
         "error",
       );
       return;
     }
 
+    for (const platform of storeSocialPlatforms) {
+      const value = form.socialLinks[platform.key].trim();
+
+      if (value && !normalizeExternalUrl(value)) {
+        showMessage(
+          `Link ${platform.label} không hợp lệ.`,
+          "error",
+        );
+        return;
+      }
+    }
 
 
     if (
@@ -334,9 +349,43 @@ export default function SettingsAdminPage() {
                   })
                 }
                 className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] px-3 font-normal outline-none focus:border-[#006397]"
-                placeholder="https://m.me/..."
+                placeholder="m.me/920062987858914"
               />
+              <span className="mt-1 block text-xs font-normal leading-5 text-[#707881]">
+                Có thể nhập m.me/... hoặc đường dẫn https:// đầy đủ. Hệ thống tự bổ sung https:// khi lưu.
+              </span>
             </label>
+
+            <div className="md:col-span-2 rounded-2xl border border-[#dce3ea] bg-[#f7f9ff] p-4">
+              <div>
+                <h3 className="font-black">Mạng xã hội</h3>
+                <p className="mt-1 text-xs leading-5 text-[#707881]">
+                  Chỉ những liên kết có nhập dữ liệu mới xuất hiện ở trang Liên hệ và chân trang website.
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {storeSocialPlatforms.map((platform) => (
+                  <label key={platform.key} className="text-sm font-bold">
+                    {platform.label}
+                    <input
+                      value={form.socialLinks[platform.key]}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          socialLinks: {
+                            ...current.socialLinks,
+                            [platform.key]: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                      placeholder={platform.placeholder}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <label className="text-sm font-bold md:col-span-2">
               Địa chỉ
