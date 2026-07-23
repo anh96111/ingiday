@@ -325,27 +325,14 @@ export default function ProductDetailPage() {
       return;
     }
 
-    if (selectedVariantImageId) {
-      const hasVariantImage = productImages.some(
-        (image) => image.id === selectedVariantImageId,
-      );
+    const hasVariantImage = productImages.some(
+      (image) => image.id === selectedVariantImageId,
+    );
 
-      if (hasVariantImage && selectedImageId !== selectedVariantImageId) {
-        setSelectedImageId(selectedVariantImageId);
-      }
-
-      return;
-    }
-
-    if (primaryImage && selectedImageId !== primaryImage.id) {
-      setSelectedImageId(primaryImage.id);
-      return;
-    }
-
-    if (selectedImageId && !productImages.some((image) => image.id === selectedImageId)) {
-      setSelectedImageId(primaryImage?.id ?? "");
-    }
-  }, [product, primaryImage, productImages, selectedImageId, selectedVariantImageId]);
+    setSelectedImageId(
+      hasVariantImage ? selectedVariantImageId : (primaryImage?.id ?? ""),
+    );
+  }, [product, primaryImage, productImages, selectedVariantImageId]);
 
   useEffect(() => {
     if (

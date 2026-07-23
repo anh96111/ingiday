@@ -1,17 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import SearchableAddressSelect from "../../components/address/SearchableAddressSelect";
 import { useAdTracking } from "../../features/ads/AdTrackingContext";
 import { useCart } from "../../features/cart/CartContext";
 import { useCoupons } from "../../features/coupons/CouponsContext";
 import { useOrders } from "../../features/orders/OrdersContext";
 import { useSettings } from "../../features/settings/SettingsContext";
-import type {
-  AddressOption,
-  VietnamDistrict,
-  VietnamProvince,
-} from "../../types/address";
 import type { CheckoutCustomer, LocalOrder } from "../../types/cart";
 import type { Coupon } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
@@ -43,9 +37,9 @@ function readSavedCustomer(): CheckoutCustomer {
     return {
       fullName: typeof saved.fullName === "string" ? saved.fullName : "",
       phone: typeof saved.phone === "string" ? saved.phone : "",
-      province: typeof saved.province === "string" ? saved.province : "",
-      district: typeof saved.district === "string" ? saved.district : "",
-      ward: typeof saved.ward === "string" ? saved.ward : "",
+      province: "",
+      district: "",
+      ward: "",
       addressDetail:
         typeof saved.addressDetail === "string" ? saved.addressDetail : "",
       note: typeof saved.note === "string" ? saved.note : "",
@@ -53,27 +47,6 @@ function readSavedCustomer(): CheckoutCustomer {
   } catch {
     return initialCustomer;
   }
-}
-
-const collator = new Intl.Collator("vi", {
-  sensitivity: "base",
-  numeric: true,
-});
-
-function stripAdministrativePrefix(name: string) {
-  return name.replace(
-    /^(Thành phố|Tỉnh|Quận|Huyện|Thị xã|Phường|Xã|Thị trấn)\s+/i,
-    "",
-  );
-}
-
-function sortByAdministrativeName<T extends { name: string }>(items: T[]) {
-  return [...items].sort((left, right) =>
-    collator.compare(
-      stripAdministrativePrefix(left.name),
-      stripAdministrativePrefix(right.name),
-    ),
-  );
 }
 
 function getPhoneError(phone: string) {
@@ -100,18 +73,6 @@ function getPhoneError(phone: string) {
   return "";
 }
 
-type AddressTouched = {
-  province: boolean;
-  district: boolean;
-  ward: boolean;
-};
-
-const initialAddressTouched: AddressTouched = {
-  province: false,
-  district: false,
-  ward: false,
-};
-
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { items, subtotal, clearCart } = useCart();
@@ -124,11 +85,6 @@ export default function CheckoutPage() {
   const { settings } = useSettings();
 
   const [customer, setCustomer] = useState<CheckoutCustomer>(readSavedCustomer);
-  const [provinces, setProvinces] = useState<VietnamProvince[]>([]);
-  const [addressLoading, setAddressLoading] = useState(true);
-  const [addressLoadError, setAddressLoadError] = useState("");
-  const [addressTouched, setAddressTouched] =
-    useState<AddressTouched>(initialAddressTouched);
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -183,95 +139,6 @@ export default function CheckoutPage() {
     }
   }, [customer]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadAddressData() {
-      setAddressLoading(true);
-      setAddressLoadError("");
-
-      try {
-        const response = await fetch("/data/vn-address.json", {
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const result = (await response.json()) as unknown;
-
-        if (!Array.isArray(result)) {
-          throw new Error("Sai cấu trúc JSON");
-        }
-
-        setProvinces(sortByAdministrativeName(result as VietnamProvince[]));
-      } catch (loadError) {
-        if (controller.signal.aborted) return;
-
-        console.error(loadError);
-        setAddressLoadError(
-          "Không tải được danh sách địa chỉ. Vui lòng tải lại trang.",
-        );
-      } finally {
-        if (!controller.signal.aborted) {
-          setAddressLoading(false);
-        }
-      }
-    }
-
-    void loadAddressData();
-
-    return () => controller.abort();
-  }, []);
-
-  const selectedProvince = useMemo(
-    () => provinces.find((province) => province.name === customer.province),
-    [customer.province, provinces],
-  );
-
-  const districts = useMemo(
-    () => sortByAdministrativeName(selectedProvince?.districts ?? []),
-    [selectedProvince],
-  );
-
-  const selectedDistrict = useMemo<VietnamDistrict | undefined>(
-    () => districts.find((district) => district.name === customer.district),
-    [customer.district, districts],
-  );
-
-  const wards = useMemo(
-    () => sortByAdministrativeName(selectedDistrict?.wards ?? []),
-    [selectedDistrict],
-  );
-
-  const provinceOptions = useMemo<AddressOption[]>(
-    () =>
-      provinces.map((province) => ({
-        name: province.name,
-        code: province.code,
-      })),
-    [provinces],
-  );
-
-  const districtOptions = useMemo<AddressOption[]>(
-    () =>
-      districts.map((district) => ({
-        name: district.name,
-        code: district.code,
-      })),
-    [districts],
-  );
-
-  const wardOptions = useMemo<AddressOption[]>(
-    () =>
-      wards.map((ward) => ({
-        name: ward.name,
-        code: ward.code,
-      })),
-    [wards],
-  );
-
   function handleChange(
     event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
@@ -283,39 +150,6 @@ export default function CheckoutPage() {
     const digitsOnly = event.target.value.replace(/\D/g, "").slice(0, 10);
     setPhoneTouched(true);
     setCustomer((current) => ({ ...current, phone: digitsOnly }));
-  }
-
-  function handleProvinceChange(province: string) {
-    setCustomer((current) => ({
-      ...current,
-      province,
-      district: "",
-      ward: "",
-    }));
-    setAddressTouched((current) => ({
-      ...current,
-      province: true,
-      district: false,
-      ward: false,
-    }));
-  }
-
-  function handleDistrictChange(district: string) {
-    setCustomer((current) => ({
-      ...current,
-      district,
-      ward: "",
-    }));
-    setAddressTouched((current) => ({
-      ...current,
-      district: true,
-      ward: false,
-    }));
-  }
-
-  function handleWardChange(ward: string) {
-    setCustomer((current) => ({ ...current, ward }));
-    setAddressTouched((current) => ({ ...current, ward: true }));
   }
 
   async function handleApplyCoupon() {
@@ -343,11 +177,6 @@ export default function CheckoutPage() {
     if (submitting || submitLockRef.current) return;
 
     setPhoneTouched(true);
-    setAddressTouched({
-      province: true,
-      district: true,
-      ward: true,
-    });
 
     if (items.length === 0) {
       setError("Giỏ hàng đang trống.");
@@ -364,26 +193,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (addressLoadError) {
-      setError(addressLoadError);
-      return;
-    }
-
-    if (!customer.province) {
-      setError("Vui lòng chọn Tỉnh/Thành phố.");
-      return;
-    }
-
-    if (!customer.district) {
-      setError("Vui lòng chọn Quận/Huyện.");
-      return;
-    }
-
-    if (!customer.ward) {
-      setError("Vui lòng chọn Phường/Xã.");
-      return;
-    }
-
     if (!customer.addressDetail.trim()) {
       setError("Vui lòng nhập địa chỉ chi tiết.");
       return;
@@ -397,6 +206,9 @@ export default function CheckoutPage() {
         ...customer,
         fullName: customer.fullName.trim(),
         phone: customer.phone.trim(),
+        province: "",
+        district: "",
+        ward: "",
         addressDetail: customer.addressDetail.trim(),
         note: customer.note.trim(),
       },
@@ -571,96 +383,18 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 [&>*]:min-w-0">
-              <SearchableAddressSelect
-                label="Tỉnh/Thành phố"
-                value={customer.province}
-                options={provinceOptions}
-                placeholder="Tìm kiếm tỉnh/thành phố"
-                loading={addressLoading}
-                error={
-                  addressTouched.province && !customer.province
-                    ? "Vui lòng chọn Tỉnh/Thành phố."
-                    : ""
-                }
-                onChange={handleProvinceChange}
-                onTouched={() =>
-                  setAddressTouched((current) => ({
-                    ...current,
-                    province: true,
-                  }))
-                }
+            <label className="mt-4 block text-sm font-black text-[var(--sf-ink)]">
+              Địa chỉ nhận hàng{" "}
+              <span className="text-[var(--sf-pink-strong)]">*</span>
+              <input
+                name="addressDetail"
+                value={customer.addressDetail}
+                onChange={handleChange}
+                className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
+                placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                autoComplete="street-address"
               />
-
-              <SearchableAddressSelect
-                label="Quận/Huyện"
-                value={customer.district}
-                options={districtOptions}
-                placeholder="Tìm kiếm quận/huyện"
-                disabled={!customer.province}
-                loading={addressLoading}
-                error={
-                  addressTouched.district &&
-                  customer.province &&
-                  !customer.district
-                    ? "Vui lòng chọn Quận/Huyện."
-                    : ""
-                }
-                onChange={handleDistrictChange}
-                onTouched={() =>
-                  setAddressTouched((current) => ({
-                    ...current,
-                    district: true,
-                  }))
-                }
-              />
-
-              <SearchableAddressSelect
-                label="Phường/Xã"
-                value={customer.ward}
-                options={wardOptions}
-                placeholder="Tìm kiếm phường/xã"
-                disabled={!customer.district}
-                loading={addressLoading}
-                error={
-                  addressTouched.ward &&
-                  customer.district &&
-                  !customer.ward
-                    ? "Vui lòng chọn Phường/Xã."
-                    : ""
-                }
-                onChange={handleWardChange}
-                onTouched={() =>
-                  setAddressTouched((current) => ({
-                    ...current,
-                    ward: true,
-                  }))
-                }
-              />
-
-              <label className="block text-sm font-black text-[var(--sf-ink)]">
-                Địa chỉ chi tiết{" "}
-                <span className="text-[var(--sf-pink-strong)]">*</span>
-                <input
-                  name="addressDetail"
-                  value={customer.addressDetail}
-                  onChange={handleChange}
-                  className="mt-2 h-12 w-full rounded-2xl border border-[var(--sf-border)] bg-[#faf6f8] px-4 font-normal text-[var(--sf-ink)] outline-none transition focus:border-[rgba(255,95,143,0.42)] focus:bg-white focus:shadow-[0_0_0_5px_rgba(255,95,143,0.08)]"
-                  placeholder="Số nhà, tên đường, thôn/xóm"
-                  autoComplete="street-address"
-                />
-              </label>
-            </div>
-
-            {addressLoadError && (
-              <p
-                className="mt-4 rounded-2xl border border-[rgba(214,117,80,0.18)] bg-[#fff5ed] px-4 py-3 text-sm font-semibold text-[#884426]"
-                role="alert"
-              >
-                {addressLoadError}
-              </p>
-            )}
-
+            </label>
             <label className="mt-5 block text-sm font-black text-[var(--sf-ink)]">
               Ghi chú đơn hàng
               <textarea
@@ -727,11 +461,7 @@ export default function CheckoutPage() {
 
             <button
               type="submit"
-              disabled={
-                submitting ||
-                addressLoading ||
-                Boolean(addressLoadError)
-              }
+              disabled={submitting}
               className="mt-6 min-h-13 w-full rounded-full bg-[var(--sf-pink)] px-6 font-black text-white shadow-[0_12px_28px_rgba(255,95,143,0.26)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-pink-strong)] hover:shadow-[0_16px_34px_rgba(255,95,143,0.34)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting ? "Đang tạo đơn..." : "Đặt hàng COD"}
