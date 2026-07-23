@@ -3,22 +3,81 @@ import type { UtmAttribution } from "../types/cart";
 const STORAGE_KEY = "ingiday-utm-attribution-v1";
 const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_VALUE_LENGTH = 200;
+const MAX_CLICK_ID_LENGTH = 500;
 
-const UTM_FIELDS = [
+type AttributionField = Exclude<keyof UtmAttribution, "capturedAt">;
+
+const URL_PARAMETER_FIELDS: ReadonlyArray<
+  readonly [queryName: string, fieldName: AttributionField, maxLength?: number]
+> = [
   ["utm_source", "source"],
   ["utm_medium", "medium"],
   ["utm_campaign", "campaign"],
   ["utm_content", "content"],
   ["utm_term", "term"],
-] as const;
+  ["utm_id", "utmId"],
+  ["campaign_id", "campaignId"],
+  ["adset_id", "adsetId"],
+  ["ad_id", "adId"],
+  ["campaign_name", "campaignName"],
+  ["adset_name", "adsetName"],
+  ["ad_name", "adName"],
+  ["placement", "placement"],
+  ["site_source_name", "siteSourceName"],
+  ["fbclid", "fbclid", MAX_CLICK_ID_LENGTH],
+];
 
-function cleanValue(value: unknown) {
+const ATTRIBUTION_FIELDS: AttributionField[] = [
+  "source",
+  "medium",
+  "campaign",
+  "content",
+  "term",
+  "utmId",
+  "campaignId",
+  "adsetId",
+  "adId",
+  "campaignName",
+  "adsetName",
+  "adName",
+  "placement",
+  "siteSourceName",
+  "fbclid",
+];
+
+function cleanValue(
+  value: unknown,
+  maxLength = MAX_VALUE_LENGTH,
+) {
   if (typeof value !== "string") {
     return undefined;
   }
 
-  const normalized = value.trim().slice(0, MAX_VALUE_LENGTH);
+  const normalized = value.trim().slice(0, maxLength);
   return normalized || undefined;
+}
+
+function hasAttribution(attribution: UtmAttribution) {
+  return ATTRIBUTION_FIELDS.some((field) => Boolean(attribution[field]));
+}
+
+function inferredMetaSource(attribution: UtmAttribution) {
+  const explicitSiteSource = attribution.siteSourceName?.trim();
+
+  if (explicitSiteSource) {
+    return explicitSiteSource;
+  }
+
+  return attribution.campaignId ||
+    attribution.adsetId ||
+    attribution.adId ||
+    attribution.campaignName ||
+    attribution.adsetName ||
+    attribution.adName ||
+    attribution.placement ||
+    attribution.fbclid
+    ? "meta"
+    : undefined;
 }
 
 export function normalizeUtmAttribution(
@@ -35,20 +94,24 @@ export function normalizeUtmAttribution(
     campaign: cleanValue(source.campaign),
     content: cleanValue(source.content),
     term: cleanValue(source.term),
+    utmId: cleanValue(source.utmId),
+    campaignId: cleanValue(source.campaignId),
+    adsetId: cleanValue(source.adsetId),
+    adId: cleanValue(source.adId),
+    campaignName: cleanValue(source.campaignName),
+    adsetName: cleanValue(source.adsetName),
+    adName: cleanValue(source.adName),
+    placement: cleanValue(source.placement),
+    siteSourceName: cleanValue(source.siteSourceName),
+    fbclid: cleanValue(source.fbclid, MAX_CLICK_ID_LENGTH),
     capturedAt: cleanValue(source.capturedAt),
   };
 
-  if (
-    !normalized.source &&
-    !normalized.medium &&
-    !normalized.campaign &&
-    !normalized.content &&
-    !normalized.term
-  ) {
-    return undefined;
+  if (!normalized.source) {
+    normalized.source = inferredMetaSource(normalized);
   }
 
-  return normalized;
+  return hasAttribution(normalized) ? normalized : undefined;
 }
 
 function readStoredUtmAttribution() {
@@ -89,22 +152,20 @@ export function captureUtmAttribution(search: string) {
   const params = new URLSearchParams(search);
   const captured: UtmAttribution = {};
 
-  for (const [queryName, fieldName] of UTM_FIELDS) {
-    const value = cleanValue(params.get(queryName));
+  for (const [queryName, fieldName, maxLength] of URL_PARAMETER_FIELDS) {
+    const value = cleanValue(params.get(queryName), maxLength);
 
     if (value) {
       captured[fieldName] = value;
     }
   }
 
-  if (
-    !captured.source &&
-    !captured.medium &&
-    !captured.campaign &&
-    !captured.content &&
-    !captured.term
-  ) {
+  if (!hasAttribution(captured)) {
     return readStoredUtmAttribution();
+  }
+
+  if (!captured.source) {
+    captured.source = inferredMetaSource(captured);
   }
 
   captured.capturedAt = new Date().toISOString();
@@ -125,14 +186,12 @@ export function getCurrentUtmAttribution(): UtmAttribution {
 export function getUtmSourceLabel(
   attribution?: UtmAttribution,
 ) {
-  const source = attribution?.source?.trim();
+  const source =
+    attribution?.source?.trim() ||
+    attribution?.siteSourceName?.trim();
 
   if (!source) {
-    return attribution &&
-      (attribution.medium ||
-        attribution.campaign ||
-        attribution.content ||
-        attribution.term)
+    return attribution && hasAttribution(attribution)
       ? "Không xác định"
       : "Trực tiếp";
   }
@@ -172,20 +231,22 @@ export function getUtmSecondaryLabel(
   if (
     !attribution ||
     attribution.source?.toLowerCase() === "direct" ||
-    (!attribution.source &&
-      !attribution.medium &&
-      !attribution.campaign &&
-      !attribution.content &&
-      !attribution.term)
+    !hasAttribution(attribution)
   ) {
     return "Không có UTM";
   }
 
   return (
+    attribution.campaignName ||
     attribution.campaign ||
+    attribution.adName ||
     attribution.content ||
+    attribution.adsetName ||
     attribution.medium ||
+    attribution.placement ||
     attribution.term ||
+    attribution.campaignId ||
+    attribution.adId ||
     "Không có chiến dịch"
   );
 }
@@ -201,8 +262,18 @@ export function getUtmAttributionTitle(
     ["Nguồn", attribution.source],
     ["Medium", attribution.medium],
     ["Campaign", attribution.campaign],
+    ["Campaign name", attribution.campaignName],
+    ["Campaign ID", attribution.campaignId],
+    ["Ad set name", attribution.adsetName],
+    ["Ad set ID", attribution.adsetId],
+    ["Ad name", attribution.adName],
+    ["Ad ID", attribution.adId],
     ["Content", attribution.content],
     ["Term", attribution.term],
+    ["UTM ID", attribution.utmId],
+    ["Placement", attribution.placement],
+    ["Site source", attribution.siteSourceName],
+    ["Meta click ID", attribution.fbclid],
   ]
     .filter((item): item is [string, string] => Boolean(item[1]))
     .map(([label, value]) => `${label}: ${value}`);

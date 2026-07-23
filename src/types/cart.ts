@@ -6,6 +6,16 @@ export type UtmAttribution = {
   campaign?: string;
   content?: string;
   term?: string;
+  utmId?: string;
+  campaignId?: string;
+  adsetId?: string;
+  adId?: string;
+  campaignName?: string;
+  adsetName?: string;
+  adName?: string;
+  placement?: string;
+  siteSourceName?: string;
+  fbclid?: string;
   capturedAt?: string;
 };
 
