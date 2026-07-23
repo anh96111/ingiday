@@ -19,6 +19,14 @@ import {
 import {
   sendServerAdEvent,
 } from "../../services/adServerEvents";
+import {
+  trackSiteAddToCart,
+  trackSiteInitiateCheckout,
+  trackSitePageView,
+  trackSitePurchase,
+  trackSiteSearch,
+  trackSiteViewContent,
+} from "../../services/siteAnalytics";
 import type {
   TrackCheckoutInput,
   TrackPageViewInput,
@@ -246,6 +254,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
 
   const trackPageView = useCallback(
     async (input: TrackPageViewInput) => {
+      trackSitePageView(input);
+
       try {
         const snapshot = await getAdRuntimeSnapshot(
           input.productId ? [input.productId] : [],
@@ -283,6 +293,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
 
   const trackViewContent = useCallback(
     async (input: TrackProductInput) => {
+      trackSiteViewContent(input);
+
       try {
         const snapshot = await getAdRuntimeSnapshot([input.product.id]);
         const baseEventId = createAdEventId("viewcontent");
@@ -339,6 +351,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    trackSiteSearch(normalizedQuery);
+
     try {
       const snapshot = await getAdRuntimeSnapshot();
       const baseEventId = createAdEventId("search");
@@ -367,6 +381,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
 
   const trackAddToCart = useCallback(
     async (input: TrackProductInput) => {
+      trackSiteAddToCart(input);
+
       try {
         const snapshot = await getAdRuntimeSnapshot([input.product.id]);
         const baseEventId = createAdEventId("addtocart");
@@ -433,6 +449,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
       const baseEventId = getOrCreateStoredEventId(storageKey, "checkout");
 
       await runOnce(`checkout:${fingerprint}`, async () => {
+        trackSiteInitiateCheckout(input);
+
         const { snapshot, groups } = await groupItemsByPixel(input.items);
 
         for (const group of groups) {
@@ -477,6 +495,8 @@ export function AdTrackingProvider({ children }: { children: ReactNode }) {
       if (input.items.length === 0 || wasPurchaseSent(input.orderCode)) {
         return;
       }
+
+      trackSitePurchase(input);
 
       try {
         const productIds = Array.from(
