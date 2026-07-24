@@ -21,6 +21,11 @@ const navItems = [
     icon: "💰",
   },
   {
+    label: "Phân tích",
+    to: "/admin/phan-tich",
+    icon: "◉",
+  },
+  {
     label: "Sản phẩm",
     to: "/admin/san-pham",
     icon: "📦",

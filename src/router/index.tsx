@@ -30,6 +30,9 @@ const CustomersAdminPage = lazy(
 const DashboardPage = lazy(
   () => import("../pages/admin/DashboardPage"),
 );
+const AnalyticsAdminPage = lazy(
+  () => import("../pages/admin/AnalyticsAdminPage"),
+);
 const LoginPage = lazy(() => import("../pages/admin/LoginPage"));
 const OrderDetailPage = lazy(
   () => import("../pages/admin/OrderDetailPage"),
@@ -161,6 +164,10 @@ export const router = createBrowserRouter([
       {
         path: "doanh-thu",
         element: <RevenueAdminPage />,
+      },
+      {
+        path: "phan-tich",
+        element: <AnalyticsAdminPage />,
       },
       {
         path: "san-pham",
