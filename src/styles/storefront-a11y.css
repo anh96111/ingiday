@@ -79,15 +79,13 @@
 
 @supports (content-visibility: auto) {
   .home-cute__benefits,
-  .home-cute__featured,
   .home-cute__custom,
   .product-detail__trust,
   .product-detail__information {
     content-visibility: auto;
   }
 
-  .home-cute__benefits,
-  .home-cute__featured {
+  .home-cute__benefits {
     contain-intrinsic-size: 620px;
   }
 
