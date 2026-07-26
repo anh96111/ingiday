@@ -48,6 +48,7 @@ export type CartItem = {
 export type CheckoutCustomer = {
   fullName: string;
   phone: string;
+  email?: string;
   province: string;
   district: string;
   ward: string;

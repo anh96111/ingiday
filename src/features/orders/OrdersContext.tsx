@@ -10,6 +10,7 @@ import {
 import { submitStoreOrder } from "../../services/orders";
 import type { CartItem, CheckoutCustomer, LocalOrder, SelectedVariant } from "../../types/cart";
 import type { SelectedCustomOptions } from "../../types/customProductOptions";
+import type { AdminOrderUpdateInput, NormalizedAddressSaveInput } from "../../types/adminOrder";
 import type { OrderStatus, StoreOrder } from "../../types/store";
 import { normalizeUtmAttribution } from "../../utils/utmAttribution";
 
@@ -65,6 +66,12 @@ type OrderRow = {
   district: string;
   ward: string;
   address_line: string;
+  normalized_province: string | null;
+  normalized_district: string | null;
+  normalized_ward: string | null;
+  normalized_address_line: string | null;
+  normalized_at: string | null;
+  normalized_address_stale: boolean;
   note: string | null;
   subtotal: number | string;
   discount_amount: number | string;
@@ -107,6 +114,12 @@ type OrdersContextValue = {
   loadOrderPage: (filters: OrderPageFilters) => Promise<OrdersActionResult<OrderPageResult>>;
   bulkUpdateOrderStatus: (ids: string[], status: OrderStatus) => Promise<OrdersActionResult>;
   bulkDeleteOrders: (ids: string[]) => Promise<OrdersActionResult>;
+  saveNormalizedAddresses: (
+    entries: NormalizedAddressSaveInput[],
+  ) => Promise<OrdersActionResult>;
+  updateOrder: (
+    input: AdminOrderUpdateInput,
+  ) => Promise<OrdersActionResult>;
   createOrder: (order: LocalOrder) => Promise<OrdersActionResult<StoreOrder>>;
   updateOrderStatus: (code: string, status: OrderStatus) => Promise<OrdersActionResult<StoreOrder>>;
   getOrder: (code: string) => StoreOrder | undefined;
@@ -124,6 +137,12 @@ const ORDER_SELECT = `
   district,
   ward,
   address_line,
+  normalized_province,
+  normalized_district,
+  normalized_ward,
+  normalized_address_line,
+  normalized_at,
+  normalized_address_stale,
   note,
   subtotal,
   discount_amount,
@@ -229,7 +248,7 @@ function parseSelectedCustomOptions(value: unknown): SelectedCustomOptions | und
 function itemFromRow(row: OrderItemRow): CartItem {
   return {
     key: row.id,
-    productId: row.product_id ?? `deleted-${row.id}`,
+    productId: row.product_id ?? "",
     slug: row.product_slug ?? "",
     name: row.product_name,
     imageUrl: row.product_image_url ?? undefined,
@@ -254,6 +273,7 @@ function orderFromRow(row: OrderRow): StoreOrder {
   const customer: CheckoutCustomer = {
     fullName: row.customer_name,
     phone: row.customer_phone,
+    email: row.customer_email ?? undefined,
     province: row.province,
     district: row.district,
     ward: row.ward,
@@ -281,6 +301,25 @@ function orderFromRow(row: OrderRow): StoreOrder {
         ? history
         : [{ status: row.status, changedAt: row.created_at }],
     inventoryReserved: row.inventory_reserved,
+    normalizedAddress:
+      row.normalized_at &&
+      row.normalized_province &&
+      row.normalized_district &&
+      row.normalized_ward &&
+      row.normalized_address_line
+        ? {
+            province: row.normalized_province,
+            district: row.normalized_district,
+            ward: row.normalized_ward,
+            addressDetail: row.normalized_address_line,
+            normalizedAt: row.normalized_at,
+          }
+        : undefined,
+    normalizedAddressStatus: !row.normalized_at
+      ? "missing"
+      : row.normalized_address_stale
+        ? "stale"
+        : "ready",
   };
 }
 
@@ -546,6 +585,106 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         }
       },
 
+      async saveNormalizedAddresses(entries) {
+        try {
+          const uniqueEntries = [
+            ...new Map(
+              entries
+                .filter((entry) => entry.orderId)
+                .map((entry) => [entry.orderId, entry]),
+            ).values(),
+          ].slice(0, 50);
+
+          if (uniqueEntries.length === 0) {
+            return {
+              success: false,
+              message: "Chưa có địa chỉ cần chuẩn hóa.",
+            };
+          }
+
+          const { error: rpcError } = await supabase.rpc(
+            "admin_bulk_normalize_order_addresses",
+            {
+              p_entries: uniqueEntries,
+            },
+          );
+
+          if (rpcError) throw rpcError;
+
+          return {
+            success: true,
+            message: `Đã chuẩn hóa ${uniqueEntries.length} địa chỉ.`,
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể lưu địa chỉ chuẩn hóa.",
+            ),
+          };
+        }
+      },
+
+      async updateOrder(input) {
+        try {
+          if (!input.orderId) {
+            return {
+              success: false,
+              message: "Không tìm thấy đơn hàng cần chỉnh sửa.",
+            };
+          }
+
+          const { error: rpcError } = await supabase.rpc(
+            "admin_update_order",
+            {
+              p_order_id: input.orderId,
+              p_order: {
+                customerName: input.customerName,
+                customerPhone: input.customerPhone,
+                customerEmail: input.customerEmail ?? "",
+                province: input.province,
+                district: input.district,
+                ward: input.ward,
+                addressDetail: input.addressDetail,
+                note: input.note,
+                discount: input.discount,
+                shipping: input.shipping,
+                status: input.status,
+              },
+              p_items: input.items.map((item) => ({
+                sourceItemId: item.sourceItemId ?? null,
+                productId: item.productId ?? null,
+                productName: item.productName,
+                productSlug: item.productSlug ?? null,
+                productImageUrl: item.productImageUrl ?? null,
+                productBackground: item.productBackground ?? null,
+                productEmoji: item.productEmoji ?? null,
+                unitPrice: item.unitPrice,
+                quantity: item.quantity,
+                selectedVariants: item.selectedVariants,
+                customOptions: item.customOptions ?? {},
+              })),
+            },
+          );
+
+          if (rpcError) throw rpcError;
+
+          return {
+            success: true,
+            message: "Đã cập nhật đơn hàng.",
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể cập nhật đơn hàng.",
+            ),
+          };
+        }
+      },
+
       async createOrder(order) {
         const submission = await submitStoreOrder(order);
 
@@ -577,6 +716,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           status: "new",
           statusHistory: [{ status: "new", changedAt: result.created_at }],
           inventoryReserved: result.inventory_reserved,
+          normalizedAddressStatus: "missing",
         };
 
         sessionStorage.setItem("ingiday-last-order", JSON.stringify(created));

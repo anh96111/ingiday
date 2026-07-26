@@ -2,8 +2,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import OrderQuickPreview from "../../components/admin/OrderQuickPreview";
+import AddressNormalizationDialog from "../../features/orders/components/AddressNormalizationDialog";
+import OrderEditDialog from "../../features/orders/components/OrderEditDialog";
+import SpxExportDialog from "../../features/orders/components/SpxExportDialog";
+import {
+  normalizedAddressStatusClass,
+  normalizedAddressStatusLabel,
+} from "../../features/orders/addressNormalization";
 import { useOrders } from "../../features/orders/OrdersContext";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import type {
+  AdminOrderUpdateInput,
+  NormalizedAddressSaveInput,
+} from "../../types/adminOrder";
 import type { OrderStatus, StoreOrder } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
 import {
@@ -50,6 +61,8 @@ export default function OrdersAdminPage() {
     loadOrderPage,
     bulkUpdateOrderStatus,
     bulkDeleteOrders,
+    saveNormalizedAddresses,
+    updateOrder,
   } = useOrders();
 
   const [keyword, setKeyword] = useState("");
@@ -65,6 +78,9 @@ export default function OrdersAdminPage() {
   const [message, setMessage] = useState("");
   const [messageSuccess, setMessageSuccess] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [normalizationOpen, setNormalizationOpen] = useState(false);
+  const [spxExportOpen, setSpxExportOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<StoreOrder | null>(null);
 
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -119,6 +135,13 @@ export default function OrdersAdminPage() {
   }, [dateFrom, dateTo, debouncedKeyword, page, reloadToken, status]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedOrders = useMemo(
+    () =>
+      orders.filter(
+        (order) => Boolean(order.id) && selectedSet.has(order.id ?? ""),
+      ),
+    [orders, selectedSet],
+  );
   const pageIds = useMemo(
     () =>
       orders
@@ -215,6 +238,33 @@ export default function OrdersAdminPage() {
     }
   }
 
+  async function handleSaveNormalizedAddresses(
+    entries: NormalizedAddressSaveInput[],
+  ) {
+    const result = await saveNormalizedAddresses(entries);
+    setMessageSuccess(result.success);
+    setMessage(result.message);
+
+    if (result.success) {
+      setSelectedIds([]);
+      setReloadToken((current) => current + 1);
+    }
+
+    return result;
+  }
+
+  async function handleSaveEditedOrder(input: AdminOrderUpdateInput) {
+    const result = await updateOrder(input);
+    setMessageSuccess(result.success);
+    setMessage(result.message);
+
+    if (result.success) {
+      setReloadToken((current) => current + 1);
+    }
+
+    return result;
+  }
+
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -309,6 +359,22 @@ export default function OrdersAdminPage() {
               <span className="text-sm font-bold text-[#006397]">
                 Đã chọn {selectedIds.length}/{orders.length}
               </span>
+              <button
+                type="button"
+                onClick={() => setNormalizationOpen(true)}
+                disabled={busy}
+                className="h-10 rounded-xl bg-[#e7e4ff] px-4 text-sm font-bold text-[#493b9f] disabled:opacity-60"
+              >
+                Chuẩn hóa địa chỉ
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpxExportOpen(true)}
+                disabled={busy}
+                className="h-10 rounded-xl bg-[#dcf8eb] px-4 text-sm font-bold text-[#14633d] disabled:opacity-60"
+              >
+                Xuất file SPX
+              </button>
               <select
                 value={bulkStatus}
                 onChange={(event) =>
@@ -345,7 +411,7 @@ export default function OrdersAdminPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[1260px] w-full text-left text-sm">
+          <table className="min-w-[1440px] w-full text-left text-sm">
             <thead className="bg-[#edf4ff] text-[#3f4850]">
               <tr>
                 <th className="w-12 px-5 py-4">
@@ -362,6 +428,7 @@ export default function OrdersAdminPage() {
                 <th className="w-64 px-4 py-4">Mã đơn / sản phẩm</th>
                 <th className="w-48 px-4 py-4">UTM</th>
                 <th className="px-5 py-4">Khách hàng</th>
+                <th className="w-44 px-5 py-4">Địa chỉ SPX</th>
                 <th className="px-5 py-4">Tổng SL</th>
                 <th className="px-5 py-4">Tổng tiền</th>
                 <th className="px-5 py-4">Trạng thái</th>
@@ -373,7 +440,7 @@ export default function OrdersAdminPage() {
             <tbody className="divide-y divide-[#edf0f3]">
               {pageLoading && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-[#707881]">
+                  <td colSpan={10} className="px-5 py-12 text-center text-[#707881]">
                     Đang tải đơn hàng...
                   </td>
                 </tr>
@@ -420,6 +487,13 @@ export default function OrdersAdminPage() {
                           {order.customer.phone}
                         </p>
                       </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${normalizedAddressStatusClass(order)}`}
+                        >
+                          {normalizedAddressStatusLabel(order)}
+                        </span>
+                      </td>
                       <td className="px-5 py-4 align-top">
                         <span className="inline-flex min-w-10 justify-center rounded-full bg-[#f1f5f9] px-3 py-1 font-bold text-[#3f4850]">
                           {order.items.reduce(
@@ -442,12 +516,24 @@ export default function OrdersAdminPage() {
                         {formatDate(order.createdAt)}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <Link
-                          to={`/admin/don-hang/${order.code}`}
-                          className="inline-flex rounded-xl bg-[#edf4ff] px-4 py-2 font-bold text-[#006397]"
-                        >
-                          Chi tiết
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingOrder(order)}
+                            disabled={busy}
+                            title={`Chỉnh sửa đơn ${order.code}`}
+                            aria-label={`Chỉnh sửa đơn ${order.code}`}
+                            className="grid h-9 w-9 place-items-center rounded-xl bg-[#fff1b8] text-[#7a5200] disabled:opacity-50"
+                          >
+                            ✎
+                          </button>
+                          <Link
+                            to={`/admin/don-hang/${order.code}`}
+                            className="inline-flex rounded-xl bg-[#edf4ff] px-4 py-2 font-bold text-[#006397]"
+                          >
+                            Chi tiết
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -455,7 +541,7 @@ export default function OrdersAdminPage() {
 
               {!pageLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-5 py-12 text-center text-[#707881]">
+                  <td colSpan={10} className="px-5 py-12 text-center text-[#707881]">
                     Không tìm thấy đơn hàng phù hợp.
                   </td>
                 </tr>
@@ -490,6 +576,29 @@ export default function OrdersAdminPage() {
           </div>
         </div>
       </div>
+
+      {normalizationOpen && (
+        <AddressNormalizationDialog
+          orders={selectedOrders}
+          onClose={() => setNormalizationOpen(false)}
+          onSave={handleSaveNormalizedAddresses}
+        />
+      )}
+
+      {spxExportOpen && (
+        <SpxExportDialog
+          orders={selectedOrders}
+          onClose={() => setSpxExportOpen(false)}
+        />
+      )}
+
+      {editingOrder && (
+        <OrderEditDialog
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSave={handleSaveEditedOrder}
+        />
+      )}
     </section>
   );
 }

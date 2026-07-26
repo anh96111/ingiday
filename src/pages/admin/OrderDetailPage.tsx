@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
+import {
+  normalizedAddressStatusClass,
+  normalizedAddressStatusLabel,
+} from "../../features/orders/addressNormalization";
 import { useOrders } from "../../features/orders/OrdersContext";
 import type { OrderStatus } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
@@ -57,6 +61,7 @@ export default function OrderDetailPage() {
   ]
     .filter(Boolean)
     .join(", ");
+  const normalizedAddress = order.normalizedAddress;
 
   return (
     <section>
@@ -226,9 +231,79 @@ export default function OrderDetailPage() {
                 <dd className="mt-1 font-bold">{order.customer.phone}</dd>
               </div>
               <div>
-                <dt className="text-[#707881]">Địa chỉ</dt>
+                <dt className="text-[#707881]">Địa chỉ gốc</dt>
                 <dd className="mt-1 leading-6">{address}</dd>
               </div>
+
+              <div className="border-t border-[#edf0f3] pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <dt className="font-bold text-[#091d2e]">
+                    Địa chỉ 3 cấp đã chuẩn hóa
+                  </dt>
+                  <dd>
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${normalizedAddressStatusClass(
+                        order,
+                      )}`}
+                    >
+                      {normalizedAddressStatusLabel(order)}
+                    </span>
+                  </dd>
+                </div>
+
+                {normalizedAddress ? (
+                  <dd className="mt-4 space-y-3 rounded-2xl bg-[#f7f9ff] p-4">
+                    <div>
+                      <p className="text-xs text-[#707881]">
+                        Địa chỉ chi tiết
+                      </p>
+                      <p className="mt-1 font-bold">
+                        {normalizedAddress.addressDetail}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707881]">Xã/Phường</p>
+                      <p className="mt-1 font-bold">
+                        {normalizedAddress.ward}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707881]">Quận/Huyện</p>
+                      <p className="mt-1 font-bold">
+                        {normalizedAddress.district}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707881]">
+                        Tỉnh/Thành phố
+                      </p>
+                      <p className="mt-1 font-bold">
+                        {normalizedAddress.province}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#707881]">
+                        Chuẩn hóa lúc
+                      </p>
+                      <p className="mt-1 font-bold">
+                        {formatDate(normalizedAddress.normalizedAt)}
+                      </p>
+                    </div>
+
+                    {order.normalizedAddressStatus === "stale" && (
+                      <p className="rounded-xl bg-[#fff1b8] px-3 py-2 text-xs font-semibold text-[#7a5200]">
+                        Địa chỉ gốc đã thay đổi sau lần chuẩn hóa này. Cần
+                        chuẩn hóa lại trước khi xuất SPX.
+                      </p>
+                    )}
+                  </dd>
+                ) : (
+                  <dd className="mt-3 rounded-2xl bg-[#fff0eb] px-4 py-3 text-sm font-semibold text-[#a43c12]">
+                    Đơn hàng chưa có địa chỉ chuẩn hóa.
+                  </dd>
+                )}
+              </div>
+
               {order.customer.note && (
                 <div>
                   <dt className="text-[#707881]">Ghi chú</dt>

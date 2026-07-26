@@ -8,11 +8,23 @@ export type OrderStatusHistory = {
   changedAt: string;
 };
 
+export type NormalizedAddressStatus = "missing" | "ready" | "stale";
+
+export type NormalizedOrderAddress = {
+  province: string;
+  district: string;
+  ward: string;
+  addressDetail: string;
+  normalizedAt: string;
+};
+
 export type StoreOrder = LocalOrder & {
   status: OrderStatus;
   updatedAt: string;
   statusHistory: OrderStatusHistory[];
   inventoryReserved: boolean;
+  normalizedAddress?: NormalizedOrderAddress;
+  normalizedAddressStatus: NormalizedAddressStatus;
 };
 
 export type CouponType = "fixed" | "percentage";
