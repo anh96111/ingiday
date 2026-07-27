@@ -11,7 +11,11 @@ import { submitStoreOrder } from "../../services/orders";
 import type { CartItem, CheckoutCustomer, LocalOrder, SelectedVariant } from "../../types/cart";
 import type { SelectedCustomOptions } from "../../types/customProductOptions";
 import type { AdminOrderUpdateInput, NormalizedAddressSaveInput } from "../../types/adminOrder";
-import type { OrderStatus, StoreOrder } from "../../types/store";
+import type {
+  DuplicatePhoneOrderSummary,
+  OrderStatus,
+  StoreOrder,
+} from "../../types/store";
 import { normalizeUtmAttribution } from "../../utils/utmAttribution";
 
 type OrdersActionResult<T = undefined> = {
@@ -112,6 +116,9 @@ type OrdersContextValue = {
   error: string;
   refresh: () => Promise<void>;
   loadOrderPage: (filters: OrderPageFilters) => Promise<OrdersActionResult<OrderPageResult>>;
+  loadDuplicatePhoneOrders: (
+    phone: string,
+  ) => Promise<OrdersActionResult<DuplicatePhoneOrderSummary[]>>;
   bulkUpdateOrderStatus: (ids: string[], status: OrderStatus) => Promise<OrdersActionResult>;
   bulkDeleteOrders: (ids: string[]) => Promise<OrdersActionResult>;
   saveNormalizedAddresses: (
@@ -301,6 +308,7 @@ function orderFromRow(row: OrderRow): StoreOrder {
         ? history
         : [{ status: row.status, changedAt: row.created_at }],
     inventoryReserved: row.inventory_reserved,
+    duplicatePhone: false,
     normalizedAddress:
       row.normalized_at &&
       row.normalized_province &&
@@ -351,6 +359,68 @@ function parseAdminPageIds(value: unknown, fallbackPage: number, fallbackPageSiz
     page: Number.isFinite(page) ? Math.max(1, page) : fallbackPage,
     pageSize: Number.isFinite(pageSize) ? Math.max(1, pageSize) : fallbackPageSize,
   };
+}
+
+const ORDER_STATUSES: OrderStatus[] = [
+  "new",
+  "confirmed",
+  "preparing",
+  "shipping",
+  "completed",
+  "cancelled",
+];
+
+function isOrderStatus(value: unknown): value is OrderStatus {
+  return (
+    typeof value === "string" &&
+    ORDER_STATUSES.includes(value as OrderStatus)
+  );
+}
+
+function parseDuplicatePhoneOrders(
+  value: unknown,
+): DuplicatePhoneOrderSummary[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return [];
+    }
+
+    const row = item as Record<string, unknown>;
+    const id = typeof row.id === "string" ? row.id : "";
+    const code = typeof row.code === "string" ? row.code : "";
+    const customerName =
+      typeof row.customerName === "string" ? row.customerName : "";
+    const phone = typeof row.phone === "string" ? row.phone : "";
+    const createdAt =
+      typeof row.createdAt === "string" ? row.createdAt : "";
+    const total = Number(row.total);
+
+    if (
+      !id ||
+      !code ||
+      !customerName ||
+      !phone ||
+      !createdAt ||
+      !isOrderStatus(row.status) ||
+      !Number.isFinite(total)
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id,
+        code,
+        customerName,
+        phone,
+        status: row.status,
+        total,
+        createdAt,
+      },
+    ];
+  });
 }
 
 function currentOrderCodeFromPath() {
@@ -503,12 +573,35 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
             if (queryError) throw queryError;
 
+            const { data: duplicatePhoneData, error: duplicatePhoneError } =
+              await supabase.rpc("admin_duplicate_phone_order_ids", {
+                p_order_ids: parsed.ids,
+              });
+
+            if (duplicatePhoneError) throw duplicatePhoneError;
+
+            const duplicatePhoneIds = new Set(
+              Array.isArray(duplicatePhoneData)
+                ? duplicatePhoneData.filter(
+                    (id): id is string => typeof id === "string",
+                  )
+                : [],
+            );
             const orderById = new Map(
               ((data ?? []) as unknown as OrderRow[]).map((row) => [row.id, orderFromRow(row)]),
             );
 
             pageOrders = parsed.ids
-              .map((id) => orderById.get(id))
+              .map((id) => {
+                const order = orderById.get(id);
+
+                return order
+                  ? {
+                      ...order,
+                      duplicatePhone: duplicatePhoneIds.has(id),
+                    }
+                  : undefined;
+              })
               .filter((order): order is StoreOrder => Boolean(order));
           }
 
@@ -533,6 +626,48 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           return { success: false, message };
         } finally {
           setLoading(false);
+        }
+      },
+
+      async loadDuplicatePhoneOrders(phone) {
+        if (!phone) {
+          return {
+            success: false,
+            message: "Số điện thoại cần kiểm tra không hợp lệ.",
+          };
+        }
+
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session) {
+            throw new Error("Phiên đăng nhập quản trị đã hết hạn.");
+          }
+
+          const { data, error: rpcError } = await supabase.rpc(
+            "admin_duplicate_phone_orders",
+            { p_phone: phone },
+          );
+
+          if (rpcError) throw rpcError;
+
+          const duplicateOrders = parseDuplicatePhoneOrders(data);
+
+          return {
+            success: true,
+            message: `Đã tải ${duplicateOrders.length} đơn hàng trùng SĐT.`,
+            data: duplicateOrders,
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể tải danh sách đơn hàng trùng SĐT.",
+            ),
+          };
         }
       },
 
@@ -716,6 +851,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           status: "new",
           statusHistory: [{ status: "new", changedAt: result.created_at }],
           inventoryReserved: result.inventory_reserved,
+          duplicatePhone: false,
           normalizedAddressStatus: "missing",
         };
 

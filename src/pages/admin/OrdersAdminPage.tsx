@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import OrderQuickPreview from "../../components/admin/OrderQuickPreview";
 import AddressNormalizationDialog from "../../features/orders/components/AddressNormalizationDialog";
+import DuplicatePhoneOrdersDialog from "../../features/orders/components/DuplicatePhoneOrdersDialog";
 import OrderEditDialog from "../../features/orders/components/OrderEditDialog";
 import SpxExportDialog from "../../features/orders/components/SpxExportDialog";
 import {
@@ -59,6 +60,7 @@ export default function OrdersAdminPage() {
     orders,
     error,
     loadOrderPage,
+    loadDuplicatePhoneOrders,
     bulkUpdateOrderStatus,
     bulkDeleteOrders,
     saveNormalizedAddresses,
@@ -81,6 +83,7 @@ export default function OrdersAdminPage() {
   const [normalizationOpen, setNormalizationOpen] = useState(false);
   const [spxExportOpen, setSpxExportOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<StoreOrder | null>(null);
+  const [duplicatePhone, setDuplicatePhone] = useState("");
 
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -483,9 +486,23 @@ export default function OrdersAdminPage() {
                       </td>
                       <td className="px-5 py-4">
                         <p className="font-bold">{order.customer.fullName}</p>
-                        <p className="mt-1 text-xs text-[#707881]">
-                          {order.customer.phone}
-                        </p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="text-[#707881]">
+                            {order.customer.phone}
+                          </span>
+                          {order.duplicatePhone && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDuplicatePhone(order.customer.phone)
+                              }
+                              className="inline-flex rounded-full bg-[#fff0eb] px-2 py-0.5 font-bold text-[#a43c12] transition hover:bg-[#ffe1d6] focus:outline-none focus:ring-2 focus:ring-[#a43c12]/30"
+                              title="Xem tất cả đơn hàng dùng đúng số điện thoại này"
+                            >
+                              Trùng SĐT
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -589,6 +606,15 @@ export default function OrdersAdminPage() {
         <SpxExportDialog
           orders={selectedOrders}
           onClose={() => setSpxExportOpen(false)}
+        />
+      )}
+
+      {duplicatePhone && (
+        <DuplicatePhoneOrdersDialog
+          key={duplicatePhone}
+          phone={duplicatePhone}
+          loadOrders={loadDuplicatePhoneOrders}
+          onClose={() => setDuplicatePhone("")}
         />
       )}
 
