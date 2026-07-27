@@ -23,8 +23,19 @@ export type StoreOrder = LocalOrder & {
   updatedAt: string;
   statusHistory: OrderStatusHistory[];
   inventoryReserved: boolean;
+  duplicatePhone: boolean;
   normalizedAddress?: NormalizedOrderAddress;
   normalizedAddressStatus: NormalizedAddressStatus;
+};
+
+export type DuplicatePhoneOrderSummary = {
+  id: string;
+  code: string;
+  customerName: string;
+  phone: string;
+  status: OrderStatus;
+  total: number;
+  createdAt: string;
 };
 
 export type CouponType = "fixed" | "percentage";
