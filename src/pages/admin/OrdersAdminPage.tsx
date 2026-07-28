@@ -350,8 +350,14 @@ export default function OrdersAdminPage() {
         </label>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e8ee] px-5 py-4">
+      <div className="mt-6 rounded-3xl bg-white shadow-sm">
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e8ee] px-5 py-4 ${
+            selectedIds.length > 0
+              ? "sticky top-[72px] z-20 rounded-t-3xl bg-white/95 shadow-[0_12px_28px_rgba(9,29,46,0.10)] backdrop-blur"
+              : ""
+          }`}
+        >
           <p className="text-sm text-[#3f4850]">
             Hiển thị <strong>{firstItem}–{lastItem}</strong> trong{" "}
             <strong>{total}</strong> đơn hàng
@@ -413,7 +419,7 @@ export default function OrdersAdminPage() {
           )}
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-b-3xl">
           <table className="min-w-[1440px] w-full text-left text-sm">
             <thead className="bg-[#edf4ff] text-[#3f4850]">
               <tr>
