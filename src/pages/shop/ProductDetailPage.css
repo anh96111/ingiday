@@ -645,6 +645,39 @@
   stroke-linejoin: round;
 }
 
+.product-detail__inspection-tag {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  border: 1px solid rgba(36, 131, 91, 0.18);
+  border-radius: 999px;
+  padding: 7px 11px;
+  color: #1d6f4d;
+  background: rgba(227, 248, 238, 0.82);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.product-detail__inspection-tag > span {
+  display: grid;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #24835b;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.product-detail__inspection-tag strong {
+  font-weight: 900;
+}
+
 .product-detail__message {
   margin: 12px 0 0;
   border-radius: 16px;

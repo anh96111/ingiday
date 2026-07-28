@@ -870,6 +870,11 @@ export default function ProductDetailPage() {
               </button>
             </div>
 
+            <div className="product-detail__inspection-tag" role="note">
+              <span aria-hidden="true">✓</span>
+              <strong>Được kiểm tra hàng trước khi nhận</strong>
+            </div>
+
             {message && (
               <p
                 className="product-detail__message"
