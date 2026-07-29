@@ -26,6 +26,7 @@ type SpxExportDialogProps = {
     exportedCount: number,
     skippedShippingCount: number,
     skippedCompletedCount: number,
+    skippedUnreachableCount: number,
   ) => void;
 };
 
@@ -42,7 +43,9 @@ export default function SpxExportDialog({
     () =>
       orders.filter(
         (order) =>
-          order.status !== "shipping" && order.status !== "completed",
+          order.status !== "unreachable" &&
+          order.status !== "shipping" &&
+          order.status !== "completed",
       ),
     [orders],
   );
@@ -52,7 +55,13 @@ export default function SpxExportDialog({
   const skippedCompletedCount = orders.filter(
     (order) => order.status === "completed",
   ).length;
-  const skippedCount = skippedShippingCount + skippedCompletedCount;
+  const skippedUnreachableCount = orders.filter(
+    (order) => order.status === "unreachable",
+  ).length;
+  const skippedCount =
+    skippedShippingCount +
+    skippedCompletedCount +
+    skippedUnreachableCount;
   const rows = useMemo(
     () =>
       exportableOrders.map((order) => ({
@@ -73,7 +82,7 @@ export default function SpxExportDialog({
     setMessage("");
 
     try {
-      const result = await exportOrdersToSpx(orders, {
+      const result = await exportOrdersToSpx(exportableOrders, {
         beforeDownload: async (exportedOrders) => {
           const idsToMarkShipping = exportedOrders
             .map((order) => order.id)
@@ -96,8 +105,9 @@ export default function SpxExportDialog({
 
       onExported(
         result.exportedCount,
-        result.skippedShippingCount,
-        result.skippedCompletedCount,
+        skippedShippingCount,
+        skippedCompletedCount,
+        skippedUnreachableCount,
       );
     } catch (error) {
       setMessage(
@@ -124,8 +134,9 @@ export default function SpxExportDialog({
               Xuất file SPX
             </h2>
             <p className="mt-1 text-sm text-[#707881]">
-              Đơn Đang giao và Thành công bị loại khỏi file. Các đơn đủ điều kiện
-              sẽ được chuyển sang trạng thái Đang giao trước khi tải file.
+              Đơn Không gọi được, Đang giao và Thành công bị loại khỏi file.
+              Các đơn đủ điều kiện sẽ được chuyển sang trạng thái Đang giao
+              trước khi tải file.
             </p>
           </div>
           <button
@@ -142,7 +153,8 @@ export default function SpxExportDialog({
         <div className="min-h-0 flex-1 overflow-auto p-5 sm:p-7">
           {skippedCount > 0 && (
             <p className="mb-5 rounded-2xl bg-[#fff1b8] px-4 py-3 text-sm font-semibold text-[#7a5200]">
-              Đã loại {skippedShippingCount} đơn Đang giao và{" "}
+              Đã loại {skippedUnreachableCount} đơn Không gọi được,{" "}
+              {skippedShippingCount} đơn Đang giao và{" "}
               {skippedCompletedCount} đơn Thành công. File chỉ còn{" "}
               {exportableOrders.length} đơn đủ điều kiện xuất.
             </p>
@@ -158,7 +170,7 @@ export default function SpxExportDialog({
           {rows.length === 0 ? (
             <div className="rounded-2xl bg-[#fff0eb] px-5 py-10 text-center text-sm font-semibold text-[#a43c12]">
               Không còn đơn nào đủ điều kiện xuất SPX vì toàn bộ đơn đã chọn
-              đang ở trạng thái Đang giao hoặc Thành công.
+              đang ở trạng thái Không gọi được, Đang giao hoặc Thành công.
             </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-[#d7dee6]">

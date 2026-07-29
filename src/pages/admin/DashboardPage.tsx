@@ -53,6 +53,7 @@ type DashboardOrder = {
 
 const statusLabels: Record<OrderStatus, string> = {
   new: "Đơn mới",
+  unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
   shipping: "Đang giao",
@@ -62,6 +63,7 @@ const statusLabels: Record<OrderStatus, string> = {
 
 const statusClasses: Record<OrderStatus, string> = {
   new: "bg-[#edf4ff] text-[#006397]",
+  unreachable: "bg-[#f2edff] text-[#6241a5]",
   confirmed: "bg-[#fff1b8] text-[#7a5200]",
   preparing: "bg-[#ffe8dc] text-[#a43c12]",
   shipping: "bg-[#e7e4ff] text-[#493b9f]",
