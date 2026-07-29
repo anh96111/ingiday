@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { CartItem } from "../../types/cart";
 import { categories as initialCategories, products as initialProducts } from "../../data/mockData";
 import { supabase } from "../../lib/supabase";
-import type { Category, CategoryInput, Product, ProductImage, ProductInput, ProductStatus } from "../../types/product";
+import type { Category, CategoryInput, Product, ProductImage, ProductInput, ProductStatus, ProductVideo } from "../../types/product";
 import { slugify } from "../../utils/slug";
 import {
   authChangeNeedsDataReload,
@@ -109,6 +109,20 @@ type ProductImageRow = {
   is_primary: boolean;
 };
 
+type ProductVideoRow = {
+  id: string;
+  product_id: string;
+  video_url: string;
+  public_id: string | null;
+  poster_url: string;
+  alt_text: string | null;
+  sort_order: number;
+  duration_seconds: number | string;
+  width: number;
+  height: number;
+  bytes: number | string;
+};
+
 type ProductCategoryRow = {
   product_id: string;
   category_id: string;
@@ -170,6 +184,7 @@ function productFromRow(
   fallbackCategoryName?: string,
   images: ProductImage[] = [],
   categoryIds: string[] = [],
+  videos: ProductVideo[] = [],
 ): Product {
   const metadata = parseJsonObject<ProductMetadata>(
     row.metadata,
@@ -208,6 +223,7 @@ function productFromRow(
     stock: row.stock,
     description: row.description ?? "",
     images: [...images].sort((a, b) => a.sortOrder - b.sortOrder),
+    videos: [...videos].sort((a, b) => a.sortOrder - b.sortOrder),
     variantGroups: metadata.variantGroups,
     status,
     createdAt: row.created_at,
@@ -227,6 +243,21 @@ function productImageFromRow(row: ProductImageRow): ProductImage {
   };
 }
 
+function productVideoFromRow(row: ProductVideoRow): ProductVideo {
+  return {
+    id: row.id,
+    url: row.video_url,
+    publicId: row.public_id ?? undefined,
+    posterUrl: row.poster_url,
+    altText: row.alt_text ?? undefined,
+    sortOrder: row.sort_order,
+    durationSeconds: Number(row.duration_seconds),
+    width: row.width,
+    height: row.height,
+    bytes: Number(row.bytes),
+  };
+}
+
 async function syncProductImages(productId: string, images: ProductImage[]) {
   const { error: deleteError } = await supabase.from("product_images").delete().eq("product_id", productId);
   if (deleteError) throw deleteError;
@@ -243,6 +274,37 @@ async function syncProductImages(productId: string, images: ProductImage[]) {
   }));
   const { error } = await supabase
     .from("product_images")
+    .insert(payload);
+  if (error) throw error;
+}
+
+async function syncProductVideos(
+  productId: string,
+  videos: ProductVideo[],
+) {
+  const { error: deleteError } = await supabase
+    .from("product_videos")
+    .delete()
+    .eq("product_id", productId);
+  if (deleteError) throw deleteError;
+  if (videos.length === 0) return;
+
+  const payload = videos.map((video, index) => ({
+    id: video.id,
+    product_id: productId,
+    video_url: video.url,
+    public_id: video.publicId ?? null,
+    poster_url: video.posterUrl,
+    alt_text: video.altText ?? null,
+    sort_order: index,
+    duration_seconds: video.durationSeconds,
+    width: video.width,
+    height: video.height,
+    bytes: video.bytes,
+  }));
+
+  const { error } = await supabase
+    .from("product_videos")
     .insert(payload);
   if (error) throw error;
 }
@@ -438,6 +500,7 @@ async function fetchStoreData(includeProducts = true) {
         (categoryResult.data ?? []) as CategoryRow[],
       productRows: [] as ProductRow[],
       imageRows: [] as ProductImageRow[],
+      videoRows: [] as ProductVideoRow[],
       productCategoryRows: [] as ProductCategoryRow[],
     };
   }
@@ -445,6 +508,7 @@ async function fetchStoreData(includeProducts = true) {
   const [
     productResult,
     imageResult,
+    videoResult,
     productCategoryResult,
   ] = await Promise.all([
     supabase
@@ -458,12 +522,17 @@ async function fetchStoreData(includeProducts = true) {
       .select("id,product_id,image_url,public_id,alt_text,sort_order,is_primary")
       .order("sort_order", { ascending: true }),
     supabase
+      .from("product_videos")
+      .select("id,product_id,video_url,public_id,poster_url,alt_text,sort_order,duration_seconds,width,height,bytes")
+      .order("sort_order", { ascending: true }),
+    supabase
       .from("product_categories")
       .select("product_id,category_id"),
   ]);
 
   if (productResult.error) throw productResult.error;
   if (imageResult.error) throw imageResult.error;
+  if (videoResult.error) throw videoResult.error;
   if (productCategoryResult.error) {
     throw productCategoryResult.error;
   }
@@ -475,6 +544,8 @@ async function fetchStoreData(includeProducts = true) {
       (productResult.data ?? []) as ProductRow[],
     imageRows:
       (imageResult.data ?? []) as ProductImageRow[],
+    videoRows:
+      (videoResult.data ?? []) as ProductVideoRow[],
     productCategoryRows:
       (productCategoryResult.data ??
         []) as ProductCategoryRow[],
@@ -551,6 +622,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         categoryRows,
         productRows,
         imageRows,
+        videoRows,
         productCategoryRows,
       } = await fetchStoreData(includeProducts);
 
@@ -566,6 +638,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           categoryRows,
           productRows,
           imageRows,
+          videoRows,
           productCategoryRows,
         } = await fetchStoreData(includeProducts));
       }
@@ -576,6 +649,12 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         const list = imagesByProduct.get(imageRow.product_id) ?? [];
         list.push(productImageFromRow(imageRow));
         imagesByProduct.set(imageRow.product_id, list);
+      }
+      const videosByProduct = new Map<string, ProductVideo[]>();
+      for (const videoRow of videoRows) {
+        const list = videosByProduct.get(videoRow.product_id) ?? [];
+        list.push(productVideoFromRow(videoRow));
+        videosByProduct.set(videoRow.product_id, list);
       }
       const categoryIdsByProduct = new Map<
         string,
@@ -595,6 +674,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             undefined,
             imagesByProduct.get(row.id) ?? [],
             categoryIdsByProduct.get(row.id) ?? [],
+            videosByProduct.get(row.id) ?? [],
           ),
         ),
       );
@@ -711,6 +791,14 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
 
           if (imageError) throw imageError;
 
+          const { data: videoData, error: videoError } = await supabase
+            .from("product_videos")
+            .select("id,product_id,video_url,public_id,poster_url,alt_text,sort_order,duration_seconds,width,height,bytes")
+            .in("product_id", parsed.ids)
+            .order("sort_order", { ascending: true });
+
+          if (videoError) throw videoError;
+
           const {
             data: productCategoryData,
             error: productCategoryError,
@@ -744,6 +832,15 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
             list.push(productImageFromRow(row));
             imagesByProduct.set(row.product_id, list);
           }
+          const videosByProduct = new Map<
+            string,
+            ProductVideo[]
+          >();
+          for (const row of (videoData ?? []) as ProductVideoRow[]) {
+            const list = videosByProduct.get(row.product_id) ?? [];
+            list.push(productVideoFromRow(row));
+            videosByProduct.set(row.product_id, list);
+          }
 
           const productsById = new Map(
             ((productData ?? []) as ProductRow[]).map(
@@ -754,6 +851,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
                   undefined,
                   imagesByProduct.get(row.id) ?? [],
                   categoryIdsByProduct.get(row.id) ?? [],
+                  videosByProduct.get(row.id) ?? [],
                 ),
               ],
             ),
@@ -969,12 +1067,14 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         if (insertError) throw insertError;
         await syncProductCategories(id, categoryIds);
         await syncProductImages(id, input.images ?? []);
+        await syncProductVideos(id, input.videos ?? []);
 
         const product = productFromRow(
           data as ProductRow,
           category.name,
           input.images ?? [],
           categoryIds,
+          input.videos ?? [],
         );
         setProducts((current) => [product, ...current]);
         return { success: true, message: "Đã tạo sản phẩm.", data: product };
@@ -1019,12 +1119,14 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         if (updateError) throw updateError;
         await syncProductCategories(id, categoryIds);
         await syncProductImages(id, input.images ?? []);
+        await syncProductVideos(id, input.videos ?? []);
 
         const product = productFromRow(
           data as ProductRow,
           category.name,
           input.images ?? [],
           categoryIds,
+          input.videos ?? [],
         );
         setProducts((current) => current.map((item) => (item.id === id ? product : item)));
         return { success: true, message: "Đã cập nhật sản phẩm.", data: product };
@@ -1048,6 +1150,54 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
       const source = products.find((product) => product.id === id);
       if (!source) return { success: false, message: "Không tìm thấy sản phẩm." };
 
+      const duplicatedImages = (source.images ?? []).map(
+        (image) => ({
+          ...image,
+          id: crypto.randomUUID(),
+        }),
+      );
+      const imageIdMap = new Map(
+        (source.images ?? []).map((image, index) => [
+          image.id,
+          duplicatedImages[index].id,
+        ]),
+      );
+      const duplicatedVideos = (source.videos ?? []).map(
+        (video) => ({
+          ...video,
+          id: crypto.randomUUID(),
+        }),
+      );
+      const videoIdMap = new Map(
+        (source.videos ?? []).map((video, index) => [
+          video.id,
+          duplicatedVideos[index].id,
+        ]),
+      );
+      const duplicatedVariantGroups = source.variantGroups?.map(
+        (group, groupIndex) => ({
+          ...group,
+          options: group.options.map((option) => {
+            const imageId =
+              groupIndex === 0 && option.imageId
+                ? imageIdMap.get(option.imageId)
+                : undefined;
+            const videoId =
+              groupIndex === 0 &&
+              !imageId &&
+              option.videoId
+                ? videoIdMap.get(option.videoId)
+                : undefined;
+
+            return {
+              ...option,
+              imageId,
+              videoId,
+            };
+          }),
+        }),
+      );
+
       const input: ProductInput = {
         name: `${source.name} - Bản sao`,
         slug: uniqueSlug(`${source.slug}-ban-sao`, products),
@@ -1066,8 +1216,9 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         featured: false,
         stock: source.stock,
         description: source.description,
-        images: (source.images ?? []).map((image) => ({ ...image, id: crypto.randomUUID() })),
-        variantGroups: source.variantGroups,
+        images: duplicatedImages,
+        videos: duplicatedVideos,
+        variantGroups: duplicatedVariantGroups,
         status: "hidden",
       };
 
@@ -1111,12 +1262,14 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           categoryIds,
         );
         await syncProductImages(newId, input.images ?? []);
+        await syncProductVideos(newId, input.videos ?? []);
 
         const product = productFromRow(
           data as ProductRow,
           category.name,
           input.images ?? [],
           categoryIds,
+          input.videos ?? [],
         );
         setProducts((current) => [product, ...current]);
         return { success: true, message: "Đã nhân bản sản phẩm.", data: product };
@@ -1151,6 +1304,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
           source.categoryName,
           source.images ?? [],
           source.categoryIds ?? [source.categoryId],
+          source.videos ?? [],
         );
         setProducts((current) => current.map((item) => (item.id === id ? product : item)));
         return { success: true, message: "Đã cập nhật trạng thái sản phẩm.", data: product };

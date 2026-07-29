@@ -14,12 +14,26 @@ export type ProductImage = {
   sortOrder: number;
 };
 
+export type ProductVideo = {
+  id: string;
+  url: string;
+  publicId?: string;
+  posterUrl: string;
+  altText?: string;
+  sortOrder: number;
+  durationSeconds: number;
+  width: number;
+  height: number;
+  bytes: number;
+};
+
 export type ProductVariantOption = {
   id: string;
   label: string;
   priceDelta?: number;
   stock?: number;
   imageId?: string;
+  videoId?: string;
   showPriceDelta?: boolean;
 };
 
@@ -48,6 +62,7 @@ export type Product = {
   stock: number;
   description: string;
   images?: ProductImage[];
+  videos?: ProductVideo[];
   variantGroups?: ProductVariantGroup[];
   status: ProductStatus;
   soldQuantity?: number;

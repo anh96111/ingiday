@@ -11,6 +11,22 @@ export type CloudinaryUploadResult = {
   bytes: number;
 };
 
+export type CloudinaryVideoUploadResult =
+  CloudinaryUploadResult & {
+    posterUrl: string;
+    durationSeconds: number;
+  };
+
+type ProductVideoMetadata = {
+  durationSeconds: number;
+  width: number;
+  height: number;
+};
+
+const MAX_PRODUCT_VIDEO_BYTES = 100_000_000;
+const MAX_PRODUCT_VIDEO_DURATION_SECONDS = 60;
+const PRODUCT_VIDEO_METADATA_TIMEOUT_MS = 15_000;
+
 export type SiteBrandImageKind =
   | "logo"
   | "favicon"
@@ -31,6 +47,126 @@ function ensureCloudinaryConfig() {
       "Thiếu cấu hình Cloudinary trong .env.local.",
     );
   }
+}
+
+function assertProductVideo(file: File) {
+  if (!file.type.startsWith("video/")) {
+    throw new Error(
+      `${file.name} không phải là file video.`,
+    );
+  }
+
+  if (file.size <= 0) {
+    throw new Error(
+      `File ${file.name} đang trống.`,
+    );
+  }
+
+  if (file.size > MAX_PRODUCT_VIDEO_BYTES) {
+    throw new Error(
+      "Video không được vượt quá 100 MB.",
+    );
+  }
+}
+
+function loadProductVideoMetadata(
+  file: File,
+): Promise<ProductVideoMetadata> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    let settled = false;
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      video.onloadedmetadata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+    };
+
+    const finishWithError = (message: string) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error(message));
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      finishWithError(
+        `Không thể đọc thông tin video ${file.name}. Hãy dùng MP4 hoặc WebM.`,
+      );
+    }, PRODUCT_VIDEO_METADATA_TIMEOUT_MS);
+
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+
+    video.onloadedmetadata = () => {
+      const durationSeconds = video.duration;
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+
+      if (
+        !Number.isFinite(durationSeconds) ||
+        durationSeconds <= 0 ||
+        width <= 0 ||
+        height <= 0
+      ) {
+        finishWithError(
+          `Không thể xác định thời lượng hoặc kích thước video ${file.name}.`,
+        );
+        return;
+      }
+
+      if (
+        durationSeconds >
+        MAX_PRODUCT_VIDEO_DURATION_SECONDS
+      ) {
+        finishWithError(
+          "Video sản phẩm không được dài quá 60 giây.",
+        );
+        return;
+      }
+
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({
+        durationSeconds,
+        width,
+        height,
+      });
+    };
+
+    video.onerror = () => {
+      finishWithError(
+        `Trình duyệt không đọc được video ${file.name}. Hãy dùng MP4 hoặc WebM.`,
+      );
+    };
+
+    video.src = objectUrl;
+    video.load();
+  });
+}
+
+function buildProductVideoPosterUrl(
+  videoUrl: string,
+) {
+  if (!videoUrl.includes("/video/upload/")) {
+    return "";
+  }
+
+  const transformed = videoUrl.replace(
+    "/video/upload/",
+    "/video/upload/w_1200,c_limit,q_auto:good/",
+  );
+
+  return transformed.replace(
+    /\.[a-z0-9]+(?=($|\?))/i,
+    ".jpg",
+  );
 }
 
 async function loadImageSource(
@@ -255,6 +391,92 @@ export async function uploadProductImage(
 ): Promise<CloudinaryUploadResult> {
   const optimizedFile = await prepareSquareWebp(file);
   return uploadPreparedImage(optimizedFile);
+}
+
+export async function uploadProductVideo(
+  file: File,
+): Promise<CloudinaryVideoUploadResult> {
+  ensureCloudinaryConfig();
+  assertProductVideo(file);
+
+  const metadata = await loadProductVideoMetadata(file);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  const payload = (await response.json()) as {
+    secure_url?: string;
+    public_id?: string;
+    width?: number;
+    height?: number;
+    bytes?: number;
+    duration?: number;
+    error?: {
+      message?: string;
+    };
+  };
+
+  if (
+    !response.ok ||
+    !payload.secure_url ||
+    !payload.public_id
+  ) {
+    throw new Error(
+      payload.error?.message ||
+        "Không thể tải video lên Cloudinary.",
+    );
+  }
+
+  const durationSeconds =
+    typeof payload.duration ===
+      "number" &&
+    Number.isFinite(payload.duration)
+      ? payload.duration
+      : metadata.durationSeconds;
+  const width = payload.width ?? metadata.width;
+  const height = payload.height ?? metadata.height;
+  const bytes = payload.bytes ?? file.size;
+
+  if (
+    durationSeconds <= 0 ||
+    durationSeconds >
+      MAX_PRODUCT_VIDEO_DURATION_SECONDS ||
+    width <= 0 ||
+    height <= 0 ||
+    bytes <= 0
+  ) {
+    throw new Error(
+      "Cloudinary trả về metadata video không hợp lệ.",
+    );
+  }
+
+  const posterUrl = buildProductVideoPosterUrl(
+    payload.secure_url,
+  );
+
+  if (!posterUrl) {
+    throw new Error(
+      "Không thể tạo ảnh poster cho video.",
+    );
+  }
+
+  return {
+    url: payload.secure_url,
+    publicId: payload.public_id,
+    posterUrl,
+    durationSeconds,
+    width,
+    height,
+    bytes,
+  };
 }
 
 async function prepareWebsiteLogoPng(file: File) {

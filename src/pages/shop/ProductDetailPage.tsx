@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { SyntheticEvent } from "react";
 import {
   Link,
   useNavigate,
@@ -30,6 +31,8 @@ import type {
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import "./ProductDetailPage.css";
+
+const PRODUCT_VIDEO_VOLUME_KEY = "ingiday-product-video-volume";
 
 function BagIcon() {
   return (
@@ -69,6 +72,12 @@ export default function ProductDetailPage() {
   >({});
   const [message, setMessage] = useState("");
   const [selectedImageId, setSelectedImageId] = useState("");
+  const [selectedVideoId, setSelectedVideoId] = useState("");
+  const [videoMuted, setVideoMuted] = useState(true);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [videoVolume, setVideoVolume] = useState(0.3);
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
   const [customOptions, setCustomOptions] =
     useState<ProductCustomOptions | null>(null);
@@ -77,6 +86,8 @@ export default function ProductDetailPage() {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionCanExpand, setDescriptionCanExpand] = useState(false);
   const descriptionRef = useRef<HTMLParagraphElement>(null);
+  const productVideoRef = useRef<HTMLVideoElement>(null);
+  const productVideoUserPausedRef = useRef(false);
   const trackedProductIdRef = useRef("");
 
   usePageMeta({
@@ -100,6 +111,13 @@ export default function ProductDetailPage() {
     setSelections({});
     setMessage("");
     setSelectedImageId("");
+    setSelectedVideoId("");
+    setVideoMuted(true);
+    setVideoPlaying(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
+    setVideoVolume(0.3);
+    productVideoUserPausedRef.current = false;
     setCustomOptions(null);
     setCustomText("");
     setCustomColorId("");
@@ -313,15 +331,54 @@ export default function ProductDetailPage() {
     () => product?.images ?? [],
     [product?.images],
   );
+  const productVideos = useMemo(
+    () => product?.videos ?? [],
+    [product?.videos],
+  );
   const primaryImage =
     productImages.find((image) => image.isPrimary) ??
     productImages[0];
   const selectedVariantImageId =
     selectedVariants.find((variant) => variant.imageId)?.imageId ??
     "";
+  const selectedVariantVideoId = useMemo(() => {
+    if (!product?.variantGroups) {
+      return "";
+    }
+
+    for (const group of product.variantGroups) {
+      const selectedOptionId =
+        selections[group.id] ?? group.options[0]?.id;
+      const option = group.options.find(
+        (item) => item.id === selectedOptionId,
+      );
+
+      if (option?.videoId) {
+        return option.videoId;
+      }
+    }
+
+    return "";
+  }, [product, selections]);
 
   useEffect(() => {
     if (!product) {
+      return;
+    }
+
+    const hasVariantVideo = productVideos.some(
+      (video) => video.id === selectedVariantVideoId,
+    );
+
+    if (hasVariantVideo) {
+      productVideoUserPausedRef.current = false;
+      setIsImageZoomOpen(false);
+      setVideoMuted(true);
+      setVideoPlaying(false);
+      setVideoCurrentTime(0);
+      setVideoDuration(0);
+      setSelectedImageId("");
+      setSelectedVideoId(selectedVariantVideoId);
       return;
     }
 
@@ -329,10 +386,276 @@ export default function ProductDetailPage() {
       (image) => image.id === selectedVariantImageId,
     );
 
+    productVideoUserPausedRef.current = true;
+    setVideoMuted(true);
+    setVideoPlaying(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
+    setSelectedVideoId("");
     setSelectedImageId(
-      hasVariantImage ? selectedVariantImageId : (primaryImage?.id ?? ""),
+      hasVariantImage
+        ? selectedVariantImageId
+        : (primaryImage?.id ?? ""),
     );
-  }, [product, primaryImage, productImages, selectedVariantImageId]);
+  }, [
+    primaryImage,
+    product,
+    productImages,
+    productVideos,
+    selectedVariantImageId,
+    selectedVariantVideoId,
+  ]);
+
+  const selectedVideo =
+    productVideos.find(
+      (video) => video.id === selectedVideoId,
+    );
+
+  useEffect(() => {
+    const video = productVideoRef.current;
+
+    if (!selectedVideoId || !video) {
+      return undefined;
+    }
+
+    let isInViewport = true;
+
+    const playWhenAllowed = () => {
+      if (
+        !document.hidden &&
+        isInViewport &&
+        !productVideoUserPausedRef.current
+      ) {
+        void video.play().catch(() => undefined);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        video.pause();
+        return;
+      }
+
+      playWhenAllowed();
+    };
+
+    const observer =
+      "IntersectionObserver" in window
+        ? new IntersectionObserver(
+            ([entry]) => {
+              isInViewport = entry?.isIntersecting ?? false;
+
+              if (!isInViewport) {
+                video.pause();
+                return;
+              }
+
+              playWhenAllowed();
+            },
+            {
+              threshold: 0.2,
+            },
+          )
+        : null;
+
+    observer?.observe(video);
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+    playWhenAllowed();
+
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [selectedVideoId]);
+
+  function getRememberedProductVideoVolume() {
+    const storedVolume = Number(
+      window.sessionStorage.getItem(
+        PRODUCT_VIDEO_VOLUME_KEY,
+      ),
+    );
+
+    return Number.isFinite(storedVolume) &&
+      storedVolume > 0 &&
+      storedVolume <= 1
+      ? storedVolume
+      : 0.3;
+  }
+
+  function formatProductVideoTime(value: number) {
+    if (!Number.isFinite(value) || value < 0) {
+      return "0:00";
+    }
+
+    const totalSeconds = Math.floor(value);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  function handleProductVideoLoadedMetadata(
+    event: SyntheticEvent<HTMLVideoElement>,
+  ) {
+    const video = event.currentTarget;
+    const nextDuration = Number.isFinite(video.duration)
+      ? video.duration
+      : 0;
+    const rememberedVolume =
+      getRememberedProductVideoVolume();
+
+    video.volume = rememberedVolume;
+    setVideoVolume(rememberedVolume);
+    setVideoDuration(nextDuration);
+    setVideoCurrentTime(video.currentTime || 0);
+  }
+
+  function handleProductVideoTimeUpdate(
+    event: SyntheticEvent<HTMLVideoElement>,
+  ) {
+    setVideoCurrentTime(event.currentTarget.currentTime);
+  }
+
+  function handleProductVideoVolumeChange(
+    event: SyntheticEvent<HTMLVideoElement>,
+  ) {
+    const video = event.currentTarget;
+    const nextVolume = Math.min(
+      1,
+      Math.max(0, video.volume),
+    );
+    const nextMuted =
+      video.muted || nextVolume === 0;
+
+    setVideoMuted(nextMuted);
+    setVideoVolume(nextVolume);
+
+    if (!nextMuted && nextVolume > 0) {
+      window.sessionStorage.setItem(
+        PRODUCT_VIDEO_VOLUME_KEY,
+        String(nextVolume),
+      );
+    }
+  }
+
+  function toggleProductVideoPlayback() {
+    const video = productVideoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.paused || video.ended) {
+      if (video.ended) {
+        video.currentTime = 0;
+        setVideoCurrentTime(0);
+      }
+
+      productVideoUserPausedRef.current = false;
+      void video.play().catch(() => undefined);
+      return;
+    }
+
+    productVideoUserPausedRef.current = true;
+    video.pause();
+  }
+
+  function toggleProductVideoMute() {
+    const video = productVideoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.muted || video.volume === 0) {
+      const nextVolume =
+        getRememberedProductVideoVolume();
+
+      video.volume = nextVolume;
+      video.muted = false;
+      setVideoVolume(nextVolume);
+      setVideoMuted(false);
+      window.sessionStorage.setItem(
+        PRODUCT_VIDEO_VOLUME_KEY,
+        String(nextVolume),
+      );
+      return;
+    }
+
+    video.muted = true;
+    setVideoMuted(true);
+  }
+
+  function changeProductVideoVolume(value: number) {
+    const video = productVideoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    const nextVolume = Math.min(
+      1,
+      Math.max(0, value),
+    );
+
+    video.volume = nextVolume;
+    video.muted = nextVolume === 0;
+    setVideoVolume(nextVolume);
+    setVideoMuted(nextVolume === 0);
+
+    if (nextVolume > 0) {
+      window.sessionStorage.setItem(
+        PRODUCT_VIDEO_VOLUME_KEY,
+        String(nextVolume),
+      );
+    }
+  }
+
+  function seekProductVideo(value: number) {
+    const video = productVideoRef.current;
+
+    if (!video || !Number.isFinite(video.duration)) {
+      return;
+    }
+
+    const nextTime = Math.min(
+      video.duration,
+      Math.max(0, value),
+    );
+
+    video.currentTime = nextTime;
+    setVideoCurrentTime(nextTime);
+  }
+  function selectProductImage(imageId: string) {
+    productVideoUserPausedRef.current = true;
+    setIsImageZoomOpen(false);
+    setVideoMuted(true);
+    setVideoPlaying(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
+    setSelectedVideoId("");
+    setSelectedImageId(imageId);
+  }
+
+  function selectProductVideo(videoId: string) {
+    productVideoUserPausedRef.current = false;
+    setIsImageZoomOpen(false);
+    setVideoMuted(true);
+    setVideoPlaying(false);
+    setVideoCurrentTime(0);
+    setVideoDuration(0);
+    setSelectedImageId("");
+    setSelectedVideoId(videoId);
+  }
 
   useEffect(() => {
     if (
@@ -408,10 +731,11 @@ export default function ProductDetailPage() {
     );
   }
 
-  const selectedImage =
-    productImages.find(
-      (image) => image.id === selectedImageId,
-    ) ?? primaryImage;
+  const selectedImage = selectedVideo
+    ? undefined
+    : productImages.find(
+        (image) => image.id === selectedImageId,
+      ) ?? primaryImage;
 
   const variantStocks = selectedVariants
     .map((variant) => variant.stock)
@@ -515,37 +839,46 @@ export default function ProductDetailPage() {
         <section className="product-detail__main">
           <div className="product-detail__gallery">
             <div
-              className="product-detail__image-stage"
-          role={selectedImage ? "button" : undefined}
-          tabIndex={selectedImage ? 0 : -1}
-          aria-label={
-            selectedImage
-              ? "Phóng to ảnh sản phẩm"
-              : undefined
-          }
-          onClick={() => {
-            if (selectedImage) {
-              setIsImageZoomOpen(true);
-            }
-          }}
-          onKeyDown={(event) => {
-            if (
-              selectedImage &&
-              (event.key === "Enter" || event.key === " ")
-            ) {
-              event.preventDefault();
-              setIsImageZoomOpen(true);
-            }
-          }}
+              className={`product-detail__image-stage ${
+                selectedVideo ? "is-video" : ""
+              }`}
+              role={selectedImage ? "button" : undefined}
+              tabIndex={selectedImage ? 0 : -1}
+              aria-label={
+                selectedImage
+                  ? "Phóng to ảnh sản phẩm"
+                  : selectedVideo
+                    ? `Video sản phẩm ${product.name}`
+                    : undefined
+              }
+              onClick={() => {
+                if (selectedImage) {
+                  setIsImageZoomOpen(true);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (
+                  selectedImage &&
+                  (event.key === "Enter" || event.key === " ")
+                ) {
+                  event.preventDefault();
+                  setIsImageZoomOpen(true);
+                }
+              }}
               style={{
-                backgroundColor:
-                  product.background || "var(--sf-cream)",
+                backgroundColor: selectedVideo
+                  ? "#111111"
+                  : product.background || "var(--sf-cream)",
               }}
             >
-              <span className="product-detail__image-orbit" />
-              <span className="product-detail__image-spark">
-                ✦
-              </span>
+              {!selectedVideo && (
+                <>
+                  <span className="product-detail__image-orbit" />
+                  <span className="product-detail__image-spark">
+                    ✦
+                  </span>
+                </>
+              )}
 
               {product.badge && (
                 <span className="product-detail__badge">
@@ -554,12 +887,136 @@ export default function ProductDetailPage() {
               )}
 
               {selectedImage && (
-          <span className="product-detail__zoom-hint">
-            <span aria-hidden="true">⌕</span>
-            Nhấn để phóng to
-          </span>
-        )}
-        {selectedImage ? (
+                <span className="product-detail__zoom-hint">
+                  <span aria-hidden="true">↗</span>
+                  Nhấn để phóng to
+                </span>
+              )}
+
+              {selectedVideo ? (
+                <div className="product-detail__video-frame">
+                  <video
+                    key={selectedVideo.id}
+                    ref={productVideoRef}
+                    src={selectedVideo.url}
+                    poster={selectedVideo.posterUrl}
+                    autoPlay
+                    muted={videoMuted}
+                    playsInline
+                    preload="metadata"
+                    onLoadedMetadata={
+                      handleProductVideoLoadedMetadata
+                    }
+                    onTimeUpdate={
+                      handleProductVideoTimeUpdate
+                    }
+                    onVolumeChange={
+                      handleProductVideoVolumeChange
+                    }
+                    onPlay={() => setVideoPlaying(true)}
+                    onPause={() => setVideoPlaying(false)}
+                    onEnded={() => {
+                      productVideoUserPausedRef.current = true;
+                      setVideoPlaying(false);
+                    }}
+                    aria-label={
+                      selectedVideo.altText ||
+                      `Video sản phẩm ${product.name}`
+                    }
+                    className="product-detail__video"
+                  >
+                    Trình duyệt không hỗ trợ video.
+                  </video>
+
+                  <div
+                    className="product-detail__video-controls"
+                    aria-label="Điều khiển video"
+                  >
+                    <button
+                      type="button"
+                      onClick={toggleProductVideoPlayback}
+                      aria-label={
+                        videoPlaying
+                          ? "Tạm dừng video"
+                          : "Phát video"
+                      }
+                      title={
+                        videoPlaying
+                          ? "Tạm dừng"
+                          : "Phát video"
+                      }
+                    >
+                      {videoPlaying ? "❚❚" : "▶"}
+                    </button>
+
+                    <input
+                      className="product-detail__video-seek"
+                      type="range"
+                      min="0"
+                      max={Math.max(videoDuration, 0)}
+                      step="0.1"
+                      value={Math.min(
+                        videoCurrentTime,
+                        Math.max(videoDuration, 0),
+                      )}
+                      disabled={videoDuration <= 0}
+                      onChange={(event) =>
+                        seekProductVideo(
+                          Number(event.currentTarget.value),
+                        )
+                      }
+                      aria-label="Tua video"
+                    />
+
+                    <span className="product-detail__video-time">
+                      {formatProductVideoTime(videoCurrentTime)}
+                      {" / "}
+                      {formatProductVideoTime(videoDuration)}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={toggleProductVideoMute}
+                      aria-label={
+                        videoMuted || videoVolume === 0
+                          ? "Bật tiếng"
+                          : "Tắt tiếng"
+                      }
+                      title={
+                        videoMuted || videoVolume === 0
+                          ? "Bật tiếng"
+                          : "Tắt tiếng"
+                      }
+                    >
+                      {videoMuted || videoVolume === 0
+                        ? "🔇"
+                        : "🔊"}
+                    </button>
+
+                    <input
+                      className="product-detail__video-volume"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={videoMuted ? 0 : videoVolume}
+                      onChange={(event) =>
+                        changeProductVideoVolume(
+                          Number(event.currentTarget.value),
+                        )
+                      }
+                      aria-label="Âm lượng video"
+                    />
+
+                    <span className="product-detail__video-volume-value">
+                      {Math.round(
+                        (videoMuted ? 0 : videoVolume) * 100,
+                      )}
+                      %
+                    </span>
+                  </div>
+                </div>
+              ) : selectedImage ? (
                 <img
                   src={optimizeCloudinaryUrl(
                     selectedImage.url,
@@ -587,19 +1044,20 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {productImages.length > 1 && (
+            {productImages.length + productVideos.length > 1 && (
               <div
                 className="product-detail__thumbnails"
-                aria-label="Ảnh sản phẩm"
+                aria-label="Ảnh và video sản phẩm"
               >
                 {productImages.map((image, index) => (
                   <button
                     key={image.id}
                     type="button"
                     onClick={() =>
-                      setSelectedImageId(image.id)
+                      selectProductImage(image.id)
                     }
                     className={
+                      !selectedVideo &&
                       selectedImage?.id === image.id
                         ? "is-active"
                         : ""
@@ -619,6 +1077,42 @@ export default function ProductDetailPage() {
                       loading="lazy"
                       decoding="async"
                     />
+                  </button>
+                ))}
+
+                {productVideos.map((video, index) => (
+                  <button
+                    key={video.id}
+                    type="button"
+                    onClick={() =>
+                      selectProductVideo(video.id)
+                    }
+                    className={`is-video-thumbnail ${
+                      selectedVideo?.id === video.id
+                        ? "is-active"
+                        : ""
+                    }`}
+                    aria-label={`Xem video ${
+                      index + 1
+                    } của ${product.name}`}
+                  >
+                    <img
+                      src={optimizeCloudinaryUrl(
+                        video.posterUrl,
+                        180,
+                      )}
+                      alt=""
+                      width="180"
+                      height="180"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <span
+                      className="product-detail__video-play"
+                      aria-hidden="true"
+                    >
+                      ▶
+                    </span>
                   </button>
                 ))}
               </div>

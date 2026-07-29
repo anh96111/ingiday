@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ProductImageManager from "../../components/admin/ProductImageManager";
+import ProductVideoManager from "../../components/admin/ProductVideoManager";
 import { useStoreData } from "../../features/admin/StoreDataContext";
 import {
   getProductAdAssignments,
@@ -25,7 +26,7 @@ import type {
   CustomOptionColor,
   ProductCustomOptionsInput,
 } from "../../types/customProductOptions";
-import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup, ProductVariantOption } from "../../types/product";
+import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup, ProductVariantOption, ProductVideo } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import { slugify } from "../../utils/slug";
 
@@ -43,6 +44,7 @@ type ProductFormState = {
   stockNote: string;
   description: string;
   images: ProductImage[];
+  videos: ProductVideo[];
   featured: boolean;
   status: ProductStatus;
   variantGroups: ProductVariantGroup[];
@@ -61,24 +63,43 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function sanitizeVariantOptionsForImages(
+function sanitizeVariantOptionsForMedia(
   variantGroups: ProductVariantGroup[],
   images: ProductImage[],
+  videos: ProductVideo[],
 ) {
-  const validImageIds = new Set(images.map((image) => image.id));
+  const validImageIds = new Set(
+    images.map((image) => image.id),
+  );
+  const validVideoIds = new Set(
+    videos.map((video) => video.id),
+  );
 
   return variantGroups.map((group, groupIndex) => ({
     ...group,
-    options: group.options.map((option) => ({
-      ...option,
-      imageId:
+    options: group.options.map((option) => {
+      const imageId =
         groupIndex === 0 &&
         option.imageId &&
         validImageIds.has(option.imageId)
           ? option.imageId
-          : undefined,
-      showPriceDelta: option.showPriceDelta !== false,
-    })),
+          : undefined;
+      const videoId =
+        groupIndex === 0 &&
+        !imageId &&
+        option.videoId &&
+        validVideoIds.has(option.videoId)
+          ? option.videoId
+          : undefined;
+
+      return {
+        ...option,
+        imageId,
+        videoId,
+        showPriceDelta:
+          option.showPriceDelta !== false,
+      };
+    }),
   }));
 }
 
@@ -112,14 +133,16 @@ function createInitialState(product?: Product): ProductFormState {
     stockNote: product?.stockNote ?? "",
     description: product?.description ?? "",
     images: product?.images?.map((image) => ({ ...image })) ?? [],
+    videos: product?.videos?.map((video) => ({ ...video })) ?? [],
     featured: product?.featured ?? false,
     status: product?.status ?? "active",
-    variantGroups: sanitizeVariantOptionsForImages(
+    variantGroups: sanitizeVariantOptionsForMedia(
       product?.variantGroups?.map((group) => ({
         ...group,
         options: group.options.map((option) => ({ ...option })),
       })) ?? [],
       product?.images ?? [],
+      product?.videos ?? [],
     ),
   };
 }
@@ -168,6 +191,7 @@ export default function ProductFormPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingVideos, setUploadingVideos] = useState(false);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
   const [adSources, setAdSources] = useState<AdDataSource[]>([]);
   const [adAssignments, setAdAssignments] = useState<ProductAdAssignments>({
@@ -345,19 +369,44 @@ export default function ProductFormPage() {
     }));
   }
 
-  function updateVariantOptionImage(groupIndex: number, optionIndex: number, imageId: string) {
+  function updateVariantOptionMedia(
+    groupIndex: number,
+    optionIndex: number,
+    mediaValue: string,
+  ) {
+    const imageId = mediaValue.startsWith(
+      "image:",
+    )
+      ? mediaValue.slice("image:".length)
+      : undefined;
+    const videoId = mediaValue.startsWith(
+      "video:",
+    )
+      ? mediaValue.slice("video:".length)
+      : undefined;
+
     setForm((current) => ({
       ...current,
-      variantGroups: current.variantGroups.map((group, index) => index === groupIndex ? {
-        ...group,
-        options: group.options.map((option, currentOptionIndex) => currentOptionIndex === optionIndex ? {
-          ...option,
-          imageId: imageId || undefined,
-        } : option),
-      } : group),
+      variantGroups: current.variantGroups.map(
+        (group, index) =>
+          index === groupIndex
+            ? {
+                ...group,
+                options: group.options.map(
+                  (option, currentOptionIndex) =>
+                    currentOptionIndex === optionIndex
+                      ? {
+                          ...option,
+                          imageId,
+                          videoId,
+                        }
+                      : option,
+                ),
+              }
+            : group,
+      ),
     }));
   }
-
   function updateVariantOptionPriceVisibility(groupIndex: number, optionIndex: number, showPriceDelta: boolean) {
     setForm((current) => ({
       ...current,
@@ -486,8 +535,10 @@ export default function ProductFormPage() {
     event.preventDefault();
     setError("");
 
-    if (uploadingImages) {
-      setError("Vui lòng chờ tải ảnh hoàn tất.");
+    if (uploadingImages || uploadingVideos) {
+      setError(
+        "Vui lòng chờ tải ảnh hoặc video hoàn tất.",
+      );
       return;
     }
 
@@ -575,7 +626,12 @@ export default function ProductFormPage() {
       }
     }
 
-    const validImageIds = new Set(form.images.map((image) => image.id));
+    const validImageIds = new Set(
+      form.images.map((image) => image.id),
+    );
+    const validVideoIds = new Set(
+      form.videos.map((video) => video.id),
+    );
     const variantGroups = form.variantGroups
       .map((group, groupIndex) => ({
         ...group,
@@ -594,6 +650,16 @@ export default function ProductFormPage() {
               option.imageId &&
               validImageIds.has(option.imageId)
                 ? option.imageId
+                : undefined,
+            videoId:
+              groupIndex === 0 &&
+              !(
+                option.imageId &&
+                validImageIds.has(option.imageId)
+              ) &&
+              option.videoId &&
+              validVideoIds.has(option.videoId)
+                ? option.videoId
                 : undefined,
             showPriceDelta: option.showPriceDelta !== false,
           })),
@@ -619,6 +685,7 @@ export default function ProductFormPage() {
       stock,
       description: form.description.trim(),
       images: form.images.map((image, index) => ({ ...image, sortOrder: index })),
+      videos: form.videos.map((video, index) => ({ ...video, sortOrder: index })),
       variantGroups: variantGroups.length > 0 ? variantGroups : undefined,
       status,
     };
@@ -690,7 +757,7 @@ export default function ProductFormPage() {
           <button
             type="submit"
             form="product-form"
-            disabled={saving || uploadingImages}
+            disabled={saving || uploadingImages || uploadingVideos}
             className="inline-flex min-h-11 items-center rounded-2xl bg-[#006397] px-5 font-bold text-white shadow-sm transition hover:bg-[#004c73] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving
@@ -875,7 +942,27 @@ export default function ProductFormPage() {
             onChange={(images) => setForm((current) => ({
               ...current,
               images,
-              variantGroups: sanitizeVariantOptionsForImages(current.variantGroups, images),
+              variantGroups: sanitizeVariantOptionsForMedia(
+                current.variantGroups,
+                images,
+                current.videos,
+              ),
+            }))}
+          />
+
+          <ProductVideoManager
+            videos={form.videos}
+            productName={form.name}
+            disabled={saving}
+            onUploadingChange={setUploadingVideos}
+            onChange={(videos) => setForm((current) => ({
+              ...current,
+              videos,
+              variantGroups: sanitizeVariantOptionsForMedia(
+                current.variantGroups,
+                current.images,
+                videos,
+              ),
             }))}
           />
         <article className="rounded-3xl bg-white p-6 shadow-sm">
@@ -1122,22 +1209,68 @@ export default function ProductFormPage() {
                         <div className={`grid gap-3 ${groupIndex === 0 ? "lg:grid-cols-[minmax(0,240px)_1fr]" : ""}`}>
                           {groupIndex === 0 && (
                             <label className="text-sm font-bold">
-                              Ảnh đại diện khi khách chọn
+                              Ảnh hoặc video khi khách chọn
                               <select
-                                value={option.imageId ?? ""}
-                                onChange={(event) => updateVariantOptionImage(groupIndex, optionIndex, event.target.value)}
+                                value={
+                                  option.imageId
+                                    ? `image:${option.imageId}`
+                                    : option.videoId
+                                      ? `video:${option.videoId}`
+                                      : ""
+                                }
+                                onChange={(event) =>
+                                  updateVariantOptionMedia(
+                                    groupIndex,
+                                    optionIndex,
+                                    event.target.value,
+                                  )
+                                }
                                 className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-white px-3 font-normal outline-none focus:border-[#006397]"
                               >
-                                <option value="">Dùng ảnh mặc định của sản phẩm</option>
-                                {form.images.map((image, imageIndex) => (
-                                  <option key={image.id} value={image.id}>
-                                    {image.altText?.trim() || `Ảnh ${imageIndex + 1}`}
-                                    {image.isPrimary ? " (ảnh chính)" : ""}
-                                  </option>
-                                ))}
+                                <option value="">
+                                  Dùng media mặc định của sản phẩm
+                                </option>
+
+                                {form.images.length > 0 && (
+                                  <optgroup label="Ảnh sản phẩm">
+                                    {form.images.map(
+                                      (image, imageIndex) => (
+                                        <option
+                                          key={image.id}
+                                          value={`image:${image.id}`}
+                                        >
+                                          {image.altText?.trim() ||
+                                            `Ảnh ${imageIndex + 1}`}
+                                          {image.isPrimary
+                                            ? " (ảnh chính)"
+                                            : ""}
+                                        </option>
+                                      ),
+                                    )}
+                                  </optgroup>
+                                )}
+
+                                {form.videos.length > 0 && (
+                                  <optgroup label="Video sản phẩm">
+                                    {form.videos.map(
+                                      (video, videoIndex) => (
+                                        <option
+                                          key={video.id}
+                                          value={`video:${video.id}`}
+                                        >
+                                          {video.altText?.trim() ||
+                                            `Video ${videoIndex + 1}`}
+                                        </option>
+                                      ),
+                                    )}
+                                  </optgroup>
+                                )}
                               </select>
                               <span className="mt-2 block text-xs font-normal leading-5 text-[#707881]">
-                                Chỉ nhóm biến thể đầu tiên mới được gán ảnh đại diện. Nếu xóa ảnh này khỏi sản phẩm, liên kết sẽ tự được bỏ.
+                                Chỉ nhóm biến thể đầu tiên được gắn
+                                media. Mỗi lựa chọn chỉ dùng một ảnh,
+                                một video hoặc media mặc định. Khi xóa
+                                media, liên kết sẽ tự được bỏ.
                               </span>
                             </label>
                           )}
