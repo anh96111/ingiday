@@ -4,6 +4,7 @@ import type {
   Category,
   Product,
   ProductImage,
+  ProductVideo,
   ProductSearchFilters,
   ProductSearchResult,
   ProductStatus,
@@ -61,6 +62,19 @@ type ProductImageRow = {
   is_primary: boolean;
 };
 
+type ProductVideoRow = {
+  id: string;
+  video_url: string;
+  public_id: string | null;
+  poster_url: string;
+  alt_text: string | null;
+  sort_order: number;
+  duration_seconds: number | string;
+  width: number;
+  height: number;
+  bytes: number | string;
+};
+
 type ProductDetailRow = {
   id: string;
   category_id: string | null;
@@ -80,6 +94,7 @@ type ProductDetailRow = {
     | Array<{ name?: string }>
     | null;
   product_images: ProductImageRow[] | null;
+  product_videos: ProductVideoRow[] | null;
 };
 
 type FetchOptions = {
@@ -185,6 +200,23 @@ function imageFromRow(
   };
 }
 
+function videoFromRow(
+  row: ProductVideoRow,
+): ProductVideo {
+  return {
+    id: row.id,
+    url: row.video_url,
+    publicId: row.public_id ?? undefined,
+    posterUrl: row.poster_url,
+    altText: row.alt_text ?? undefined,
+    sortOrder: row.sort_order,
+    durationSeconds: Number(row.duration_seconds),
+    width: row.width,
+    height: row.height,
+    bytes: Number(row.bytes),
+  };
+}
+
 function productFromCatalogRow(
   row: CatalogRpcRow,
 ): Product {
@@ -245,6 +277,12 @@ function productFromDetailRow(
         left.sort_order - right.sort_order,
     )
     .map(imageFromRow);
+  const videos = [...(row.product_videos ?? [])]
+    .sort(
+      (left, right) =>
+        left.sort_order - right.sort_order,
+    )
+    .map(videoFromRow);
 
   return {
     id: row.id,
@@ -266,6 +304,7 @@ function productFromDetailRow(
     stock: row.stock,
     description: row.description ?? "",
     images,
+    videos,
     variantGroups: metadata.variantGroups,
     status: productStatus(row.status),
     createdAt: row.created_at,
@@ -657,6 +696,18 @@ export async function fetchProductBySlug(
             alt_text,
             sort_order,
             is_primary
+          ),
+          product_videos (
+            id,
+            video_url,
+            public_id,
+            poster_url,
+            alt_text,
+            sort_order,
+            duration_seconds,
+            width,
+            height,
+            bytes
           )
         `)
         .eq("slug", normalizedSlug)
