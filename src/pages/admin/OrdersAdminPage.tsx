@@ -29,6 +29,7 @@ const PAGE_SIZE = 50;
 
 const statusLabels: Record<OrderStatus, string> = {
   new: "Đơn mới",
+  unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
   shipping: "Đang giao",
@@ -38,6 +39,7 @@ const statusLabels: Record<OrderStatus, string> = {
 
 const statusClasses: Record<OrderStatus, string> = {
   new: "bg-[#edf4ff] text-[#006397]",
+  unreachable: "bg-[#f2edff] text-[#6241a5]",
   confirmed: "bg-[#fff1b8] text-[#7a5200]",
   preparing: "bg-[#ffe8dc] text-[#a43c12]",
   shipping: "bg-[#e7e4ff] text-[#493b9f]",
@@ -275,14 +277,18 @@ export default function OrdersAdminPage() {
     exportedCount: number,
     skippedShippingCount: number,
     skippedCompletedCount: number,
+    skippedUnreachableCount: number,
   ) {
     setSpxExportOpen(false);
     setSelectedIds([]);
     setMessageSuccess(true);
     setMessage(
       `Đã xuất ${exportedCount} đơn SPX và chuyển sang Đang giao.${
-        skippedShippingCount + skippedCompletedCount > 0
-          ? ` Đã loại ${skippedShippingCount} đơn Đang giao và ${skippedCompletedCount} đơn Thành công.`
+        skippedShippingCount +
+          skippedCompletedCount +
+          skippedUnreachableCount >
+        0
+          ? ` Đã loại ${skippedUnreachableCount} đơn Không gọi được, ${skippedShippingCount} đơn Đang giao và ${skippedCompletedCount} đơn Thành công.`
           : ""
       }`,
     );

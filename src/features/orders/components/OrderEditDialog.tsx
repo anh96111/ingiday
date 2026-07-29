@@ -23,6 +23,7 @@ type EditItem = AdminOrderItemInput & {
 
 const statusLabels: Record<OrderStatus, string> = {
   new: "Đơn mới",
+  unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
   shipping: "Đang giao",

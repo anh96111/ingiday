@@ -10,6 +10,7 @@ import { formatCurrency } from "../../utils/currency";
 
 const statusLabels: Record<OrderStatus, string> = {
   new: "Đơn mới",
+  unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
   shipping: "Đang giao",
@@ -91,6 +92,7 @@ export default function OrderDetailPage() {
             className="ml-3 h-12 rounded-2xl border border-[#d7dee6] bg-white px-4 outline-none disabled:opacity-60"
           >
             <option value="new">Đơn mới</option>
+            <option value="unreachable">Không gọi được</option>
             <option value="confirmed">Đã xác nhận</option>
             <option value="preparing">Đang chuẩn bị</option>
             <option value="shipping">Đang giao</option>

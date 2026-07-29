@@ -377,6 +377,7 @@ function parseAdminPageIds(value: unknown, fallbackPage: number, fallbackPageSiz
 
 const ORDER_STATUSES: OrderStatus[] = [
   "new",
+  "unreachable",
   "confirmed",
   "preparing",
   "shipping",
