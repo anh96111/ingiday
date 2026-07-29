@@ -6,6 +6,7 @@ import AddressNormalizationDialog from "../../features/orders/components/Address
 import DuplicatePhoneOrdersDialog from "../../features/orders/components/DuplicatePhoneOrdersDialog";
 import OrderEditDialog from "../../features/orders/components/OrderEditDialog";
 import SpxExportDialog from "../../features/orders/components/SpxExportDialog";
+import SpxReconciliationDialog from "../../features/orders/components/SpxReconciliationDialog";
 import {
   normalizedAddressStatusClass,
   normalizedAddressStatusLabel,
@@ -61,6 +62,7 @@ export default function OrdersAdminPage() {
     error,
     loadOrderPage,
     loadDuplicatePhoneOrders,
+    loadOrdersByPhones,
     bulkUpdateOrderStatus,
     bulkDeleteOrders,
     saveNormalizedAddresses,
@@ -82,6 +84,7 @@ export default function OrdersAdminPage() {
   const [reloadToken, setReloadToken] = useState(0);
   const [normalizationOpen, setNormalizationOpen] = useState(false);
   const [spxExportOpen, setSpxExportOpen] = useState(false);
+  const [spxReconciliationOpen, setSpxReconciliationOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<StoreOrder | null>(null);
   const [duplicatePhone, setDuplicatePhone] = useState("");
 
@@ -268,6 +271,31 @@ export default function OrdersAdminPage() {
     return result;
   }
 
+  function handleSpxExported(
+    exportedCount: number,
+    skippedShippingCount: number,
+    skippedCompletedCount: number,
+  ) {
+    setSpxExportOpen(false);
+    setSelectedIds([]);
+    setMessageSuccess(true);
+    setMessage(
+      `Đã xuất ${exportedCount} đơn SPX và chuyển sang Đang giao.${
+        skippedShippingCount + skippedCompletedCount > 0
+          ? ` Đã loại ${skippedShippingCount} đơn Đang giao và ${skippedCompletedCount} đơn Thành công.`
+          : ""
+      }`,
+    );
+    setReloadToken((current) => current + 1);
+  }
+
+  function handleSpxReconciliationApplied(updatedCount: number) {
+    setMessageSuccess(true);
+    setMessage(`Đã so khớp và cập nhật ${updatedCount} đơn hàng từ SPX.`);
+    setSelectedIds([]);
+    setReloadToken((current) => current + 1);
+  }
+
   return (
     <section>
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -280,14 +308,24 @@ export default function OrdersAdminPage() {
           </h1>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setReloadToken((current) => current + 1)}
-          disabled={pageLoading || busy}
-          className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:opacity-60"
-        >
-          Làm mới
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setSpxReconciliationOpen(true)}
+            disabled={pageLoading || busy}
+            className="rounded-xl bg-[#e7e4ff] px-4 py-3 text-sm font-bold text-[#493b9f] disabled:opacity-60"
+          >
+            So khớp SPX
+          </button>
+          <button
+            type="button"
+            onClick={() => setReloadToken((current) => current + 1)}
+            disabled={pageLoading || busy}
+            className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:opacity-60"
+          >
+            Làm mới
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -612,6 +650,17 @@ export default function OrdersAdminPage() {
         <SpxExportDialog
           orders={selectedOrders}
           onClose={() => setSpxExportOpen(false)}
+          onMarkShipping={bulkUpdateOrderStatus}
+          onExported={handleSpxExported}
+        />
+      )}
+
+      {spxReconciliationOpen && (
+        <SpxReconciliationDialog
+          onClose={() => setSpxReconciliationOpen(false)}
+          loadOrdersByPhones={loadOrdersByPhones}
+          updateOrderStatusBatch={bulkUpdateOrderStatus}
+          onApplied={handleSpxReconciliationApplied}
         />
       )}
 

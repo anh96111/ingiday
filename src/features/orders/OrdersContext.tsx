@@ -17,6 +17,7 @@ import type {
   StoreOrder,
 } from "../../types/store";
 import { normalizeUtmAttribution } from "../../utils/utmAttribution";
+import type { SpxReconciliationOrder } from "./spxReconciliation";
 
 type OrdersActionResult<T = undefined> = {
   success: boolean;
@@ -110,6 +111,16 @@ type AdminPageIdsResult = {
   pageSize: number;
 };
 
+type ReconciliationOrderRow = {
+  id: string;
+  order_code: string;
+  customer_name: string;
+  customer_phone: string;
+  total_amount: number | string;
+  status: OrderStatus;
+  created_at: string;
+};
+
 type OrdersContextValue = {
   orders: StoreOrder[];
   loading: boolean;
@@ -119,6 +130,9 @@ type OrdersContextValue = {
   loadDuplicatePhoneOrders: (
     phone: string,
   ) => Promise<OrdersActionResult<DuplicatePhoneOrderSummary[]>>;
+  loadOrdersByPhones: (
+    phones: string[],
+  ) => Promise<OrdersActionResult<SpxReconciliationOrder[]>>;
   bulkUpdateOrderStatus: (ids: string[], status: OrderStatus) => Promise<OrdersActionResult>;
   bulkDeleteOrders: (ids: string[]) => Promise<OrdersActionResult>;
   saveNormalizedAddresses: (
@@ -666,6 +680,88 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
             message: errorMessage(
               actionError,
               "Không thể tải danh sách đơn hàng trùng SĐT.",
+            ),
+          };
+        }
+      },
+
+      async loadOrdersByPhones(phones) {
+        const normalizedPhones = [
+          ...new Set(
+            phones
+              .map((phone) => phone.replace(/\D/g, ""))
+              .filter((phone) => /^0[35789]\d{8}$/.test(phone)),
+          ),
+        ];
+
+        if (normalizedPhones.length === 0) {
+          return {
+            success: true,
+            message: "Không có số điện thoại hợp lệ để so khớp.",
+            data: [],
+          };
+        }
+
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session) {
+            throw new Error("Phiên đăng nhập quản trị đã hết hạn.");
+          }
+
+          const rows: ReconciliationOrderRow[] = [];
+
+          for (let index = 0; index < normalizedPhones.length; index += 50) {
+            const batch = normalizedPhones.slice(index, index + 50);
+            const { data, error: queryError } = await supabase
+              .from("orders")
+              .select(`
+                id,
+                order_code,
+                customer_name,
+                customer_phone,
+                total_amount,
+                status,
+                created_at
+              `)
+              .in("customer_phone", batch);
+
+            if (queryError) throw queryError;
+
+            rows.push(...((data ?? []) as unknown as ReconciliationOrderRow[]));
+          }
+
+          const matchedOrders = rows
+            .map(
+              (row): SpxReconciliationOrder => ({
+                id: row.id,
+                code: row.order_code,
+                customerName: row.customer_name,
+                phone: row.customer_phone,
+                status: row.status,
+                total: Number(row.total_amount),
+                createdAt: row.created_at,
+              }),
+            )
+            .sort(
+              (left, right) =>
+                new Date(right.createdAt).getTime() -
+                new Date(left.createdAt).getTime(),
+            );
+
+          return {
+            success: true,
+            message: `Đã tìm thấy ${matchedOrders.length} đơn hàng theo SĐT.`,
+            data: matchedOrders,
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể tải đơn hàng để so khớp SPX.",
             ),
           };
         }

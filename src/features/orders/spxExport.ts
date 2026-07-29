@@ -39,6 +39,16 @@ export type SpxAddress = {
   usesNormalizedAddress: boolean;
 };
 
+export type SpxExportResult = {
+  exportedCount: number;
+  skippedShippingCount: number;
+  skippedCompletedCount: number;
+};
+
+type SpxExportOptions = {
+  beforeDownload?: (orders: StoreOrder[]) => Promise<void>;
+};
+
 export function getSpxAddress(order: StoreOrder): SpxAddress {
   if (
     order.normalizedAddressStatus === "ready" &&
@@ -122,9 +132,29 @@ function exportFileName() {
   return `SPX_Don_hang_${date}_${time}.xlsx`;
 }
 
-export async function exportOrdersToSpx(orders: StoreOrder[]) {
+export async function exportOrdersToSpx(
+  orders: StoreOrder[],
+  options: SpxExportOptions = {},
+): Promise<SpxExportResult> {
   if (orders.length === 0) {
     throw new Error("Chưa chọn đơn hàng để xuất SPX.");
+  }
+
+  const exportableOrders = orders.filter(
+    (order) =>
+      order.status !== "shipping" && order.status !== "completed",
+  );
+  const skippedShippingCount = orders.filter(
+    (order) => order.status === "shipping",
+  ).length;
+  const skippedCompletedCount = orders.filter(
+    (order) => order.status === "completed",
+  ).length;
+
+  if (exportableOrders.length === 0) {
+    throw new Error(
+      "Không thể xuất SPX vì toàn bộ đơn đã chọn đang ở trạng thái Đang giao hoặc Thành công.",
+    );
   }
 
   const { Workbook } = await import("exceljs");
@@ -138,7 +168,7 @@ export async function exportOrdersToSpx(orders: StoreOrder[]) {
 
   worksheet.addRow([...SPX_HEADERS]);
 
-  orders.forEach((order, index) => {
+  exportableOrders.forEach((order, index) => {
     const address = getSpxAddress(order);
     const totalQuantity = order.items.reduce(
       (sum, item) => sum + item.quantity,
@@ -252,5 +282,15 @@ export async function exportOrdersToSpx(orders: StoreOrder[]) {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
 
+  if (options.beforeDownload) {
+    await options.beforeDownload(exportableOrders);
+  }
+
   downloadFile(blob, exportFileName());
+
+  return {
+    exportedCount: exportableOrders.length,
+    skippedShippingCount,
+    skippedCompletedCount,
+  };
 }
