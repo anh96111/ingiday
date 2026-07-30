@@ -361,6 +361,51 @@ export default function ProductDetailPage() {
     return "";
   }, [product, selections]);
 
+  const selectedVariantMediaContext = useMemo(() => {
+    if (!product?.variantGroups) {
+      return null;
+    }
+
+    const selectedOptions = product.variantGroups.map((group) => {
+      const selectedOptionId =
+        selections[group.id] ?? group.options[0]?.id;
+      const option = group.options.find(
+        (item) => item.id === selectedOptionId,
+      );
+
+      return {
+        groupName: group.name,
+        option,
+      };
+    });
+
+    const activeSelection = selectedVariantVideoId
+      ? selectedOptions.find(
+          ({ option }) =>
+            option?.videoId === selectedVariantVideoId,
+        )
+      : selectedOptions.find(
+          ({ option }) =>
+            option?.imageId === selectedVariantImageId,
+        );
+
+    if (!activeSelection?.option) {
+      return null;
+    }
+
+    return {
+      groupName: activeSelection.groupName,
+      optionLabel: activeSelection.option.label,
+      imageId: activeSelection.option.imageId ?? "",
+      videoId: activeSelection.option.videoId ?? "",
+    };
+  }, [
+    product,
+    selections,
+    selectedVariantImageId,
+    selectedVariantVideoId,
+  ]);
+
   useEffect(() => {
     if (!product) {
       return;
@@ -737,6 +782,16 @@ export default function ProductDetailPage() {
         (image) => image.id === selectedImageId,
       ) ?? primaryImage;
 
+  const isShowingSelectedVariantMedia = Boolean(
+    selectedVariantMediaContext &&
+      ((selectedVariantMediaContext.videoId &&
+        selectedVideo?.id ===
+          selectedVariantMediaContext.videoId) ||
+        (selectedVariantMediaContext.imageId &&
+          selectedImage?.id ===
+            selectedVariantMediaContext.imageId)),
+  );
+
   const variantStocks = selectedVariants
     .map((variant) => variant.stock)
     .filter(
@@ -836,6 +891,13 @@ export default function ProductDetailPage() {
           </div>
         )}
 
+        <header className="product-detail__heading">
+          <p className="product-detail__category">
+            {product.categoryName}
+          </p>
+          <h1>{product.name}</h1>
+        </header>
+
         <section className="product-detail__main">
           <div className="product-detail__gallery">
             <div
@@ -886,6 +948,7 @@ export default function ProductDetailPage() {
                 </span>
               )}
 
+
               {selectedImage && (
                 <span className="product-detail__zoom-hint">
                   <span aria-hidden="true">↗</span>
@@ -894,7 +957,10 @@ export default function ProductDetailPage() {
               )}
 
               {selectedVideo ? (
-                <div className="product-detail__video-frame">
+                <div
+                  key={selectedVideo.id}
+                  className="product-detail__video-frame"
+                >
                   <video
                     key={selectedVideo.id}
                     ref={productVideoRef}
@@ -1018,6 +1084,7 @@ export default function ProductDetailPage() {
                 </div>
               ) : selectedImage ? (
                 <img
+                  key={selectedImage.id}
                   src={optimizeCloudinaryUrl(
                     selectedImage.url,
                     1080,
@@ -1117,40 +1184,62 @@ export default function ProductDetailPage() {
                 ))}
               </div>
             )}
+
+            {isShowingSelectedVariantMedia &&
+              selectedVariantMediaContext && (
+                <p
+                  className="product-detail__gallery-footnote"
+                  aria-live="polite"
+                >
+                  <SparkIcon />
+                  Đang xem theo phân loại{" "}
+                  <strong>
+                    {selectedVariantMediaContext.groupName} ·{" "}
+                    {selectedVariantMediaContext.optionLabel}
+                  </strong>
+                  .
+                </p>
+              )}
           </div>
 
           <div className="product-detail__purchase">
-            <p className="product-detail__category">
-              {product.categoryName}
-            </p>
+            <div className="product-detail__price-panel">
+              <div className="product-detail__price-row">
+                <strong>{formatCurrency(unitPrice)}</strong>
 
-            <h1>{product.name}</h1>
+                {product.compareAtPrice && (
+                  <span className="product-detail__compare-price">
+                    {formatCurrency(product.compareAtPrice)}
+                  </span>
+                )}
 
-            <div className="product-detail__price-row">
-              <strong>{formatCurrency(unitPrice)}</strong>
+                {discountPercent > 0 && (
+                  <span className="product-detail__price-note">
+                    Giá đã gồm ưu đãi hiện tại
+                  </span>
+                )}
+              </div>
 
-              {product.compareAtPrice && (
-                <span>
-                  {formatCurrency(product.compareAtPrice)}
+              <div className="product-detail__price-meta">
+                {discountPercent > 0 && (
+                  <em>Tiết kiệm {discountPercent}%</em>
+                )}
+
+                <span
+                  className={`product-detail__stock ${
+                    availableStock > 0
+                      ? "is-available"
+                      : "is-out"
+                  }`}
+                >
+                  {availableStock > 0
+                    ? `Còn ${availableStock.toLocaleString(
+                        "vi-VN",
+                      )}`
+                    : "Tạm hết hàng"}
                 </span>
-              )}
-
-              {discountPercent > 0 && (
-                <em>Tiết kiệm {discountPercent}%</em>
-              )}
+              </div>
             </div>
-
-            <span
-              className={`product-detail__stock ${
-                availableStock > 0
-                  ? "is-available"
-                  : "is-out"
-              }`}
-            >
-              {availableStock > 0
-                ? `Còn ${availableStock} sản phẩm`
-                : "Tạm hết hàng"}
-            </span>
 
             {product.stockNoteEnabled &&
               product.stockNote && (
@@ -1159,7 +1248,6 @@ export default function ProductDetailPage() {
                 </p>
               )}
 
-            <div className="product-detail__divider" />
 
             {product.variantGroups?.map((group) => {
               const selectedOptionId =
@@ -1343,6 +1431,11 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
+            <div className="product-detail__inspection-tag" role="note">
+              <span aria-hidden="true">✓</span>
+              <strong>Được kiểm tra hàng trước khi nhận</strong>
+            </div>
+
             <div className="product-detail__actions">
               <button
                 type="button"
@@ -1362,11 +1455,6 @@ export default function ProductDetailPage() {
                 <BagIcon />
                 Thêm vào giỏ
               </button>
-            </div>
-
-            <div className="product-detail__inspection-tag" role="note">
-              <span aria-hidden="true">✓</span>
-              <strong>Được kiểm tra hàng trước khi nhận</strong>
             </div>
 
             {message && (
