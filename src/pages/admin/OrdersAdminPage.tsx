@@ -479,13 +479,13 @@ export default function OrdersAdminPage() {
                   />
                 </th>
                 <th className="w-64 px-4 py-4">Mã đơn / sản phẩm</th>
-                <th className="w-48 px-4 py-4">UTM</th>
-                <th className="px-5 py-4">Khách hàng</th>
-                <th className="w-44 px-5 py-4">Địa chỉ SPX</th>
-                <th className="px-5 py-4">Tổng SL</th>
-                <th className="px-5 py-4">Tổng tiền</th>
                 <th className="px-5 py-4">Trạng thái</th>
+                <th className="px-5 py-4">Tổng SL</th>
+                <th className="px-5 py-4">Khách hàng</th>
+                <th className="px-5 py-4">Tổng tiền</th>
+                <th className="w-48 px-4 py-4">UTM</th>
                 <th className="px-5 py-4">Ngày tạo</th>
+                <th className="w-44 px-5 py-4">Địa chỉ SPX</th>
                 <th className="px-5 py-4 text-right">Thao tác</th>
               </tr>
             </thead>
@@ -523,16 +523,20 @@ export default function OrdersAdminPage() {
                           shortCode={shortOrderCode(order.code)}
                         />
                       </td>
-                      <td
-                        className="max-w-48 px-4 py-4"
-                        title={getUtmAttributionTitle(order.utmAttribution)}
-                      >
-                        <p className="truncate font-bold text-[#3f4850]">
-                          {getUtmSourceLabel(order.utmAttribution)}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-[#707881]">
-                          {getUtmSecondaryLabel(order.utmAttribution)}
-                        </p>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClasses[order.status]}`}
+                        >
+                          {statusLabels[order.status]}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 align-top">
+                        <span className="inline-flex min-w-10 justify-center rounded-full bg-[#f1f5f9] px-3 py-1 font-bold text-[#3f4850]">
+                          {order.items.reduce(
+                            (sum, item) => sum + item.quantity,
+                            0,
+                          )}
+                        </span>
                       </td>
                       <td className="px-5 py-4">
                         <p className="font-bold">{order.customer.fullName}</p>
@@ -554,33 +558,29 @@ export default function OrdersAdminPage() {
                           )}
                         </div>
                       </td>
+                      <td className="px-5 py-4 font-bold">
+                        {formatCurrency(order.total)}
+                      </td>
+                      <td
+                        className="max-w-48 px-4 py-4"
+                        title={getUtmAttributionTitle(order.utmAttribution)}
+                      >
+                        <p className="truncate font-bold text-[#3f4850]">
+                          {getUtmSourceLabel(order.utmAttribution)}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-[#707881]">
+                          {getUtmSecondaryLabel(order.utmAttribution)}
+                        </p>
+                      </td>
+                      <td className="whitespace-nowrap px-5 py-4 text-[#3f4850]">
+                        {formatDate(order.createdAt)}
+                      </td>
                       <td className="px-5 py-4">
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${normalizedAddressStatusClass(order)}`}
                         >
                           {normalizedAddressStatusLabel(order)}
                         </span>
-                      </td>
-                      <td className="px-5 py-4 align-top">
-                        <span className="inline-flex min-w-10 justify-center rounded-full bg-[#f1f5f9] px-3 py-1 font-bold text-[#3f4850]">
-                          {order.items.reduce(
-                            (sum, item) => sum + item.quantity,
-                            0,
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 font-bold">
-                        {formatCurrency(order.total)}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${statusClasses[order.status]}`}
-                        >
-                          {statusLabels[order.status]}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-5 py-4 text-[#3f4850]">
-                        {formatDate(order.createdAt)}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
