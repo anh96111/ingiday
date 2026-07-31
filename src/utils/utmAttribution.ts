@@ -3,57 +3,32 @@ import type { UtmAttribution } from "../types/cart";
 const STORAGE_KEY = "ingiday-utm-attribution-v1";
 const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
 const MAX_VALUE_LENGTH = 200;
-const MAX_CLICK_ID_LENGTH = 500;
 
-type AttributionField = Exclude<keyof UtmAttribution, "capturedAt">;
+type UtmField = "source" | "medium" | "campaign" | "content";
+type StorageName = "localStorage" | "sessionStorage";
 
 const URL_PARAMETER_FIELDS: ReadonlyArray<
-  readonly [queryName: string, fieldName: AttributionField, maxLength?: number]
+  readonly [queryName: string, fieldName: UtmField]
 > = [
   ["utm_source", "source"],
   ["utm_medium", "medium"],
   ["utm_campaign", "campaign"],
   ["utm_content", "content"],
-  ["utm_term", "term"],
-  ["utm_id", "utmId"],
-  ["campaign_id", "campaignId"],
-  ["adset_id", "adsetId"],
-  ["ad_id", "adId"],
-  ["campaign_name", "campaignName"],
-  ["adset_name", "adsetName"],
-  ["ad_name", "adName"],
-  ["placement", "placement"],
-  ["site_source_name", "siteSourceName"],
-  ["fbclid", "fbclid", MAX_CLICK_ID_LENGTH],
 ];
 
-const ATTRIBUTION_FIELDS: AttributionField[] = [
+const ATTRIBUTION_FIELDS: UtmField[] = [
   "source",
   "medium",
   "campaign",
   "content",
-  "term",
-  "utmId",
-  "campaignId",
-  "adsetId",
-  "adId",
-  "campaignName",
-  "adsetName",
-  "adName",
-  "placement",
-  "siteSourceName",
-  "fbclid",
 ];
 
-function cleanValue(
-  value: unknown,
-  maxLength = MAX_VALUE_LENGTH,
-) {
+function cleanValue(value: unknown) {
   if (typeof value !== "string") {
     return undefined;
   }
 
-  const normalized = value.trim().slice(0, maxLength);
+  const normalized = value.trim().slice(0, MAX_VALUE_LENGTH);
   return normalized || undefined;
 }
 
@@ -61,62 +36,25 @@ function hasAttribution(attribution: UtmAttribution) {
   return ATTRIBUTION_FIELDS.some((field) => Boolean(attribution[field]));
 }
 
-function inferredMetaSource(attribution: UtmAttribution) {
-  const explicitSiteSource = attribution.siteSourceName?.trim();
-
-  if (explicitSiteSource) {
-    return explicitSiteSource;
+function removeStoredAttribution(storageName: StorageName) {
+  if (typeof window === "undefined") {
+    return;
   }
 
-  return attribution.campaignId ||
-    attribution.adsetId ||
-    attribution.adId ||
-    attribution.campaignName ||
-    attribution.adsetName ||
-    attribution.adName ||
-    attribution.placement ||
-    attribution.fbclid
-    ? "meta"
-    : undefined;
+  try {
+    window[storageName].removeItem(STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable in restricted browser modes.
+  }
 }
 
-export function normalizeUtmAttribution(
-  value: unknown,
-): UtmAttribution | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+function readStoredAttributionFrom(storageName: StorageName) {
+  if (typeof window === "undefined") {
     return undefined;
   }
 
-  const source = value as Record<string, unknown>;
-  const normalized: UtmAttribution = {
-    source: cleanValue(source.source),
-    medium: cleanValue(source.medium),
-    campaign: cleanValue(source.campaign),
-    content: cleanValue(source.content),
-    term: cleanValue(source.term),
-    utmId: cleanValue(source.utmId),
-    campaignId: cleanValue(source.campaignId),
-    adsetId: cleanValue(source.adsetId),
-    adId: cleanValue(source.adId),
-    campaignName: cleanValue(source.campaignName),
-    adsetName: cleanValue(source.adsetName),
-    adName: cleanValue(source.adName),
-    placement: cleanValue(source.placement),
-    siteSourceName: cleanValue(source.siteSourceName),
-    fbclid: cleanValue(source.fbclid, MAX_CLICK_ID_LENGTH),
-    capturedAt: cleanValue(source.capturedAt),
-  };
-
-  if (!normalized.source) {
-    normalized.source = inferredMetaSource(normalized);
-  }
-
-  return hasAttribution(normalized) ? normalized : undefined;
-}
-
-function readStoredUtmAttribution() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = window[storageName].getItem(STORAGE_KEY);
 
     if (!raw) {
       return undefined;
@@ -125,7 +63,7 @@ function readStoredUtmAttribution() {
     const parsed = normalizeUtmAttribution(JSON.parse(raw));
 
     if (!parsed) {
-      localStorage.removeItem(STORAGE_KEY);
+      removeStoredAttribution(storageName);
       return undefined;
     }
 
@@ -136,24 +74,70 @@ function readStoredUtmAttribution() {
         !Number.isFinite(capturedAt) ||
         Date.now() - capturedAt > MAX_AGE_MS
       ) {
-        localStorage.removeItem(STORAGE_KEY);
+        removeStoredAttribution(storageName);
         return undefined;
       }
     }
 
     return parsed;
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    removeStoredAttribution(storageName);
     return undefined;
   }
+}
+
+function readStoredUtmAttribution() {
+  return (
+    readStoredAttributionFrom("localStorage") ??
+    readStoredAttributionFrom("sessionStorage")
+  );
+}
+
+function writeStoredUtmAttribution(attribution: UtmAttribution) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const serialized = JSON.stringify(attribution);
+
+  for (const storageName of ["localStorage", "sessionStorage"] as const) {
+    try {
+      window[storageName].setItem(STORAGE_KEY, serialized);
+    } catch {
+      // Keep trying the other storage. The current-page value is still returned.
+    }
+  }
+}
+
+export function normalizeUtmAttribution(
+  value: unknown,
+): UtmAttribution | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const source = value as Record<string, unknown>;
+  const normalizedSource = cleanValue(source.source);
+  const normalized: UtmAttribution = {
+    source:
+      normalizedSource?.toLowerCase() === "direct"
+        ? undefined
+        : normalizedSource,
+    medium: cleanValue(source.medium),
+    campaign: cleanValue(source.campaign),
+    content: cleanValue(source.content),
+    capturedAt: cleanValue(source.capturedAt),
+  };
+
+  return hasAttribution(normalized) ? normalized : undefined;
 }
 
 export function captureUtmAttribution(search: string) {
   const params = new URLSearchParams(search);
   const captured: UtmAttribution = {};
 
-  for (const [queryName, fieldName, maxLength] of URL_PARAMETER_FIELDS) {
-    const value = cleanValue(params.get(queryName), maxLength);
+  for (const [queryName, fieldName] of URL_PARAMETER_FIELDS) {
+    const value = cleanValue(params.get(queryName));
 
     if (value) {
       captured[fieldName] = value;
@@ -164,61 +148,51 @@ export function captureUtmAttribution(search: string) {
     return readStoredUtmAttribution();
   }
 
-  if (!captured.source) {
-    captured.source = inferredMetaSource(captured);
-  }
-
   captured.capturedAt = new Date().toISOString();
-
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(captured));
-  } catch (storageError) {
-    console.warn("Không thể lưu UTM attribution:", storageError);
-  }
+  writeStoredUtmAttribution(captured);
 
   return captured;
 }
 
-export function getCurrentUtmAttribution(): UtmAttribution {
-  return readStoredUtmAttribution() ?? { source: "direct" };
+export function getCurrentUtmAttribution():
+  | UtmAttribution
+  | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  return captureUtmAttribution(window.location.search);
 }
 
 export function getUtmSourceLabel(
   attribution?: UtmAttribution,
 ) {
-  const source =
-    attribution?.source?.trim() ||
-    attribution?.siteSourceName?.trim();
+  const normalized = normalizeUtmAttribution(attribution);
+  const source = normalized?.source;
 
   if (!source) {
-    return attribution && hasAttribution(attribution)
-      ? "Không xác định"
-      : "Trực tiếp";
+    return normalized ? "Kh\u00f4ng x\u00e1c \u0111\u1ecbnh" : "Kh\u00f4ng c\u00f3 UTM";
   }
 
-  if (source.toLowerCase() === "direct") {
-    return "Trực tiếp";
-  }
+  const lowerSource = source.toLowerCase();
 
-  const normalized = source.toLowerCase();
-
-  if (["facebook", "fb", "meta"].includes(normalized)) {
+  if (["facebook", "fb", "meta"].includes(lowerSource)) {
     return "Meta / Facebook";
   }
 
-  if (["instagram", "ig"].includes(normalized)) {
+  if (["instagram", "ig"].includes(lowerSource)) {
     return "Instagram";
   }
 
-  if (normalized === "tiktok") {
+  if (lowerSource === "tiktok") {
     return "TikTok";
   }
 
-  if (normalized === "google") {
+  if (lowerSource === "google") {
     return "Google";
   }
 
-  if (normalized === "zalo") {
+  if (lowerSource === "zalo") {
     return "Zalo";
   }
 
@@ -228,55 +202,30 @@ export function getUtmSourceLabel(
 export function getUtmSecondaryLabel(
   attribution?: UtmAttribution,
 ) {
-  if (
-    !attribution ||
-    attribution.source?.toLowerCase() === "direct" ||
-    !hasAttribution(attribution)
-  ) {
-    return "Không có UTM";
+  const normalized = normalizeUtmAttribution(attribution);
+
+  if (!normalized) {
+    return "Kh\u00f4ng c\u00f3 UTM";
   }
 
   return (
-    attribution.campaignName ||
-    attribution.campaign ||
-    attribution.adName ||
-    attribution.content ||
-    attribution.adsetName ||
-    attribution.medium ||
-    attribution.placement ||
-    attribution.term ||
-    attribution.campaignId ||
-    attribution.adId ||
-    "Không có chiến dịch"
+    normalized.campaign ||
+    normalized.content ||
+    normalized.medium ||
+    "C\u00f3 UTM"
   );
 }
 
 export function getUtmAttributionTitle(
   attribution?: UtmAttribution,
 ) {
-  if (!attribution) {
-    return "Nguồn: Trực tiếp";
-  }
+  const normalized = normalizeUtmAttribution(attribution);
+  const missingValue = "\u2014";
 
-  const parts = [
-    ["Nguồn", attribution.source],
-    ["Medium", attribution.medium],
-    ["Campaign", attribution.campaign],
-    ["Campaign name", attribution.campaignName],
-    ["Campaign ID", attribution.campaignId],
-    ["Ad set name", attribution.adsetName],
-    ["Ad set ID", attribution.adsetId],
-    ["Ad name", attribution.adName],
-    ["Ad ID", attribution.adId],
-    ["Content", attribution.content],
-    ["Term", attribution.term],
-    ["UTM ID", attribution.utmId],
-    ["Placement", attribution.placement],
-    ["Site source", attribution.siteSourceName],
-    ["Meta click ID", attribution.fbclid],
-  ]
-    .filter((item): item is [string, string] => Boolean(item[1]))
-    .map(([label, value]) => `${label}: ${value}`);
-
-  return parts.length > 0 ? parts.join(" · ") : "Nguồn: Trực tiếp";
+  return [
+    `utm_source: ${normalized?.source ?? missingValue}`,
+    `utm_medium: ${normalized?.medium ?? missingValue}`,
+    `utm_campaign: ${normalized?.campaign ?? missingValue}`,
+    `utm_content: ${normalized?.content ?? missingValue}`,
+  ].join("\n");
 }
