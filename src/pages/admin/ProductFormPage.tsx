@@ -63,6 +63,29 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+const VARIANT_TAG_PRESETS = [
+  "Tiết kiệm",
+  "Siêu tiết kiệm",
+] as const;
+const VARIANT_TAG_MAX_LENGTH = 30;
+const DEFAULT_VARIANT_TAG_COLOR: NonNullable<
+  ProductVariantOption["tagColor"]
+> = "red";
+const VARIANT_TAG_COLOR_PRESETS = [
+  { value: "red", label: "Đỏ", background: "#b93d52" },
+  { value: "orange", label: "Cam", background: "#c55a20" },
+  { value: "amber", label: "Vàng đậm", background: "#9a6700" },
+  { value: "green", label: "Xanh lá", background: "#287a52" },
+  { value: "blue", label: "Xanh dương", background: "#2c67a8" },
+  { value: "purple", label: "Tím", background: "#7047a8" },
+  { value: "pink", label: "Hồng", background: "#c8447a" },
+  { value: "gray", label: "Xám", background: "#596574" },
+] as const satisfies ReadonlyArray<{
+  value: NonNullable<ProductVariantOption["tagColor"]>;
+  label: string;
+  background: string;
+}>;
+
 function sanitizeVariantOptionsForMedia(
   variantGroups: ProductVariantGroup[],
   images: ProductImage[],
@@ -369,6 +392,61 @@ export default function ProductFormPage() {
     }));
   }
 
+  function updateVariantOptionTag(
+    groupIndex: number,
+    optionIndex: number,
+    value: string,
+  ) {
+    const nextTag = value.slice(0, VARIANT_TAG_MAX_LENGTH);
+
+    setForm((current) => ({
+      ...current,
+      variantGroups: current.variantGroups.map((group, index) =>
+        index === groupIndex
+          ? {
+              ...group,
+              options: group.options.map((option, currentOptionIndex) =>
+                currentOptionIndex === optionIndex
+                  ? {
+                      ...option,
+                      tag: nextTag,
+                      tagColor: nextTag.trim()
+                        ? option.tagColor ?? DEFAULT_VARIANT_TAG_COLOR
+                        : undefined,
+                    }
+                  : option,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
+  function updateVariantOptionTagColor(
+    groupIndex: number,
+    optionIndex: number,
+    tagColor: NonNullable<ProductVariantOption["tagColor"]>,
+  ) {
+    setForm((current) => ({
+      ...current,
+      variantGroups: current.variantGroups.map((group, index) =>
+        index === groupIndex
+          ? {
+              ...group,
+              options: group.options.map((option, currentOptionIndex) =>
+                currentOptionIndex === optionIndex
+                  ? {
+                      ...option,
+                      tagColor,
+                    }
+                  : option,
+              ),
+            }
+          : group,
+      ),
+    }));
+  }
+
   function updateVariantOptionMedia(
     groupIndex: number,
     optionIndex: number,
@@ -626,6 +704,21 @@ export default function ProductFormPage() {
       }
     }
 
+    const invalidVariantTag = form.variantGroups
+      .flatMap((group) => group.options)
+      .find(
+        (option) =>
+          (option.tag?.trim().length ?? 0) >
+          VARIANT_TAG_MAX_LENGTH,
+      );
+
+    if (invalidVariantTag) {
+      setError(
+        `Tag lựa chọn tối đa ${VARIANT_TAG_MAX_LENGTH} ký tự.`,
+      );
+      return;
+    }
+
     const validImageIds = new Set(
       form.images.map((image) => image.id),
     );
@@ -641,6 +734,10 @@ export default function ProductFormPage() {
           .map((option) => ({
             ...option,
             label: option.label.trim(),
+            tag: option.tag?.trim() || undefined,
+            tagColor: option.tag?.trim()
+              ? option.tagColor ?? DEFAULT_VARIANT_TAG_COLOR
+              : undefined,
             priceDelta: Math.max(0, Math.round(Number(option.priceDelta) || 0)),
             stock: typeof option.stock === "number"
               ? Math.max(0, Math.round(option.stock))
@@ -1204,6 +1301,143 @@ export default function ProductFormPage() {
                           <input type="number" min="0" step="1000" value={option.priceDelta ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "priceDelta", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Giá cộng" />
                           <input type="number" min="0" value={option.stock ?? 0} onChange={(event) => updateVariantOption(groupIndex, optionIndex, "stock", event.target.value)} className="h-10 rounded-xl border border-[#cfd6dd] bg-white px-3 outline-none focus:border-[#006397]" placeholder="Tồn kho" />
                           <button type="button" onClick={() => removeVariantOption(groupIndex, optionIndex)} className="h-10 rounded-xl bg-[#fff0eb] px-3 text-sm font-bold text-[#a43c12]">Xóa</button>
+                        </div>
+
+                        <div className="rounded-2xl border border-[#dce3ea] bg-white p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-black">
+                                Tag hiển thị trên lựa chọn
+                              </p>
+                              <p className="mt-1 text-xs font-normal leading-5 text-[#707881]">
+                                Chọn nhanh hoặc nhập nội dung riêng. Để trống nếu không muốn hiện tag.
+                              </p>
+                            </div>
+                            <span className="text-xs font-bold text-[#707881]">
+                              {option.tag?.length ?? 0}/{VARIANT_TAG_MAX_LENGTH}
+                            </span>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateVariantOptionTag(
+                                  groupIndex,
+                                  optionIndex,
+                                  "",
+                                )
+                              }
+                              className={
+                                "rounded-full border px-3 py-2 text-xs font-bold transition " +
+                                (!option.tag?.trim()
+                                  ? "border-[#006397] bg-[#edf4ff] text-[#006397]"
+                                  : "border-[#cfd6dd] bg-white text-[#555f69] hover:border-[#006397]")
+                              }
+                            >
+                              Không có tag
+                            </button>
+
+                            {VARIANT_TAG_PRESETS.map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() =>
+                                  updateVariantOptionTag(
+                                    groupIndex,
+                                    optionIndex,
+                                    preset,
+                                  )
+                                }
+                                className={
+                                  "rounded-full border px-3 py-2 text-xs font-bold transition " +
+                                  (option.tag?.trim() === preset
+                                    ? "border-[#006397] bg-[#edf4ff] text-[#006397]"
+                                    : "border-[#cfd6dd] bg-white text-[#555f69] hover:border-[#006397]")
+                                }
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+
+                          <label className="mt-3 block text-xs font-bold text-[#555f69]">
+                            Tag tùy chỉnh
+                            <input
+                              value={option.tag ?? ""}
+                              maxLength={VARIANT_TAG_MAX_LENGTH}
+                              onChange={(event) =>
+                                updateVariantOptionTag(
+                                  groupIndex,
+                                  optionIndex,
+                                  event.target.value,
+                                )
+                              }
+                              className="mt-2 h-10 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-3 text-sm font-normal text-[#252525] outline-none focus:border-[#006397]"
+                              placeholder="Ví dụ: Được mua nhiều nhất"
+                            />
+                          </label>
+
+                          <div className="mt-4 border-t border-[#edf0f4] pt-4">
+                            <p className="text-xs font-black text-[#555f69]">
+                              Màu nền tag
+                            </p>
+                            <p className="mt-1 text-xs font-normal leading-5 text-[#707881]">
+                              Chữ luôn màu trắng. Mỗi lựa chọn có thể dùng một màu riêng.
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {VARIANT_TAG_COLOR_PRESETS.map((colorPreset) => {
+                                const selectedTagColor =
+                                  option.tagColor ?? DEFAULT_VARIANT_TAG_COLOR;
+                                const isSelected =
+                                  selectedTagColor === colorPreset.value;
+                                const isDisabled = !option.tag?.trim();
+
+                                return (
+                                  <button
+                                    key={colorPreset.value}
+                                    type="button"
+                                    disabled={isDisabled}
+                                    aria-pressed={isSelected}
+                                    onClick={() =>
+                                      updateVariantOptionTagColor(
+                                        groupIndex,
+                                        optionIndex,
+                                        colorPreset.value,
+                                      )
+                                    }
+                                    className={
+                                      "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition " +
+                                      (isSelected
+                                        ? "border-[#006397] bg-[#edf4ff] text-[#006397] shadow-sm"
+                                        : "border-[#cfd6dd] bg-white text-[#555f69] hover:border-[#006397]") +
+                                      (isDisabled
+                                        ? " cursor-not-allowed opacity-45"
+                                        : "")
+                                    }
+                                    title={`Màu ${colorPreset.label}`}
+                                  >
+                                    <span
+                                      aria-hidden="true"
+                                      className="h-4 w-4 rounded-full border border-black/10 shadow-sm"
+                                      style={{
+                                        backgroundColor:
+                                          colorPreset.background,
+                                      }}
+                                    />
+                                    {colorPreset.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {!option.tag?.trim() && (
+                              <p className="mt-2 text-xs font-normal text-[#8a929a]">
+                                Chọn hoặc nhập tag trước để bật phần chọn màu.
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         <div className={`grid gap-3 ${groupIndex === 0 ? "lg:grid-cols-[minmax(0,240px)_1fr]" : ""}`}>

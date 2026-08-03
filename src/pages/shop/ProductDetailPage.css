@@ -532,6 +532,7 @@
 }
 
 .product-detail__option-list label > span {
+  position: relative;
   min-height: 42px;
   display: inline-flex;
   align-items: center;
@@ -547,6 +548,71 @@
     border-color 180ms ease,
     background-color 180ms ease,
     box-shadow 180ms ease;
+}
+
+.product-detail__option-label--has-tag {
+  padding-top: 8px;
+}
+
+.product-detail__option-label--has-tag > .product-detail__option-choice {
+  min-width: 142px;
+  min-height: 50px;
+  padding-top: 8px;
+}
+
+.product-detail__option-copy {
+  min-width: 0;
+}
+
+.product-detail__option-tag {
+  position: absolute;
+  top: -8px;
+  right: 8px;
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #fff;
+  background: #b93d52;
+  box-shadow: 0 4px 10px rgba(35, 31, 32, 0.18);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-detail__option-tag--red {
+  background: #b93d52;
+}
+
+.product-detail__option-tag--orange {
+  background: #c55a20;
+}
+
+.product-detail__option-tag--amber {
+  background: #9a6700;
+}
+
+.product-detail__option-tag--green {
+  background: #287a52;
+}
+
+.product-detail__option-tag--blue {
+  background: #2c67a8;
+}
+
+.product-detail__option-tag--purple {
+  background: #7047a8;
+}
+
+.product-detail__option-tag--pink {
+  background: #c8447a;
+}
+
+.product-detail__option-tag--gray {
+  background: #596574;
 }
 
 .product-detail__option-list input:checked + span {
@@ -1685,6 +1751,19 @@
   border-radius: 12px;
   padding: 0 13px;
   font-size: 11px;
+}
+
+.product-detail__option-label--has-tag > .product-detail__option-choice {
+  min-width: 132px;
+  min-height: 47px;
+  padding-top: 8px;
+}
+
+.product-detail__option-tag {
+  right: 7px;
+  max-width: calc(100% - 14px);
+  padding: 4px 7px;
+  font-size: 8.5px;
 }
 
 .product-detail__custom-text {

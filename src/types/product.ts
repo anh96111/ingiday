@@ -27,9 +27,21 @@ export type ProductVideo = {
   bytes: number;
 };
 
+export type ProductVariantTagColor =
+  | "red"
+  | "orange"
+  | "amber"
+  | "green"
+  | "blue"
+  | "purple"
+  | "pink"
+  | "gray";
+
 export type ProductVariantOption = {
   id: string;
   label: string;
+  tag?: string;
+  tagColor?: ProductVariantTagColor;
   priceDelta?: number;
   stock?: number;
   imageId?: string;
