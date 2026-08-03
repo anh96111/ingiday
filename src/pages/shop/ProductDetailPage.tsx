@@ -1263,7 +1263,14 @@ export default function ProductDetailPage() {
 
                   <div className="product-detail__option-list">
                     {group.options.map((option) => (
-                      <label key={option.id}>
+                      <label
+                        key={option.id}
+                        className={
+                          option.tag?.trim()
+                            ? "product-detail__option-label product-detail__option-label--has-tag"
+                            : "product-detail__option-label"
+                        }
+                      >
                         <input
                           type="radio"
                           name={`variant-${group.id}`}
@@ -1279,13 +1286,26 @@ export default function ProductDetailPage() {
                             setQuantity(1);
                           }}
                         />
-                        <span>
-                          {option.label}
-                          {option.priceDelta && option.showPriceDelta !== false
-                            ? ` (+${formatCurrency(
-                                option.priceDelta,
-                              )})`
-                            : ""}
+                        <span className="product-detail__option-choice">
+                          <span className="product-detail__option-copy">
+                            {option.label}
+                            {option.priceDelta && option.showPriceDelta !== false
+                              ? ` (+${formatCurrency(
+                                  option.priceDelta,
+                                )})`
+                              : ""}
+                          </span>
+
+                          {option.tag?.trim() && (
+                            <span
+                              className={`product-detail__option-tag product-detail__option-tag--${
+                                option.tagColor ?? "red"
+                              }`}
+                              title={option.tag.trim()}
+                            >
+                              {option.tag.trim()}
+                            </span>
+                          )}
                         </span>
                       </label>
                     ))}
