@@ -1253,6 +1253,9 @@ export default function ProductDetailPage() {
               const selectedOptionId =
                 selections[group.id] ??
                 group.options[0]?.id;
+              const groupHasTaggedOption = group.options.some(
+                (option) => Boolean(option.tag?.trim()),
+              );
 
               return (
                 <fieldset
@@ -1261,7 +1264,13 @@ export default function ProductDetailPage() {
                 >
                   <legend>{group.name}</legend>
 
-                  <div className="product-detail__option-list">
+                  <div
+                    className={`product-detail__option-list${
+                      groupHasTaggedOption
+                        ? " product-detail__option-list--has-tag"
+                        : ""
+                    }`}
+                  >
                     {group.options.map((option) => (
                       <label
                         key={option.id}
