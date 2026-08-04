@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { lazy } from "react";
-import { Navigate, createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
 
 import ProtectedRoute from "../components/common/ProtectedRoute";
 import { StoreDataProvider } from "../features/admin/StoreDataContext";
@@ -36,6 +36,9 @@ const OrderDetailPage = lazy(
 );
 const OrdersAdminPage = lazy(
   () => import("../pages/admin/OrdersAdminPage"),
+);
+const OrderAnalyticsAdminPage = lazy(
+  () => import("../pages/admin/OrderAnalyticsAdminPage"),
 );
 const PoliciesAdminPage = lazy(
   () => import("../pages/admin/PoliciesAdminPage"),
@@ -162,7 +165,10 @@ export const router = createBrowserRouter([
         path: "doanh-thu",
         element: <RevenueAdminPage />,
       },
-      { path: "phan-tich", element: <Navigate to="/admin" replace /> },
+      {
+        path: "phan-tich",
+        element: <OrderAnalyticsAdminPage />,
+      },
       {
         path: "san-pham",
         element: <ProductsAdminPage />,
