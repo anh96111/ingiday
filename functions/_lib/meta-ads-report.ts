@@ -108,7 +108,7 @@ function graphApiBase(env: MetaAdsFunctionEnv) {
   if (!/^v\d+\.\d+$/.test(normalized)) {
     throw new HttpError(
       500,
-      "META_GRAPH_API_VERSION không đúng định dạng, ví dụ v26.0.",
+      "META_GRAPH_API_VERSION không đúng định dạng, ví dụ v24.0.",
     );
   }
 
