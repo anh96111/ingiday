@@ -12,6 +12,9 @@ const ShopLayout = lazy(() => import("../layouts/ShopLayout"));
 const AdPixelsAdminPage = lazy(
   () => import("../pages/admin/AdPixelsAdminPage"),
 );
+const AdsCostReportAdminPage = lazy(
+  () => import("../pages/admin/AdsCostReportAdminPage"),
+);
 const BannersAdminPage = lazy(
   () => import("../pages/admin/BannersAdminPage"),
 );
@@ -212,6 +215,10 @@ export const router = createBrowserRouter([
       {
         path: "chinh-sach",
         element: <PoliciesAdminPage />,
+      },
+      {
+        path: "bao-cao-chi-phi-ads",
+        element: <AdsCostReportAdminPage />,
       },
       {
         path: "pixel-quang-cao",
