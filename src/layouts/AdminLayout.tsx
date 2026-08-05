@@ -66,6 +66,11 @@ const navItems = [
     icon: "📡",
   },
   {
+    label: "Chi phí Ads",
+    to: "/admin/bao-cao-chi-phi-ads",
+    icon: "📣",
+  },
+  {
     label: "Cài đặt",
     to: "/admin/cai-dat",
     icon: "⚙️",
