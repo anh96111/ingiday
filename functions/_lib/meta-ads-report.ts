@@ -94,27 +94,10 @@ function cleanNumber(value: unknown) {
   return null;
 }
 
-function graphApiBase(env: MetaAdsFunctionEnv) {
-  const configured = env.META_GRAPH_API_VERSION?.trim();
-
-  if (!configured) {
-    return "https://graph.facebook.com";
-  }
-
-  const normalized = configured.startsWith("v")
-    ? configured
-    : `v${configured}`;
-
-  if (!/^v\d+\.\d+$/.test(normalized)) {
-    throw new HttpError(
-      500,
-      "META_GRAPH_API_VERSION không đúng định dạng, ví dụ v24.0.",
-    );
-  }
-
-  return `https://graph.facebook.com/${normalized}`;
+function graphApiBase(_env: MetaAdsFunctionEnv) {
+  void _env;
+  return "https://graph.facebook.com/v24.0";
 }
-
 function graphUrl(
   env: MetaAdsFunctionEnv,
   path: string,
