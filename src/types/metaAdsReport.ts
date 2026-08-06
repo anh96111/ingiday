@@ -21,9 +21,7 @@ export type MetaAdsReportAccount = {
   updatedAt: string;
 };
 
-export type MetaAdsReportAd = {
-  adId: string;
-  adName: string;
+export type MetaAdsReportCampaign = {
   campaignId: string;
   campaignName: string;
   spend: number;
@@ -31,8 +29,8 @@ export type MetaAdsReportAd = {
 
 export type MetaAdsReportAccountGroup = MetaAdsReportAccount & {
   totalSpend: number;
-  adCount: number;
-  ads: MetaAdsReportAd[];
+  campaignCount: number;
+  campaigns: MetaAdsReportCampaign[];
 };
 
 export type MetaAdsCurrencyTotal = {

@@ -48,9 +48,7 @@ export type MetaAdsAccountDetails = {
   accountStatus: number | null;
 };
 
-export type MetaAdsReportAd = {
-  adId: string;
-  adName: string;
+export type MetaAdsReportCampaign = {
   campaignId: string;
   campaignName: string;
   spend: number;
@@ -70,8 +68,6 @@ type MetaGraphError = {
 };
 
 type MetaInsightsRow = {
-  ad_id?: unknown;
-  ad_name?: unknown;
   campaign_id?: unknown;
   campaign_name?: unknown;
   spend?: unknown;
@@ -195,7 +191,7 @@ async function readRows<T>(
   const response = await supabaseServerFetch(env, path);
 
   if (!response.ok) {
-    console.error("meta-ads-supabase-read-failed", response.status);
+    console.error("meta-campaigns-supabase-read-failed", response.status);
     throw new HttpError(500, "Không thể đọc dữ liệu báo cáo Ads.");
   }
 
@@ -385,13 +381,13 @@ export async function fetchMetaAdsInsights(
     accessToken,
     {
       fields:
-        "account_id,account_name,campaign_id,campaign_name,ad_id,ad_name,spend",
-      level: "ad",
+        "account_id,account_name,campaign_id,campaign_name,spend",
+      level: "campaign",
       time_range: JSON.stringify({ since, until }),
       limit: "500",
     },
   );
-  const byAd = new Map<string, MetaAdsReportAd>();
+  const byCampaign = new Map<string, MetaAdsReportCampaign>();
   let pageCount = 0;
 
   while (nextUrl) {
@@ -416,18 +412,18 @@ export async function fetchMetaAdsInsights(
         continue;
       }
 
-      const adId = cleanString(row.ad_id) || `unknown-${byAd.size + 1}`;
-      const current = byAd.get(adId);
+      const campaignId =
+        cleanString(row.campaign_id) ||
+        `unknown-${byCampaign.size + 1}`;
+      const current = byCampaign.get(campaignId);
 
       if (current) {
         current.spend += spend;
         continue;
       }
 
-      byAd.set(adId, {
-        adId,
-        adName: cleanString(row.ad_name) || "Quảng cáo không tên",
-        campaignId: cleanString(row.campaign_id),
+      byCampaign.set(campaignId, {
+        campaignId,
         campaignName:
           cleanString(row.campaign_name) || "Chiến dịch không tên",
         spend,
@@ -459,5 +455,5 @@ export async function fetchMetaAdsInsights(
     nextUrl = parsed;
   }
 
-  return [...byAd.values()].sort((left, right) => right.spend - left.spend);
+  return [...byCampaign.values()].sort((left, right) => right.spend - left.spend);
 }
