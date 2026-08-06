@@ -279,13 +279,16 @@ export default function AdsCostReportAdminPage() {
           accountFilter === "all" || account.id === accountFilter,
       )
       .map((account) => {
+        const sourceCampaigns = Array.isArray(account.campaigns)
+          ? account.campaigns
+          : [];
         const campaigns = keyword
-          ? account.campaigns.filter((campaign) =>
+          ? sourceCampaigns.filter((campaign) =>
               campaign.campaignName
                 .toLowerCase()
                 .includes(keyword),
             )
-          : account.campaigns;
+          : sourceCampaigns;
 
         return {
           ...account,
