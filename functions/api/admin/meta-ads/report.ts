@@ -176,6 +176,7 @@ export async function onRequestGet(context: RouteContext) {
           generatedAt: new Date().toISOString(),
           totalAccounts: 0,
           totalAds: 0,
+          totalCampaigns: 0,
           totalsByCurrency: [],
           accounts: [],
           errors: [],
@@ -193,9 +194,9 @@ export async function onRequestGet(context: RouteContext) {
     );
     const totalsByCurrency = new Map<string, number>();
     const accountReports = result.successes
-      .map(({ account, ads }) => {
-        const totalSpend = ads.reduce(
-          (total, ad) => total + ad.spend,
+      .map(({ account, ads: campaigns }) => {
+        const totalSpend = campaigns.reduce(
+          (total, campaign) => total + campaign.spend,
           0,
         );
 
@@ -209,14 +210,14 @@ export async function onRequestGet(context: RouteContext) {
         return {
           ...publicAccountRow(account),
           totalSpend,
-          adCount: ads.length,
-          ads,
+          campaignCount: campaigns.length,
+          campaigns,
         };
       })
       .filter((account) => account.totalSpend > 0)
       .sort((left, right) => right.totalSpend - left.totalSpend);
-    const totalAds = accountReports.reduce(
-      (total, account) => total + account.adCount,
+    const totalCampaigns = accountReports.reduce(
+      (total, account) => total + account.campaignCount,
       0,
     );
 
@@ -228,7 +229,8 @@ export async function onRequestGet(context: RouteContext) {
         dayCount: range.days,
         generatedAt: new Date().toISOString(),
         totalAccounts: accountReports.length,
-        totalAds,
+        totalAds: totalCampaigns,
+        totalCampaigns,
         totalsByCurrency: [...totalsByCurrency.entries()]
           .map(([currency, spend]) => ({ currency, spend }))
           .sort((left, right) => left.currency.localeCompare(right.currency)),
