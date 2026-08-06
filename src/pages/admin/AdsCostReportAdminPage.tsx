@@ -279,22 +279,22 @@ export default function AdsCostReportAdminPage() {
           accountFilter === "all" || account.id === accountFilter,
       )
       .map((account) => {
-        const ads = keyword
-          ? account.ads.filter((ad) =>
-              `${ad.adName} ${ad.campaignName}`
+        const campaigns = keyword
+          ? account.campaigns.filter((campaign) =>
+              campaign.campaignName
                 .toLowerCase()
                 .includes(keyword),
             )
-          : account.ads;
+          : account.campaigns;
 
         return {
           ...account,
-          ads,
-          adCount: ads.length,
-          totalSpend: ads.reduce((total, ad) => total + ad.spend, 0),
+          campaigns,
+          campaignCount: campaigns.length,
+          totalSpend: campaigns.reduce((total, campaign) => total + campaign.spend, 0),
         };
       })
-      .filter((account) => account.adCount > 0)
+      .filter((account) => account.campaignCount > 0)
       .sort((left, right) => right.totalSpend - left.totalSpend);
   }, [accountFilter, report, search]);
 
@@ -315,7 +315,7 @@ export default function AdsCostReportAdminPage() {
   }, [filteredGroups]);
 
   const visibleAdCount = filteredGroups.reduce(
-    (total, account) => total + account.adCount,
+    (total, account) => total + account.campaignCount,
     0,
   );
 
@@ -506,7 +506,7 @@ export default function AdsCostReportAdminPage() {
               {account.accountName}
             </h3>
             <p className="mt-1 text-xs text-[#7d8c9b]">
-              {account.adAccountId} · {account.adCount} quảng cáo có chi phí
+              {account.adAccountId} · {account.campaignCount} chiến dịch có chi phí
             </p>
           </div>
           <div className="sm:text-right">
@@ -520,29 +520,25 @@ export default function AdsCostReportAdminPage() {
         </header>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[560px] border-collapse text-left text-sm">
             <thead className="bg-[#fafbfd] text-[11px] uppercase tracking-[0.04em] text-[#8795a4]">
               <tr>
-                <th className="px-5 py-3 font-bold">Quảng cáo</th>
-                <th className="px-5 py-3 font-bold">Chiến dịch</th>
+<th className="px-5 py-3 font-bold">Chiến dịch</th>
                 <th className="w-[170px] px-5 py-3 font-bold">Tỷ trọng</th>
                 <th className="px-5 py-3 text-right font-bold">Chi phí</th>
               </tr>
             </thead>
             <tbody>
-              {account.ads.map((ad) => {
-                const percentage = (ad.spend / accountShareTotal) * 100;
+              {account.campaigns.map((campaign) => {
+                const percentage = (campaign.spend / accountShareTotal) * 100;
 
                 return (
                   <tr
-                    key={ad.adId}
+                    key={campaign.campaignId}
                     className="border-t border-[#edf1f5] text-[#31475a]"
                   >
                     <td className="px-5 py-4 font-bold text-[#10283b]">
-                      {ad.adName}
-                    </td>
-                    <td className="px-5 py-4 text-[#68798a]">
-                      {ad.campaignName}
+                      {campaign.campaignName}
                     </td>
                     <td className="px-5 py-4">
                       <div className="h-2 overflow-hidden rounded-full bg-[#edf0f4]">
@@ -558,7 +554,7 @@ export default function AdsCostReportAdminPage() {
                       </div>
                     </td>
                     <td className="px-5 py-4 text-right font-black text-[#10283b]">
-                      {formatMoney(ad.spend, account.currency)}
+                      {formatMoney(campaign.spend, account.currency)}
                     </td>
                   </tr>
                 );
