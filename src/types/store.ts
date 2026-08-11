@@ -1,4 +1,4 @@
-import type { StoreSocialLinks } from "../utils/externalUrl";
+﻿import type { StoreSocialLinks } from "../utils/externalUrl";
 import type { LocalOrder } from "./cart";
 
 export type OrderStatus = "new" | "unreachable" | "confirmed" | "preparing" | "shipping" | "completed" | "cancelled";
@@ -88,6 +88,12 @@ export type StoreSettings = {
   phone: string;
   email: string;
   address: string;
+  legalBusinessName: string;
+  businessOwnerName: string;
+  taxCode: string;
+  businessRegistrationNumber: string;
+  businessRegistrationDate: string;
+  businessRegistrationPlace: string;
   messengerUrl: string;
   socialLinks: StoreSocialLinks;
   footerDescription: string;

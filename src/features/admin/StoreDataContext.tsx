@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+﻿/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
 import type { ReactNode } from "react";
 import type { CartItem } from "../../types/cart";
@@ -139,6 +139,8 @@ type ProductMetadata = {
   badge?: string;
   stockNoteEnabled?: boolean;
   stockNote?: string;
+  material?: string;
+  origin?: string;
   variantGroups?: Product["variantGroups"];
 };
 
@@ -219,7 +221,16 @@ function productFromRow(
       metadata.stockNote.trim()
         ? metadata.stockNote.trim()
         : undefined,
-    featured: row.is_featured,
+    material:
+      typeof metadata.material === "string" &&
+      metadata.material.trim()
+        ? metadata.material.trim()
+        : undefined,
+    origin:
+      typeof metadata.origin === "string" &&
+      metadata.origin.trim()
+        ? metadata.origin.trim()
+        : undefined,    featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",
     images: [...images].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -353,7 +364,8 @@ function productMetadata(input: ProductInput): ProductMetadata {
     badge: input.badge,
     stockNoteEnabled: Boolean(input.stockNoteEnabled),
     stockNote: input.stockNote?.trim() || undefined,
-    variantGroups: input.variantGroups,
+    material: input.material?.trim() || undefined,
+    origin: input.origin?.trim() || undefined,    variantGroups: input.variantGroups,
   };
 }
 
@@ -469,7 +481,8 @@ async function seedInitialData() {
             Boolean(product.stockNoteEnabled),
           stockNote:
             product.stockNote?.trim() || undefined,
-          variantGroups: product.variantGroups,
+          material: product.material?.trim() || undefined,
+          origin: product.origin?.trim() || undefined,          variantGroups: product.variantGroups,
         } satisfies ProductMetadata,
       };
     })
@@ -1213,7 +1226,8 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         stockNoteEnabled:
           Boolean(source.stockNoteEnabled),
         stockNote: source.stockNote,
-        featured: false,
+        material: source.material,
+        origin: source.origin,        featured: false,
         stock: source.stock,
         description: source.description,
         images: duplicatedImages,

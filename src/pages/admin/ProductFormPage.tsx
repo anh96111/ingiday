@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+﻿/* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -42,6 +42,8 @@ type ProductFormState = {
   badge: string;
   stockNoteEnabled: boolean;
   stockNote: string;
+  material: string;
+  origin: string;
   description: string;
   images: ProductImage[];
   videos: ProductVideo[];
@@ -154,6 +156,8 @@ function createInitialState(product?: Product): ProductFormState {
     stockNoteEnabled:
       product?.stockNoteEnabled ?? false,
     stockNote: product?.stockNote ?? "",
+    material: product?.material ?? "",
+    origin: product?.origin ?? "",
     description: product?.description ?? "",
     images: product?.images?.map((image) => ({ ...image })) ?? [],
     videos: product?.videos?.map((video) => ({ ...video })) ?? [],
@@ -778,6 +782,8 @@ export default function ProductFormPage() {
       badge: form.badge.trim() || undefined,
       stockNoteEnabled: form.stockNoteEnabled,
       stockNote: form.stockNote.trim() || undefined,
+      material: form.material.trim() || undefined,
+      origin: form.origin.trim() || undefined,
       featured: form.featured,
       stock,
       description: form.description.trim(),
@@ -961,6 +967,37 @@ export default function ProductFormPage() {
               <label className="md:col-span-2 text-sm font-bold">
                 Mô tả
                 <textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} className="mt-2 min-h-36 w-full resize-y rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] p-4 font-normal outline-none focus:border-[#006397]" placeholder="Mô tả đặc điểm và công dụng sản phẩm" />
+              </label>
+              <label className="text-sm font-bold">
+                Chất liệu
+                <input
+                  value={form.material}
+                  maxLength={120}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      material: event.target.value,
+                    }))
+                  }
+                  className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                  placeholder="Ví dụ: Nhựa PETG"
+                />
+              </label>
+
+              <label className="text-sm font-bold">
+                Xuất xứ
+                <input
+                  value={form.origin}
+                  maxLength={120}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      origin: event.target.value,
+                    }))
+                  }
+                  className="mt-2 h-12 w-full rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]"
+                  placeholder="Ví dụ: Việt Nam"
+                />
               </label>
             </div>
           </article>

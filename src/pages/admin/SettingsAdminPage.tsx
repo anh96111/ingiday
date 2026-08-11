@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect */
+﻿/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useSettings } from "../../features/settings/SettingsContext";
@@ -400,6 +400,103 @@ export default function SettingsAdminPage() {
                 className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] px-3 font-normal outline-none focus:border-[#006397]"
               />
             </label>
+            <div className="md:col-span-2 rounded-2xl border border-[#dce3ea] bg-[#f7f9ff] p-4">
+              <div>
+                <h3 className="font-black">Thông tin pháp lý hộ kinh doanh</h3>
+                <p className="mt-1 text-xs leading-5 text-[#707881]">
+                  Nhập đúng theo giấy chứng nhận đăng ký hộ kinh doanh. Các trường có dữ liệu sẽ được dùng để công khai thông tin người bán trên website.
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-bold">
+                  Tên pháp lý hộ kinh doanh
+                  <input
+                    value={form.legalBusinessName}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        legalBusinessName: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                    placeholder="Nhập đúng theo giấy đăng ký"
+                  />
+                </label>
+
+                <label className="text-sm font-bold">
+                  Tên chủ hộ / người đại diện
+                  <input
+                    value={form.businessOwnerName}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        businessOwnerName: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                  />
+                </label>
+
+                <label className="text-sm font-bold">
+                  Mã số thuế
+                  <input
+                    value={form.taxCode}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        taxCode: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                    inputMode="numeric"
+                  />
+                </label>
+
+                <label className="text-sm font-bold">
+                  Số GCN đăng ký hộ kinh doanh
+                  <input
+                    value={form.businessRegistrationNumber}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        businessRegistrationNumber: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                  />
+                </label>
+
+                <label className="text-sm font-bold">
+                  Ngày cấp
+                  <input
+                    type="date"
+                    value={form.businessRegistrationDate}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        businessRegistrationDate: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                  />
+                </label>
+
+                <label className="text-sm font-bold">
+                  Nơi cấp
+                  <input
+                    value={form.businessRegistrationPlace}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        businessRegistrationPlace: event.target.value,
+                      })
+                    }
+                    className="mt-2 h-11 w-full rounded-xl border border-[#d7dee6] bg-white px-3 font-normal outline-none focus:border-[#006397]"
+                  />
+                </label>
+              </div>
+            </div>
 
             <label className="text-sm font-bold md:col-span-2">
               Mô tả chân trang

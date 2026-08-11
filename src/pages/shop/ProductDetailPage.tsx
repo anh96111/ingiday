@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect */
+﻿/* eslint-disable react-hooks/set-state-in-effect */
 import {
   useEffect,
   useMemo,
@@ -1561,6 +1561,23 @@ export default function ProductDetailPage() {
           </div>
 
           <div className="product-detail__description">
+            {(product.material || product.origin) && (
+              <dl className="product-detail__facts">
+                {product.material && (
+                  <div>
+                    <dt>Chất liệu</dt>
+                    <dd>{product.material}</dd>
+                  </div>
+                )}
+
+                {product.origin && (
+                  <div>
+                    <dt>Xuất xứ</dt>
+                    <dd>{product.origin}</dd>
+                  </div>
+                )}
+              </dl>
+            )}
             <div
               className={`product-detail__description-copy${
                 descriptionExpanded ? " is-expanded" : ""
