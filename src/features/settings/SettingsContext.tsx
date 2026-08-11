@@ -1,4 +1,4 @@
-/* eslint-disable react-refresh/only-export-components */
+﻿/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useCallback,
@@ -34,6 +34,12 @@ const initialSettings: StoreSettings = {
   phone: "",
   email: "",
   address: "",
+  legalBusinessName: "",
+  businessOwnerName: "",
+  taxCode: "",
+  businessRegistrationNumber: "",
+  businessRegistrationDate: "",
+  businessRegistrationPlace: "",
   messengerUrl: "",
   socialLinks: createEmptySocialLinks(),
   footerDescription:
@@ -72,6 +78,12 @@ type StoreSettingsRow = {
   phone: string | null;
   email: string | null;
   address: string | null;
+  legal_business_name: string | null;
+  business_owner_name: string | null;
+  tax_code: string | null;
+  business_registration_number: string | null;
+  business_registration_date: string | null;
+  business_registration_place: string | null;
   messenger_url: string | null;
   social_links: Partial<StoreSocialLinks> | null;
   footer_text: string | null;
@@ -126,6 +138,12 @@ const settingsSelect = `
   phone,
   email,
   address,
+  legal_business_name,
+  business_owner_name,
+  tax_code,
+  business_registration_number,
+  business_registration_date,
+  business_registration_place,
   messenger_url,
   social_links,
   footer_text,
@@ -160,6 +178,15 @@ function settingsFromRow(row: StoreSettingsRow): StoreSettings {
     phone: row.phone ?? "",
     email: row.email ?? "",
     address: row.address ?? "",
+    legalBusinessName: row.legal_business_name ?? "",
+    businessOwnerName: row.business_owner_name ?? "",
+    taxCode: row.tax_code ?? "",
+    businessRegistrationNumber:
+      row.business_registration_number ?? "",
+    businessRegistrationDate:
+      row.business_registration_date ?? "",
+    businessRegistrationPlace:
+      row.business_registration_place ?? "",
     messengerUrl: normalizeExternalUrl(row.messenger_url ?? ""),
     socialLinks: normalizeSocialLinks(row.social_links),
     footerDescription:
@@ -223,6 +250,17 @@ function settingsToRow(value: StoreSettings) {
     phone: value.phone.trim() || null,
     email: value.email.trim() || null,
     address: value.address.trim() || null,
+    legal_business_name:
+      value.legalBusinessName.trim() || null,
+    business_owner_name:
+      value.businessOwnerName.trim() || null,
+    tax_code: value.taxCode.trim() || null,
+    business_registration_number:
+      value.businessRegistrationNumber.trim() || null,
+    business_registration_date:
+      value.businessRegistrationDate.trim() || null,
+    business_registration_place:
+      value.businessRegistrationPlace.trim() || null,
     messenger_url: normalizeExternalUrl(value.messengerUrl) || null,
     social_links: normalizeSocialLinks(value.socialLinks),
     footer_text:

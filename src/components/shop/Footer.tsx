@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { useSettings } from "../../features/settings/SettingsContext";
 import {
   configuredSocialLinks,
@@ -116,6 +116,56 @@ export default function Footer() {
                   <span>Địa chỉ</span>
                   {settings.address}
                 </p>
+              )}
+              {(settings.legalBusinessName ||
+                settings.businessOwnerName ||
+                settings.taxCode ||
+                settings.businessRegistrationNumber ||
+                settings.businessRegistrationDate ||
+                settings.businessRegistrationPlace) && (
+                <div className="storefront-footer__legal">
+                  {settings.legalBusinessName && (
+                    <p>
+                      <span>Hộ kinh doanh</span>
+                      {settings.legalBusinessName}
+                    </p>
+                  )}
+
+                  {settings.businessOwnerName && (
+                    <p>
+                      <span>Chủ hộ / người đại diện</span>
+                      {settings.businessOwnerName}
+                    </p>
+                  )}
+
+                  {settings.taxCode && (
+                    <p>
+                      <span>Mã số thuế</span>
+                      {settings.taxCode}
+                    </p>
+                  )}
+
+                  {settings.businessRegistrationNumber && (
+                    <p>
+                      <span>Số đăng ký HKD</span>
+                      {settings.businessRegistrationNumber}
+                    </p>
+                  )}
+
+                  {settings.businessRegistrationDate && (
+                    <p>
+                      <span>Ngày cấp</span>
+                      {settings.businessRegistrationDate}
+                    </p>
+                  )}
+
+                  {settings.businessRegistrationPlace && (
+                    <p>
+                      <span>Nơi cấp</span>
+                      {settings.businessRegistrationPlace}
+                    </p>
+                  )}
+                </div>
               )}
 
               {messengerUrl && (

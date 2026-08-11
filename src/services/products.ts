@@ -1,4 +1,4 @@
-import { supabase } from "../lib/supabase";
+﻿import { supabase } from "../lib/supabase";
 import type {
   CatalogSort,
   Category,
@@ -179,7 +179,16 @@ function metadataFields(
       metadata.stockNote.trim()
         ? metadata.stockNote.trim()
         : undefined,
-    variantGroups: Array.isArray(
+    material:
+      typeof metadata.material === "string" &&
+      metadata.material.trim()
+        ? metadata.material.trim()
+        : undefined,
+    origin:
+      typeof metadata.origin === "string" &&
+      metadata.origin.trim()
+        ? metadata.origin.trim()
+        : undefined,    variantGroups: Array.isArray(
       metadata.variantGroups,
     )
       ? (metadata.variantGroups as ProductVariantGroup[])
@@ -255,6 +264,8 @@ function productFromCatalogRow(
     badge: metadata.badge,
     stockNoteEnabled: metadata.stockNoteEnabled,
     stockNote: metadata.stockNote,
+    material: metadata.material,
+    origin: metadata.origin,
     featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",
@@ -300,6 +311,8 @@ function productFromDetailRow(
     badge: metadata.badge,
     stockNoteEnabled: metadata.stockNoteEnabled,
     stockNote: metadata.stockNote,
+    material: metadata.material,
+    origin: metadata.origin,
     featured: row.is_featured,
     stock: row.stock,
     description: row.description ?? "",

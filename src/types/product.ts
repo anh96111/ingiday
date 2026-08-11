@@ -1,4 +1,4 @@
-export type ProductStatus =
+﻿export type ProductStatus =
   | "active"
   | "hidden"
   | "out_of_stock";
@@ -70,6 +70,8 @@ export type Product = {
   badge?: string;
   stockNoteEnabled?: boolean;
   stockNote?: string;
+  material?: string;
+  origin?: string;
   featured?: boolean;
   stock: number;
   description: string;
