@@ -1,7 +1,7 @@
 ﻿import type { StoreSocialLinks } from "../utils/externalUrl";
 import type { LocalOrder } from "./cart";
 
-export type OrderStatus = "new" | "unreachable" | "confirmed" | "preparing" | "shipping" | "completed" | "cancelled";
+export type OrderStatus = "new" | "unreachable" | "confirmed" | "preparing" | "prepared" | "shipping" | "completed" | "cancelled";
 
 export type OrderStatusHistory = {
   status: OrderStatus;

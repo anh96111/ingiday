@@ -13,6 +13,7 @@ const statusLabels: Record<OrderStatus, string> = {
   unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
+  prepared: "Đã chuẩn bị",
   shipping: "Đang giao",
   completed: "Thành công",
   cancelled: "Đã hủy",
@@ -95,6 +96,7 @@ export default function OrderDetailPage() {
             <option value="unreachable">Không gọi được</option>
             <option value="confirmed">Đã xác nhận</option>
             <option value="preparing">Đang chuẩn bị</option>
+            <option value="prepared">Đã chuẩn bị</option>
             <option value="shipping">Đang giao</option>
             <option value="completed">Thành công</option>
             <option value="cancelled">Đã hủy</option>

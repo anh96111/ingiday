@@ -5,6 +5,7 @@ import OrderQuickPreview from "../../components/admin/OrderQuickPreview";
 import AddressNormalizationDialog from "../../features/orders/components/AddressNormalizationDialog";
 import DuplicatePhoneOrdersDialog from "../../features/orders/components/DuplicatePhoneOrdersDialog";
 import OrderEditDialog from "../../features/orders/components/OrderEditDialog";
+import OrderPreparationDialog from "../../features/orders/components/OrderPreparationDialog";
 import SpxExportDialog from "../../features/orders/components/SpxExportDialog";
 import SpxReconciliationDialog from "../../features/orders/components/SpxReconciliationDialog";
 import {
@@ -32,6 +33,7 @@ const statusLabels: Record<OrderStatus, string> = {
   unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
+  prepared: "Đã chuẩn bị",
   shipping: "Đang giao",
   completed: "Thành công",
   cancelled: "Đã hủy",
@@ -42,6 +44,7 @@ const statusClasses: Record<OrderStatus, string> = {
   unreachable: "bg-[#f2edff] text-[#6241a5]",
   confirmed: "bg-[#fff1b8] text-[#7a5200]",
   preparing: "bg-[#ffe8dc] text-[#a43c12]",
+  prepared: "bg-[#e7f6fb] text-[#006b82]",
   shipping: "bg-[#e7e4ff] text-[#493b9f]",
   completed: "bg-[#dcf8eb] text-[#14633d]",
   cancelled: "bg-[#fff0eb] text-[#a43c12]",
@@ -66,6 +69,7 @@ export default function OrdersAdminPage() {
     loadDuplicatePhoneOrders,
     loadOrdersByPhones,
     bulkUpdateOrderStatus,
+    prepareOrders,
     bulkDeleteOrders,
     saveNormalizedAddresses,
     updateOrder,
@@ -85,6 +89,7 @@ export default function OrdersAdminPage() {
   const [messageSuccess, setMessageSuccess] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [normalizationOpen, setNormalizationOpen] = useState(false);
+  const [preparationOpen, setPreparationOpen] = useState(false);
   const [spxExportOpen, setSpxExportOpen] = useState(false);
   const [spxReconciliationOpen, setSpxReconciliationOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<StoreOrder | null>(null);
@@ -273,6 +278,64 @@ export default function OrdersAdminPage() {
     return result;
   }
 
+  const preparationBlockedStatuses: OrderStatus[] = [
+    "unreachable",
+    "shipping",
+    "completed",
+    "cancelled",
+  ];
+
+  function handleOpenPreparation() {
+    if (selectedOrders.length === 0 || busy) return;
+
+    const blockedOrders = selectedOrders.filter((order) =>
+      preparationBlockedStatuses.includes(order.status),
+    );
+
+    if (blockedOrders.length > 0) {
+      setMessageSuccess(false);
+      setMessage(
+        `Không thể chuẩn bị vì có ${blockedOrders.length} đơn không hợp lệ: ${blockedOrders
+          .map((order) => `${order.code} (${statusLabels[order.status]})`)
+          .join(", ")}.`,
+      );
+      return;
+    }
+
+    setMessage("");
+    setPreparationOpen(true);
+  }
+
+  async function handleStartPreparing() {
+    const idsToPrepare = selectedOrders
+      .filter((order) => order.status !== "prepared")
+      .map((order) => order.id)
+      .filter((id): id is string => Boolean(id));
+
+    if (idsToPrepare.length === 0) {
+      setMessageSuccess(true);
+      setMessage("Các đơn đã chọn đều ở trạng thái Đã chuẩn bị.");
+      return true;
+    }
+
+    if (busy) return false;
+
+    setBusy(true);
+    setMessage("");
+    const result = await prepareOrders(idsToPrepare);
+    setBusy(false);
+    setMessageSuccess(result.success);
+    setMessage(result.message);
+
+    return result.success;
+  }
+
+  function handlePreparationFinished() {
+    setPreparationOpen(false);
+    setSelectedIds([]);
+    setReloadToken((current) => current + 1);
+  }
+
   function handleSpxExported(
     exportedCount: number,
     skippedShippingCount: number,
@@ -419,6 +482,14 @@ export default function OrdersAdminPage() {
                 className="h-10 rounded-xl bg-[#e7e4ff] px-4 text-sm font-bold text-[#493b9f] disabled:opacity-60"
               >
                 Chuẩn hóa địa chỉ
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenPreparation}
+                disabled={busy}
+                className="h-10 rounded-xl bg-[#ffe8dc] px-4 text-sm font-black text-[#a43c12] disabled:opacity-60"
+              >
+                Chuẩn bị đơn
               </button>
               <button
                 type="button"
@@ -643,6 +714,15 @@ export default function OrdersAdminPage() {
           </div>
         </div>
       </div>
+
+      {preparationOpen && (
+        <OrderPreparationDialog
+          orders={selectedOrders}
+          onClose={() => setPreparationOpen(false)}
+          onStartPreparing={handleStartPreparing}
+          onFinished={handlePreparationFinished}
+        />
+      )}
 
       {normalizationOpen && (
         <AddressNormalizationDialog

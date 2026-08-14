@@ -134,6 +134,7 @@ type OrdersContextValue = {
     phones: string[],
   ) => Promise<OrdersActionResult<SpxReconciliationOrder[]>>;
   bulkUpdateOrderStatus: (ids: string[], status: OrderStatus) => Promise<OrdersActionResult>;
+  prepareOrders: (ids: string[]) => Promise<OrdersActionResult>;
   bulkDeleteOrders: (ids: string[]) => Promise<OrdersActionResult>;
   saveNormalizedAddresses: (
     entries: NormalizedAddressSaveInput[],
@@ -380,6 +381,7 @@ const ORDER_STATUSES: OrderStatus[] = [
   "unreachable",
   "confirmed",
   "preparing",
+  "prepared",
   "shipping",
   "completed",
   "cancelled",
@@ -768,6 +770,33 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         }
       },
 
+      async prepareOrders(ids) {
+        try {
+          const uniqueIds = [...new Set(ids)].slice(0, 50);
+          if (uniqueIds.length === 0) {
+            return { success: false, message: "Chưa chọn đơn hàng." };
+          }
+
+          const { error: rpcError } = await supabase.rpc("admin_prepare_orders", {
+            p_order_ids: uniqueIds,
+          });
+
+          if (rpcError) throw rpcError;
+
+          return {
+            success: true,
+            message: `Đã chuyển ${uniqueIds.length} đơn sang quy trình chuẩn bị.`,
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể bắt đầu chuẩn bị các đơn hàng đã chọn.",
+            ),
+          };
+        }
+      },
       async bulkUpdateOrderStatus(ids, status) {
         try {
           const uniqueIds = [...new Set(ids)].slice(0, 50);

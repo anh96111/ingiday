@@ -48,6 +48,7 @@ const STATUS_OPTIONS: Array<{
   { value: "unreachable", label: "Không gọi được" },
   { value: "confirmed", label: "Đã xác nhận" },
   { value: "preparing", label: "Đang chuẩn bị" },
+  { value: "prepared", label: "Đã chuẩn bị" },
   { value: "shipping", label: "Đang giao" },
   { value: "completed", label: "Hoàn thành" },
   { value: "cancelled", label: "Đã hủy" },

@@ -26,6 +26,7 @@ const statusLabels: Record<OrderStatus, string> = {
   unreachable: "Không gọi được",
   confirmed: "Đã xác nhận",
   preparing: "Đang chuẩn bị",
+  prepared: "Đã chuẩn bị",
   shipping: "Đang giao",
   completed: "Thành công",
   cancelled: "Đã hủy",
