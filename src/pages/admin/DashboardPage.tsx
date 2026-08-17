@@ -5,9 +5,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { OrderDetailDialog } from "../../features/orders/components/OrderDetailDialog";
+import { useOrders } from "../../features/orders/OrdersContext";
 import { supabase } from "../../lib/supabase";
-import type { OrderStatus } from "../../types/store";
+import { loadMetaAdsCostReport } from "../../services/metaAdsReport";
+import type { MetaAdsCurrencyTotal } from "../../types/metaAdsReport";
+import type { OrderStatus, StoreOrder } from "../../types/store";
 import { formatCurrency } from "../../utils/currency";
 
 const PAGE_SIZE = 50;
@@ -153,6 +156,20 @@ function formatDateOnly(value: string) {
   }).format(new Date(`${value}T00:00:00`));
 }
 
+function formatAdsMoney(value: number, currency: string) {
+  try {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: currency === "VND" ? 0 : 2,
+    }).format(value);
+  } catch {
+    return `${new Intl.NumberFormat("vi-VN", {
+      maximumFractionDigits: 2,
+    }).format(value)} ${currency}`;
+  }
+}
+
 function orderFromRow(row: DashboardOrderRow): DashboardOrder {
   return {
     id: row.id,
@@ -170,6 +187,7 @@ function orderFromRow(row: DashboardOrderRow): DashboardOrder {
 }
 
 export default function DashboardPage() {
+  const { loadOrderByCode } = useOrders();
   const initialRange = useMemo(
     () => getPresetRange("today"),
     [],
@@ -187,6 +205,13 @@ export default function DashboardPage() {
   const [totalOrders, setTotalOrders] = useState(0);
   const [newOrders, setNewOrders] = useState(0);
   const [cancelledOrders, setCancelledOrders] = useState(0);
+  const [adsTotals, setAdsTotals] = useState<MetaAdsCurrencyTotal[]>([]);
+  const [adsLoading, setAdsLoading] = useState(true);
+  const [adsError, setAdsError] = useState("");
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<StoreOrder | null>(null);
+  const [orderDialogLoading, setOrderDialogLoading] = useState(false);
+  const [orderDialogError, setOrderDialogError] = useState("");
 
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -300,9 +325,50 @@ export default function DashboardPage() {
     setLoading(false);
   }, [dateRange, page]);
 
+  const loadAdsSummary = useCallback(async () => {
+    if (
+      !dateRange.start ||
+      !dateRange.end ||
+      dateRange.start > dateRange.end
+    ) {
+      return;
+    }
+
+    setAdsLoading(true);
+    setAdsError("");
+
+    try {
+      const report = await loadMetaAdsCostReport({
+        since: dateRange.start,
+        until: dateRange.end,
+      });
+
+      setAdsTotals(report.totalsByCurrency);
+
+      if (report.errors.length > 0) {
+        setAdsError(
+          `Có ${report.errors.length} tài khoản Ads trả về lỗi. Chỉ số hiện tại chỉ dùng dữ liệu tải thành công.`,
+        );
+      }
+    } catch (loadError) {
+      setAdsTotals([]);
+      setAdsError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Không thể tải tổng chi phí Ads.",
+      );
+    } finally {
+      setAdsLoading(false);
+    }
+  }, [dateRange]);
+
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    void loadAdsSummary();
+  }, [loadAdsSummary]);
 
   function applyPreset(
     nextPreset: Exclude<DatePreset, "custom">,
@@ -335,6 +401,38 @@ export default function DashboardPage() {
     setPage(1);
   }
 
+  async function openOrderDialog(code: string) {
+    setOrderDialogOpen(true);
+    setSelectedOrder(null);
+    setOrderDialogError("");
+    setOrderDialogLoading(true);
+
+    const result = await loadOrderByCode(code);
+
+    if (!result.success || !result.data) {
+      setOrderDialogError(result.message);
+      setOrderDialogLoading(false);
+      return;
+    }
+
+    setSelectedOrder(result.data);
+    setOrderDialogLoading(false);
+  }
+
+  function closeOrderDialog() {
+    setOrderDialogOpen(false);
+    setSelectedOrder(null);
+    setOrderDialogError("");
+    setOrderDialogLoading(false);
+  }
+
+  const adsDisplayTotals: MetaAdsCurrencyTotal[] =
+    adsTotals.length > 0
+      ? adsTotals
+      : !adsLoading && !adsError
+        ? [{ currency: "VND", spend: 0 }]
+        : [];
+
   const presetButtons: Array<{
     id: Exclude<DatePreset, "custom">;
     label: string;
@@ -366,11 +464,14 @@ export default function DashboardPage() {
 
         <button
           type="button"
-          onClick={() => void loadDashboard()}
-          disabled={loading}
+          onClick={() => {
+            void loadDashboard();
+            void loadAdsSummary();
+          }}
+          disabled={loading || adsLoading}
           className="rounded-xl bg-[#edf4ff] px-4 py-3 text-sm font-bold text-[#006397] disabled:opacity-60"
         >
-          {loading ? "Đang tải..." : "Làm mới"}
+          {loading || adsLoading ? "Đang tải..." : "Làm mới"}
         </button>
       </div>
 
@@ -467,6 +568,103 @@ export default function DashboardPage() {
         </article>
       </div>
 
+      <section className="mt-6 overflow-hidden rounded-3xl border border-[#dfe8ef] bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_48%,#fff8f3_100%)] shadow-sm">
+        <div className="grid gap-5 p-5 lg:grid-cols-[1.1fr_0.9fr] lg:p-6">
+          <div className="rounded-[26px] bg-[#10283b] p-5 text-white sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8fd5f4]">
+                  Hiệu quả quảng cáo
+                </p>
+                <h2 className="mt-2 text-xl font-black">Chi phí Ads thực / đơn</h2>
+              </div>
+              <span className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-bold text-[#d8edf7]">
+                Cùng khoảng ngày đã chọn
+              </span>
+            </div>
+
+            <div className="mt-7">
+              {adsLoading ? (
+                <p className="text-4xl font-black tracking-[-0.04em]">…</p>
+              ) : adsDisplayTotals.length === 0 ? (
+                <p className="text-2xl font-black text-[#ffd4c3]">Chưa thể tính</p>
+              ) : totalOrders === 0 ? (
+                <>
+                  <p className="text-4xl font-black tracking-[-0.04em]">—</p>
+                  <p className="mt-2 text-sm text-[#b9cbd7]">
+                    Chưa có đơn phát sinh trong khoảng thời gian này.
+                  </p>
+                </>
+              ) : (
+                <div className="space-y-1">
+                  {adsDisplayTotals.map((item) => (
+                    <p
+                      key={item.currency}
+                      className="text-4xl font-black tracking-[-0.04em] sm:text-5xl"
+                    >
+                      {formatAdsMoney(item.spend / totalOrders, item.currency)}
+                      <span className="ml-2 text-base font-bold text-[#b9cbd7]">/ đơn</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-[#b9cbd7]">
+              Tổng chi phí Meta Ads trong kỳ ÷ tổng số đơn phát sinh cùng kỳ.
+              Không tách theo tài khoản quảng cáo.
+            </p>
+
+            {adsError ? (
+              <p className="mt-4 rounded-2xl bg-[#ffb38f]/15 px-4 py-3 text-xs font-semibold leading-5 text-[#ffd4c3]">
+                {adsError}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <article className="rounded-[24px] border border-[#e8edf2] bg-white p-5">
+              <p className="text-sm font-bold text-[#718296]">Tổng chi phí Ads</p>
+              <div className="mt-3 space-y-1">
+                {adsLoading ? (
+                  <p className="text-2xl font-black text-[#10283b]">…</p>
+                ) : adsDisplayTotals.length > 0 ? (
+                  adsDisplayTotals.map((item) => (
+                    <p key={item.currency} className="text-2xl font-black text-[#fe6f3d]">
+                      {formatAdsMoney(item.spend, item.currency)}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-lg font-black text-[#a43c12]">Chưa có dữ liệu</p>
+                )}
+              </div>
+            </article>
+
+            <article className="rounded-[24px] border border-[#e8edf2] bg-white p-5">
+              <p className="text-sm font-bold text-[#718296]">Công thức đang dùng</p>
+              <p className="mt-3 text-2xl font-black text-[#10283b]">
+                {loading ? "…" : `${totalOrders} đơn`}
+              </p>
+
+              {!adsLoading && !loading && totalOrders > 0 && adsDisplayTotals.length > 0 ? (
+                <div className="mt-3 space-y-1 text-xs font-semibold leading-5 text-[#718296]">
+                  {adsDisplayTotals.map((item) => (
+                    <p key={item.currency}>
+                      {formatAdsMoney(item.spend, item.currency)} ÷ {totalOrders} ={" "}
+                      {formatAdsMoney(item.spend / totalOrders, item.currency)}/đơn
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 text-xs leading-5 text-[#82909d]">
+                  Tổng Ads ÷ tổng đơn phát sinh trong đúng khoảng ngày đang xem.
+                </p>
+              )}
+            </article>
+          </div>
+        </div>
+      </section>
+
       <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0f3] p-5">
           <div>
@@ -553,12 +751,13 @@ export default function DashboardPage() {
                     </td>
 
                     <td className="px-5 py-4 text-right">
-                      <Link
-                        to={`/admin/don-hang/${order.code}`}
-                        className="font-bold text-[#006397]"
+                      <button
+                        type="button"
+                        onClick={() => void openOrderDialog(order.code)}
+                        className="font-bold text-[#006397] transition hover:text-[#004d77]"
                       >
                         Mở đơn
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -605,6 +804,14 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <OrderDetailDialog
+        open={orderDialogOpen}
+        order={selectedOrder}
+        loading={orderDialogLoading}
+        error={orderDialogError}
+        onClose={closeOrderDialog}
+      />
     </section>
   );
 }

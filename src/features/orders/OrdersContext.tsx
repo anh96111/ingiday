@@ -126,6 +126,7 @@ type OrdersContextValue = {
   loading: boolean;
   error: string;
   refresh: () => Promise<void>;
+  loadOrderByCode: (code: string) => Promise<OrdersActionResult<StoreOrder>>;
   loadOrderPage: (filters: OrderPageFilters) => Promise<OrdersActionResult<OrderPageResult>>;
   loadDuplicatePhoneOrders: (
     phone: string,
@@ -548,6 +549,59 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       loading,
       error,
       refresh: () => loadOrders(),
+
+      async loadOrderByCode(code) {
+        const normalizedCode = code.trim();
+
+        if (!normalizedCode) {
+          return {
+            success: false,
+            message: "Mã đơn hàng không hợp lệ.",
+          };
+        }
+
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession();
+
+          if (!session) {
+            return {
+              success: false,
+              message: "Phiên đăng nhập quản trị đã hết hạn.",
+            };
+          }
+
+          const { data, error: queryError } = await supabase
+            .from("orders")
+            .select(ORDER_SELECT)
+            .eq("order_code", normalizedCode)
+            .maybeSingle();
+
+          if (queryError) throw queryError;
+
+          if (!data) {
+            return {
+              success: false,
+              message: "Không tìm thấy đơn hàng.",
+            };
+          }
+
+          return {
+            success: true,
+            message: "Đã tải chi tiết đơn hàng.",
+            data: orderFromRow(data as unknown as OrderRow),
+          };
+        } catch (actionError) {
+          return {
+            success: false,
+            message: errorMessage(
+              actionError,
+              "Không thể tải chi tiết đơn hàng.",
+            ),
+          };
+        }
+      },
 
       async loadOrderPage(filters) {
         const page = Math.max(1, filters.page);
