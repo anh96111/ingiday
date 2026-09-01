@@ -38,6 +38,12 @@ export type MetaAdsCurrencyTotal = {
   spend: number;
 };
 
+export type MetaAdsDailyCurrencyTotal = {
+  date: string;
+  currency: string;
+  spend: number;
+};
+
 export type MetaAdsReportError = {
   accountId: string;
   accountName: string;
@@ -52,6 +58,7 @@ export type MetaAdsCostReport = {
   totalAccounts: number;
   totalAds: number;
   totalsByCurrency: MetaAdsCurrencyTotal[];
+  dailyTotalsByCurrency: MetaAdsDailyCurrencyTotal[];
   accounts: MetaAdsReportAccountGroup[];
   errors: MetaAdsReportError[];
 };
