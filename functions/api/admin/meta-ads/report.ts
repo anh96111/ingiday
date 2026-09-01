@@ -6,6 +6,7 @@ import {
 } from "../../../_lib/http";
 import {
   fetchMetaAdsInsights,
+  fetchMetaAdsInsightsDaily,
   listMetaAdsAccounts,
   loadStoredMetaAccessToken,
   publicAccountRow,
@@ -22,7 +23,11 @@ type RouteContext = {
 
 type AccountReportResult = {
   account: MetaAdsAccountRow;
-  ads: Awaited<ReturnType<typeof fetchMetaAdsInsights>>;
+  campaigns: Awaited<ReturnType<typeof fetchMetaAdsInsights>>;
+  dailySpend: Array<{
+    date: string;
+    spend: number;
+  }>;
 };
 
 function parseDate(value: string | null, label: string) {
@@ -53,9 +58,8 @@ function validateRange(since: string | null, until: string | null) {
     );
   }
 
-  const days = Math.floor(
-    (end.getTime() - start.getTime()) / 86_400_000,
-  ) + 1;
+  const days =
+    Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
 
   if (days > 90) {
     throw new HttpError(
@@ -93,6 +97,7 @@ async function loadInBatches(
   accounts: MetaAdsAccountRow[],
   since: string,
   until: string,
+  includeDaily: boolean,
 ) {
   const successes: AccountReportResult[] = [];
   const errors: Array<{
@@ -103,17 +108,37 @@ async function loadInBatches(
 
   for (let index = 0; index < accounts.length; index += 3) {
     const batch = accounts.slice(index, index + 3);
+
     const results = await Promise.allSettled(
-      batch.map(async (account) => ({
-        account,
-        ads: await fetchMetaAdsInsights(
-          env,
-          accessToken,
+      batch.map(async (account): Promise<AccountReportResult> => {
+        if (includeDaily) {
+          const ads = await fetchMetaAdsInsightsDaily(
+            env,
+            accessToken,
+            account,
+            since,
+            until,
+          );
+
+          return {
+            account,
+            campaigns: ads.campaigns,
+            dailySpend: ads.dailySpend,
+          };
+        }
+
+        return {
           account,
-          since,
-          until,
-        ),
-      })),
+          campaigns: await fetchMetaAdsInsights(
+            env,
+            accessToken,
+            account,
+            since,
+            until,
+          ),
+          dailySpend: [],
+        };
+      }),
     );
 
     results.forEach((result, resultIndex) => {
@@ -148,6 +173,7 @@ async function loadInBatches(
 export async function onRequestGet(context: RouteContext) {
   try {
     await requireAdmin(context.request, context.env);
+
     const url = new URL(context.request.url);
     const range = validateRange(
       url.searchParams.get("since"),
@@ -156,6 +182,8 @@ export async function onRequestGet(context: RouteContext) {
     const selectedAccountId = accountIdFilter(
       url.searchParams.get("accountId"),
     );
+    const includeDaily = url.searchParams.get("daily") === "1";
+
     let accounts = await listMetaAdsAccounts(context.env, {
       enabledOnly: true,
     });
@@ -178,6 +206,7 @@ export async function onRequestGet(context: RouteContext) {
           totalAds: 0,
           totalCampaigns: 0,
           totalsByCurrency: [],
+          dailyTotalsByCurrency: [],
           accounts: [],
           errors: [],
         },
@@ -191,10 +220,14 @@ export async function onRequestGet(context: RouteContext) {
       accounts,
       range.since,
       range.until,
+      includeDaily,
     );
+
     const totalsByCurrency = new Map<string, number>();
+    const dailyTotalsByCurrency = new Map<string, number>();
+
     const accountReports = result.successes
-      .map(({ account, ads: campaigns }) => {
+      .map(({ account, campaigns, dailySpend }) => {
         const totalSpend = campaigns.reduce(
           (total, campaign) => total + campaign.spend,
           0,
@@ -207,6 +240,16 @@ export async function onRequestGet(context: RouteContext) {
           );
         }
 
+        if (includeDaily) {
+          for (const item of dailySpend) {
+            const key = `${item.date}|${account.currency}`;
+            dailyTotalsByCurrency.set(
+              key,
+              (dailyTotalsByCurrency.get(key) ?? 0) + item.spend,
+            );
+          }
+        }
+
         return {
           ...publicAccountRow(account),
           totalSpend,
@@ -216,6 +259,7 @@ export async function onRequestGet(context: RouteContext) {
       })
       .filter((account) => account.totalSpend > 0)
       .sort((left, right) => right.totalSpend - left.totalSpend);
+
     const totalCampaigns = accountReports.reduce(
       (total, account) => total + account.campaignCount,
       0,
@@ -233,7 +277,21 @@ export async function onRequestGet(context: RouteContext) {
         totalCampaigns,
         totalsByCurrency: [...totalsByCurrency.entries()]
           .map(([currency, spend]) => ({ currency, spend }))
-          .sort((left, right) => left.currency.localeCompare(right.currency)),
+          .sort((left, right) =>
+            left.currency.localeCompare(right.currency),
+          ),
+        dailyTotalsByCurrency: includeDaily
+          ? [...dailyTotalsByCurrency.entries()]
+              .map(([key, spend]) => {
+                const [date, currency] = key.split("|");
+                return { date, currency, spend };
+              })
+              .sort(
+                (left, right) =>
+                  left.date.localeCompare(right.date) ||
+                  left.currency.localeCompare(right.currency),
+              )
+          : [],
         accounts: accountReports,
         errors: result.errors,
       },

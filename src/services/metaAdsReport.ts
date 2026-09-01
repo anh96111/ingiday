@@ -2,7 +2,10 @@ import { supabase } from "../lib/supabase";
 import type {
   MetaAdsConnectionStatus,
   MetaAdsCostReport,
+  MetaAdsCurrencyTotal,
+  MetaAdsDailyCurrencyTotal,
   MetaAdsReportAccount,
+  MetaAdsReportError,
 } from "../types/metaAdsReport";
 
 type ApiPayload = {
@@ -22,6 +25,11 @@ type AccountsPayload = ApiPayload & {
 
 type ReportPayload = ApiPayload & {
   report?: MetaAdsCostReport;
+};
+
+type DateChunk = {
+  since: string;
+  until: string;
 };
 
 async function adminAccessToken() {
@@ -57,8 +65,8 @@ async function requestJson<T extends ApiPayload>(
     headers,
     cache: "no-store",
   });
-  let payload: T;
 
+  let payload: T;
   try {
     payload = (await response.json()) as T;
   } catch {
@@ -74,6 +82,64 @@ async function requestJson<T extends ApiPayload>(
   }
 
   return payload;
+}
+
+function parseDate(value: string, label: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error(`Ngày ${label} không hợp lệ.`);
+  }
+
+  const date = new Date(`${value}T00:00:00Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== value
+  ) {
+    throw new Error(`Ngày ${label} không tồn tại.`);
+  }
+
+  return date;
+}
+
+function toDateInputUtc(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function splitDateRange(
+  since: string,
+  until: string,
+  maxDays = 90,
+): DateChunk[] {
+  const start = parseDate(since, "bắt đầu");
+  const end = parseDate(until, "kết thúc");
+
+  if (start.getTime() > end.getTime()) {
+    throw new Error(
+      "Ngày bắt đầu không được lớn hơn ngày kết thúc.",
+    );
+  }
+
+  const chunks: DateChunk[] = [];
+  let cursor = new Date(start);
+
+  while (cursor.getTime() <= end.getTime()) {
+    const chunkStart = new Date(cursor);
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + maxDays - 1);
+
+    if (chunkEnd.getTime() > end.getTime()) {
+      chunkEnd.setTime(end.getTime());
+    }
+
+    chunks.push({
+      since: toDateInputUtc(chunkStart),
+      until: toDateInputUtc(chunkEnd),
+    });
+
+    cursor = new Date(chunkEnd);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return chunks;
 }
 
 export async function loadMetaAdsConnection() {
@@ -231,6 +297,7 @@ export async function loadMetaAdsCostReport(input: {
   since: string;
   until: string;
   accountId?: string;
+  includeDaily?: boolean;
 }) {
   const params = new URLSearchParams({
     since: input.since,
@@ -239,6 +306,10 @@ export async function loadMetaAdsCostReport(input: {
 
   if (input.accountId && input.accountId !== "all") {
     params.set("accountId", input.accountId);
+  }
+
+  if (input.includeDaily) {
+    params.set("daily", "1");
   }
 
   const payload = await requestJson<ReportPayload>(
@@ -250,4 +321,65 @@ export async function loadMetaAdsCostReport(input: {
   }
 
   return payload.report;
+}
+
+export async function loadMetaAdsRevenueSummary(input: {
+  since: string;
+  until: string;
+}) {
+  const chunks = splitDateRange(input.since, input.until, 90);
+  const totals = new Map<string, number>();
+  const dailyTotals = new Map<string, number>();
+  const errors = new Map<string, MetaAdsReportError>();
+
+  for (const chunk of chunks) {
+    const report = await loadMetaAdsCostReport({
+      since: chunk.since,
+      until: chunk.until,
+      includeDaily: true,
+    });
+
+    for (const total of report.totalsByCurrency ?? []) {
+      const currency = total.currency.trim().toUpperCase() || "UNKNOWN";
+      totals.set(currency, (totals.get(currency) ?? 0) + total.spend);
+    }
+
+    for (const total of report.dailyTotalsByCurrency ?? []) {
+      const currency = total.currency.trim().toUpperCase() || "UNKNOWN";
+      const key = `${total.date}|${currency}`;
+      dailyTotals.set(key, (dailyTotals.get(key) ?? 0) + total.spend);
+    }
+
+    for (const error of report.errors ?? []) {
+      const key = `${error.accountId}|${error.message}`;
+      if (!errors.has(key)) {
+        errors.set(key, error);
+      }
+    }
+  }
+
+  const totalsByCurrency: MetaAdsCurrencyTotal[] = [...totals.entries()]
+    .map(([currency, spend]) => ({ currency, spend }))
+    .sort((left, right) => left.currency.localeCompare(right.currency));
+
+  const dailyTotalsByCurrency: MetaAdsDailyCurrencyTotal[] = [
+    ...dailyTotals.entries(),
+  ]
+    .map(([key, spend]) => {
+      const [date, currency] = key.split("|");
+      return { date, currency, spend };
+    })
+    .sort(
+      (left, right) =>
+        left.date.localeCompare(right.date) ||
+        left.currency.localeCompare(right.currency),
+    );
+
+  return {
+    since: input.since,
+    until: input.until,
+    totalsByCurrency,
+    dailyTotalsByCurrency,
+    errors: [...errors.values()],
+  };
 }

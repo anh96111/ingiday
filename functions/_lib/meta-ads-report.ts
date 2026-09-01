@@ -71,6 +71,7 @@ type MetaInsightsRow = {
   campaign_id?: unknown;
   campaign_name?: unknown;
   spend?: unknown;
+  date_start?: unknown;
 };
 
 function cleanString(value: unknown) {
@@ -368,26 +369,43 @@ export async function listMetaAdsAccounts(
   );
 }
 
-export async function fetchMetaAdsInsights(
+type MetaAdsInsightsResult = {
+  campaigns: MetaAdsReportCampaign[];
+  dailySpend: Array<{
+    date: string;
+    spend: number;
+  }>;
+};
+
+async function fetchMetaAdsInsightsResult(
   env: MetaAdsFunctionEnv,
   accessToken: string,
   account: MetaAdsAccountRow,
   since: string,
   until: string,
-) {
+  includeDaily: boolean,
+): Promise<MetaAdsInsightsResult> {
+  const params: Record<string, string> = {
+    fields:
+      "account_id,account_name,campaign_id,campaign_name,spend",
+    level: "campaign",
+    time_range: JSON.stringify({ since, until }),
+    limit: "500",
+  };
+
+  if (includeDaily) {
+    params.time_increment = "1";
+  }
+
   let nextUrl: URL | null = graphUrl(
     env,
     `${account.ad_account_id}/insights`,
     accessToken,
-    {
-      fields:
-        "account_id,account_name,campaign_id,campaign_name,spend",
-      level: "campaign",
-      time_range: JSON.stringify({ since, until }),
-      limit: "500",
-    },
+    params,
   );
+
   const byCampaign = new Map<string, MetaAdsReportCampaign>();
+  const byDate = new Map<string, number>();
   let pageCount = 0;
 
   while (nextUrl) {
@@ -419,15 +437,21 @@ export async function fetchMetaAdsInsights(
 
       if (current) {
         current.spend += spend;
-        continue;
+      } else {
+        byCampaign.set(campaignId, {
+          campaignId,
+          campaignName:
+            cleanString(row.campaign_name) || "Chiến dịch không tên",
+          spend,
+        });
       }
 
-      byCampaign.set(campaignId, {
-        campaignId,
-        campaignName:
-          cleanString(row.campaign_name) || "Chiến dịch không tên",
-        spend,
-      });
+      if (includeDaily) {
+        const date = cleanString(row.date_start);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          byDate.set(date, (byDate.get(date) ?? 0) + spend);
+        }
+      }
     }
 
     const paging =
@@ -444,16 +468,61 @@ export async function fetchMetaAdsInsights(
     }
 
     const parsed = new URL(next);
-
     if (
       parsed.protocol !== "https:" ||
       parsed.hostname !== "graph.facebook.com"
     ) {
-      throw new HttpError(502, "Meta trả về liên kết phân trang không hợp lệ.");
+      throw new HttpError(
+        502,
+        "Meta trả về liên kết phân trang không hợp lệ.",
+      );
     }
 
     nextUrl = parsed;
   }
 
-  return [...byCampaign.values()].sort((left, right) => right.spend - left.spend);
+  return {
+    campaigns: [...byCampaign.values()].sort(
+      (left, right) => right.spend - left.spend,
+    ),
+    dailySpend: [...byDate.entries()]
+      .map(([date, spend]) => ({ date, spend }))
+      .sort((left, right) => left.date.localeCompare(right.date)),
+  };
+}
+
+export async function fetchMetaAdsInsights(
+  env: MetaAdsFunctionEnv,
+  accessToken: string,
+  account: MetaAdsAccountRow,
+  since: string,
+  until: string,
+) {
+  const result = await fetchMetaAdsInsightsResult(
+    env,
+    accessToken,
+    account,
+    since,
+    until,
+    false,
+  );
+
+  return result.campaigns;
+}
+
+export async function fetchMetaAdsInsightsDaily(
+  env: MetaAdsFunctionEnv,
+  accessToken: string,
+  account: MetaAdsAccountRow,
+  since: string,
+  until: string,
+) {
+  return fetchMetaAdsInsightsResult(
+    env,
+    accessToken,
+    account,
+    since,
+    until,
+    true,
+  );
 }
