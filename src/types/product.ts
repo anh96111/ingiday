@@ -49,6 +49,11 @@ export type ProductVariantOption = {
   showPriceDelta?: boolean;
 };
 
+export type ProductVariantImageMapping = {
+  selections: Record<string, string>;
+  imageId: string;
+};
+
 export type ProductVariantGroup = {
   id: string;
   name: string;
@@ -78,6 +83,7 @@ export type Product = {
   images?: ProductImage[];
   videos?: ProductVideo[];
   variantGroups?: ProductVariantGroup[];
+  variantImageMappings?: ProductVariantImageMapping[];
   status: ProductStatus;
   soldQuantity?: number;
   createdAt: string;
