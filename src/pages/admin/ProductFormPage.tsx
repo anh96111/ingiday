@@ -29,6 +29,7 @@ import type {
 import type { Product, ProductImage, ProductInput, ProductStatus, ProductVariantGroup, ProductVariantOption, ProductVideo } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
 import { slugify } from "../../utils/slug";
+import { buildVariantImageCombinations, sanitizeVariantImageMappings } from "../../utils/variantImageMapping";
 
 type ProductFormState = {
   name: string;
@@ -50,6 +51,7 @@ type ProductFormState = {
   featured: boolean;
   status: ProductStatus;
   variantGroups: ProductVariantGroup[];
+  variantImageMappings: Product["variantImageMappings"];
 };
 type ProductCustomOptionsFormState = {
   enabled: boolean;
@@ -171,6 +173,10 @@ function createInitialState(product?: Product): ProductFormState {
       product?.images ?? [],
       product?.videos ?? [],
     ),
+    variantImageMappings: product?.variantImageMappings?.map((mapping) => ({
+      selections: { ...mapping.selections },
+      imageId: mapping.imageId,
+    })) ?? [],
   };
 }
 
@@ -489,6 +495,26 @@ export default function ProductFormPage() {
       ),
     }));
   }
+  function updateVariantCombinationImage(
+    selections: Record<string, string>,
+    imageId: string,
+  ) {
+    setForm((current) => {
+      const previous = current.variantImageMappings ?? [];
+      const withoutCurrent = previous.filter((mapping) =>
+        !Object.keys(selections).every((groupId) =>
+          mapping.selections[groupId] === selections[groupId],
+        ) || Object.keys(mapping.selections).length !== Object.keys(selections).length,
+      );
+      return {
+        ...current,
+        variantImageMappings: imageId
+          ? [...withoutCurrent, { selections: { ...selections }, imageId }]
+          : withoutCurrent,
+      };
+    });
+  }
+
   function updateVariantOptionPriceVisibility(groupIndex: number, optionIndex: number, showPriceDelta: boolean) {
     setForm((current) => ({
       ...current,
@@ -766,6 +792,11 @@ export default function ProductFormPage() {
           })),
       }))
       .filter((group) => group.name && group.options.length > 0);
+    const variantImageMappings = sanitizeVariantImageMappings(
+      form.variantImageMappings,
+      variantGroups,
+      form.images,
+    );
     const customOptionsInput = buildCustomOptionsInput();
 
     const status: ProductStatus = stock === 0 && form.status === "active" ? "out_of_stock" : form.status;
@@ -790,6 +821,7 @@ export default function ProductFormPage() {
       images: form.images.map((image, index) => ({ ...image, sortOrder: index })),
       videos: form.videos.map((video, index) => ({ ...video, sortOrder: index })),
       variantGroups: variantGroups.length > 0 ? variantGroups : undefined,
+      variantImageMappings,
       status,
     };
 
@@ -1081,6 +1113,11 @@ export default function ProductFormPage() {
                 images,
                 current.videos,
               ),
+              variantImageMappings: sanitizeVariantImageMappings(
+                current.variantImageMappings,
+                current.variantGroups,
+                images,
+              ),
             }))}
           />
 
@@ -1314,10 +1351,61 @@ export default function ProductFormPage() {
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black">Biến thể</h2>
-                <p className="mt-1 text-sm text-[#707881]">Dùng cho màu sắc, kích thước hoặc lựa chọn riêng. Chỉ nhóm đầu tiên có thể gán ảnh đại diện cho từng lựa chọn.</p>
+                <p className="mt-1 text-sm text-[#707881]">Dùng cho màu sắc, kích thước hoặc lựa chọn riêng. Ảnh của từng tổ hợp có thể được thiết lập ở mục bên dưới.</p>
               </div>
               <button type="button" onClick={addVariantGroup} className="rounded-2xl bg-[#edf4ff] px-5 py-3 text-sm font-bold text-[#006397]">+ Thêm nhóm</button>
             </div>
+
+            {(() => {
+              const { combinations, exceeded } = buildVariantImageCombinations(form.variantGroups);
+              if (exceeded) return (
+                <p className="mt-5 rounded-xl bg-[#fff0eb] p-4 text-sm text-[#a43c12]">
+                  Có quá 120 tổ hợp. Hãy giảm số lựa chọn trước khi gắn ảnh riêng.
+                </p>
+              );
+              if (combinations.length === 0) return null;
+              return (
+                <div className="mt-5 rounded-2xl border border-[#cfd6dd] bg-[#f7f9ff] p-4">
+                  <h3 className="font-bold text-[#091d2e]">Ảnh theo tổ hợp biến thể</h3>
+                  <p className="mt-1 text-xs text-[#707881]">
+                    Chọn ảnh đã tải ở mục Ảnh sản phẩm cho từng tổ hợp. Nếu để mặc định,
+                    website dùng ảnh của nhóm đầu tiên hoặc ảnh đại diện như trước.
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    {combinations.map((combination) => {
+                      const mapped = (form.variantImageMappings ?? []).find((mapping) =>
+                        Object.keys(mapping.selections).length === Object.keys(combination.selections).length &&
+                        Object.keys(combination.selections).every((groupId) =>
+                          mapping.selections[groupId] === combination.selections[groupId],
+                        ),
+                      );
+                      const matchingImage = form.images.find((image) => image.id === mapped?.imageId);
+                      return (
+                        <div key={Object.values(combination.selections).join('::')} className="flex flex-wrap items-center gap-3 rounded-xl border border-[#dce3ea] bg-white p-3">
+                          <span className="min-w-52 flex-1 text-sm font-semibold">{combination.label}</span>
+                          {matchingImage && (
+                            <img src={matchingImage.url} alt="" className="h-12 w-12 rounded-lg object-cover" loading="lazy" />
+                          )}
+                          <select
+                            aria-label={`Ảnh cho ${combination.label}`}
+                            value={matchingImage?.id ?? ''}
+                            onChange={(event) => updateVariantCombinationImage(combination.selections, event.target.value)}
+                            className="h-11 min-w-56 rounded-xl border border-[#cfd6dd] bg-white px-3 text-sm"
+                          >
+                            <option value="">Dùng ảnh mặc định</option>
+                            {form.images.map((image, index) => (
+                              <option key={image.id} value={image.id}>
+                                {image.altText?.trim() || `Ảnh ${index + 1}`}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="mt-5 space-y-5">
               {form.variantGroups.map((group, groupIndex) => (

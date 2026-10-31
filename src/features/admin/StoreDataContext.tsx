@@ -142,6 +142,7 @@ type ProductMetadata = {
   material?: string;
   origin?: string;
   variantGroups?: Product["variantGroups"];
+  variantImageMappings?: Product["variantImageMappings"];
 };
 
 const StoreDataContext = createContext<StoreDataContextValue | null>(null);
@@ -236,6 +237,7 @@ function productFromRow(
     images: [...images].sort((a, b) => a.sortOrder - b.sortOrder),
     videos: [...videos].sort((a, b) => a.sortOrder - b.sortOrder),
     variantGroups: metadata.variantGroups,
+    variantImageMappings: metadata.variantImageMappings,
     status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -365,7 +367,9 @@ function productMetadata(input: ProductInput): ProductMetadata {
     stockNoteEnabled: Boolean(input.stockNoteEnabled),
     stockNote: input.stockNote?.trim() || undefined,
     material: input.material?.trim() || undefined,
-    origin: input.origin?.trim() || undefined,    variantGroups: input.variantGroups,
+    origin: input.origin?.trim() || undefined,
+    variantGroups: input.variantGroups,
+    variantImageMappings: input.variantImageMappings,
   };
 }
 
@@ -482,7 +486,9 @@ async function seedInitialData() {
           stockNote:
             product.stockNote?.trim() || undefined,
           material: product.material?.trim() || undefined,
-          origin: product.origin?.trim() || undefined,          variantGroups: product.variantGroups,
+          origin: product.origin?.trim() || undefined,
+          variantGroups: product.variantGroups,
+          variantImageMappings: product.variantImageMappings,
         } satisfies ProductMetadata,
       };
     })
@@ -1211,6 +1217,13 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         }),
       );
 
+      const duplicatedVariantImageMappings = (source.variantImageMappings ?? [])
+        .map((mapping) => ({
+          selections: { ...mapping.selections },
+          imageId: imageIdMap.get(mapping.imageId) ?? '',
+        }))
+        .filter((mapping) => Boolean(mapping.imageId));
+
       const input: ProductInput = {
         name: `${source.name} - Bản sao`,
         slug: uniqueSlug(`${source.slug}-ban-sao`, products),
@@ -1233,6 +1246,7 @@ export function StoreDataProvider({ children }: { children: ReactNode }) {
         images: duplicatedImages,
         videos: duplicatedVideos,
         variantGroups: duplicatedVariantGroups,
+        variantImageMappings: duplicatedVariantImageMappings,
         status: "hidden",
       };
 

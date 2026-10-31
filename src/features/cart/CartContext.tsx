@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Product } from "../../types/product";
 import type { CartItem, SelectedVariant } from "../../types/cart";
 import type { SelectedCustomOptions } from "../../types/customProductOptions";
+import { resolveVariantCombinationImageId } from "../../utils/variantImageMapping";
 
 const STORAGE_KEY = "ingiday-cart";
 
@@ -81,7 +82,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
       selectedVariants.reduce((sum, variant) => sum + variant.priceDelta, 0) +
       customPriceDelta;
     const variantImageId =
-      selectedVariants.find((variant) => variant.imageId)?.imageId ?? "";
+      resolveVariantCombinationImageId(
+        product.variantGroups,
+        product.variantImageMappings,
+        product.images,
+        selectedVariants,
+      ) ?? selectedVariants.find((variant) => variant.imageId)?.imageId ?? "";
     const primaryImage =
       (variantImageId
         ? product.images?.find((image) => image.id === variantImageId)

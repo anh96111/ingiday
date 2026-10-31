@@ -30,6 +30,7 @@ import type {
 } from "../../types/customProductOptions";
 import type { Product } from "../../types/product";
 import { formatCurrency } from "../../utils/currency";
+import { resolveVariantCombinationImageId } from "../../utils/variantImageMapping";
 import "./ProductDetailPage.css";
 
 const PRODUCT_VIDEO_VOLUME_KEY = "ingiday-product-video-volume";
@@ -338,11 +339,18 @@ export default function ProductDetailPage() {
   const primaryImage =
     productImages.find((image) => image.isPrimary) ??
     productImages[0];
+  const combinationImageId = resolveVariantCombinationImageId(
+    product?.variantGroups,
+    product?.variantImageMappings,
+    productImages,
+    selectedVariants,
+  );
   const selectedVariantImageId =
+    combinationImageId ??
     selectedVariants.find((variant) => variant.imageId)?.imageId ??
     "";
   const selectedVariantVideoId = useMemo(() => {
-    if (!product?.variantGroups) {
+    if (combinationImageId || !product?.variantGroups) {
       return "";
     }
 
@@ -359,9 +367,17 @@ export default function ProductDetailPage() {
     }
 
     return "";
-  }, [product, selections]);
+  }, [combinationImageId, product, selections]);
 
   const selectedVariantMediaContext = useMemo(() => {
+    if (combinationImageId) {
+      return {
+        groupName: "Tổ hợp",
+        optionLabel: selectedVariants.map((variant) => variant.optionLabel).join(" / "),
+        imageId: combinationImageId,
+        videoId: "",
+      };
+    }
     if (!product?.variantGroups) {
       return null;
     }
@@ -400,8 +416,10 @@ export default function ProductDetailPage() {
       videoId: activeSelection.option.videoId ?? "",
     };
   }, [
+    combinationImageId,
     product,
     selections,
+    selectedVariants,
     selectedVariantImageId,
     selectedVariantVideoId,
   ]);

@@ -9,6 +9,7 @@ import type {
   ProductSearchResult,
   ProductStatus,
   ProductVariantGroup,
+  ProductVariantImageMapping,
 } from "../types/product";
 
 const CACHE_TTL_MS = 2 * 60 * 1000;
@@ -188,7 +189,11 @@ function metadataFields(
       typeof metadata.origin === "string" &&
       metadata.origin.trim()
         ? metadata.origin.trim()
-        : undefined,    variantGroups: Array.isArray(
+        : undefined,
+    variantImageMappings: Array.isArray(metadata.variantImageMappings)
+      ? (metadata.variantImageMappings as ProductVariantImageMapping[])
+      : undefined,
+    variantGroups: Array.isArray(
       metadata.variantGroups,
     )
       ? (metadata.variantGroups as ProductVariantGroup[])
@@ -271,6 +276,7 @@ function productFromCatalogRow(
     description: row.description ?? "",
     images,
     variantGroups: metadata.variantGroups,
+    variantImageMappings: metadata.variantImageMappings,
     status: productStatus(row.status),
     soldQuantity: Number(row.sold_quantity),
     createdAt: row.created_at,
@@ -319,6 +325,7 @@ function productFromDetailRow(
     images,
     videos,
     variantGroups: metadata.variantGroups,
+    variantImageMappings: metadata.variantImageMappings,
     status: productStatus(row.status),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
