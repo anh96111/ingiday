@@ -8,6 +8,8 @@ import {
 import { Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { loadMetaAdsRevenueSummary } from "../../services/metaAdsReport";
+import { loadProductionCostReport } from "../../services/productionCostReport";
+import type { ProductionCostReport } from "../../services/productionCostReport";
 import type {
   MetaAdsCurrencyTotal,
   MetaAdsReportError,
@@ -16,7 +18,7 @@ import { formatCurrency } from "../../utils/currency";
 
 const PAGE_SIZE = 50;
 const DAILY_QUERY_SIZE = 1000;
-const PRODUCT_COST_RATE = 0.15;
+
 
 type DatePreset = "last10" | "last30" | "thisMonth" | "custom";
 
@@ -477,6 +479,8 @@ export default function RevenueAdminPage() {
     {},
   );
 
+  const [costReport, setCostReport] = useState<ProductionCostReport | null>(null);
+  const [costReportError, setCostReportError] = useState("");
   const [adsCost, setAdsCost] = useState<number | null>(null);
   const [dailyAds, setDailyAds] = useState<Record<string, number>>({});
   const [foreignAdsTotals, setForeignAdsTotals] = useState<
@@ -519,12 +523,23 @@ export default function RevenueAdminPage() {
     setRevenueError("");
     setAdsError("");
     setAdsCost(null);
+    setCostReport(null);
+    setCostReportError("");
     setDailyAds({});
     setForeignAdsTotals([]);
     setAdsReportErrors([]);
 
     const { startIso, endExclusiveIso } =
       dateRangeToIso(dateRange);
+
+    const costsPromise = loadProductionCostReport(startIso, endExclusiveIso)
+      .then((data) => ({ data, error: "" }))
+      .catch((cause: unknown) => ({
+        data: null,
+        error: cause instanceof Error
+          ? cause.message
+          : "Không thể tải giá vốn theo đơn hàng.",
+      }));
 
     const adsPromise = loadMetaAdsRevenueSummary({
       since: dateRange.start,
@@ -540,7 +555,7 @@ export default function RevenueAdminPage() {
       }));
 
     try {
-      const [summaryResult, dailyRows, adsResult] =
+      const [summaryResult, dailyRows, adsResult, costsResult] =
         await Promise.all([
           supabase.rpc("get_revenue_summary", {
             p_start_at: startIso,
@@ -548,6 +563,7 @@ export default function RevenueAdminPage() {
           }),
           loadAllRevenueRows(startIso, endExclusiveIso),
           adsPromise,
+          costsPromise,
         ]);
 
       if (summaryResult.error) {
@@ -570,6 +586,12 @@ export default function RevenueAdminPage() {
           (revenueByDate[date] ?? 0) + Number(row.total_amount);
       }
       setDailyRevenue(revenueByDate);
+
+      if (costsResult.data) {
+        setCostReport(costsResult.data);
+      } else {
+        setCostReportError(costsResult.error || "Không thể tải giá vốn.");
+      }
 
       if (!adsResult.data) {
         setAdsError(adsResult.error);
@@ -726,16 +748,28 @@ export default function RevenueAdminPage() {
     setPage(1);
   }
 
-  const productCost = totalRevenue * PRODUCT_COST_RATE;
+  // Cost snapshots include ALL orders created in this period, regardless
+  // of status. Revenue continues to include completed orders only.
+  const costTotals = costReport?.totals;
+  const productCost = costTotals && costTotals.missingProductionUnits === 0
+    ? costTotals.knownProductionCost
+    : null;
+  const packagingCost = costTotals && costTotals.missingHandlingOrders === 0
+    ? costTotals.knownPackagingCost
+    : null;
+  const shippingCost = costTotals && costTotals.missingHandlingOrders === 0
+    ? costTotals.knownShippingCost
+    : null;
   const hasForeignCurrency = foreignAdsTotals.length > 0;
   const financialReady =
     adsCost !== null &&
     !adsError &&
     !hasForeignCurrency &&
-    adsReportErrors.length === 0;
+    adsReportErrors.length === 0 &&
+    costTotals?.complete === true;
 
-  const totalCost = financialReady
-    ? (adsCost ?? 0) + productCost
+  const totalCost = financialReady && costTotals
+    ? (adsCost ?? 0) + costTotals.knownTotalCost
     : null;
   const profit =
     totalCost === null ? null : totalRevenue - totalCost;
@@ -759,7 +793,7 @@ export default function RevenueAdminPage() {
       ? (adsCost / totalCost) * 100
       : 0;
   const productCostShare =
-    totalCost !== null && totalCost > 0
+    totalCost !== null && totalCost > 0 && productCost !== null
       ? (productCost / totalCost) * 100
       : 0;
 
@@ -775,17 +809,17 @@ export default function RevenueAdminPage() {
     return listDateKeys(dateRange).map((date) => {
       const revenue = dailyRevenue[date] ?? 0;
       const ads = dailyAds[date] ?? 0;
-      const dailyProductCost = revenue * PRODUCT_COST_RATE;
+      const dailyCost = costReport?.byDate[date]?.knownTotalCost ?? 0;
 
       return {
         date,
         revenue,
         profit: financialReady
-          ? revenue - ads - dailyProductCost
+          ? revenue - ads - dailyCost
           : null,
       };
     });
-  }, [dateRange, dailyRevenue, dailyAds, financialReady]);
+  }, [dateRange, dailyRevenue, dailyAds, financialReady, costReport]);
 
   const foreignWarning = hasForeignCurrency
     ? `Có chi phí Ads ngoài VND (${foreignAdsTotals
@@ -793,7 +827,14 @@ export default function RevenueAdminPage() {
         .join(", ")}). Hệ thống không tự quy đổi nên ROI và lãi/lỗ được ẩn.`
     : "";
 
-  const financialWarning = adsError || foreignWarning;
+  const costWarning = costReportError
+    ? `Không thể tải giá vốn: ${costReportError}. Lợi nhuận và ROI tạm ẩn.`
+    : costTotals && !costTotals.complete
+      ? `Thiếu snapshot lịch sử: ${costTotals.missingHandlingOrders} đơn thiếu phí đóng gói/vận chuyển và ${costTotals.missingProductionUnits} sản phẩm thiếu giá vốn đầy đủ. Lợi nhuận và ROI tạm ẩn để tránh sai số.`
+      : "";
+  const financialWarning = [adsError, foreignWarning, costWarning]
+    .filter(Boolean)
+    .join(" ");
   const loading = metricsLoading || ordersLoading;
 
   const presetButtons: Array<{
@@ -942,7 +983,7 @@ export default function RevenueAdminPage() {
                   : formatCurrency(profit)}
             </p>
             <p className="mt-2 text-sm text-[#c7ced9]">
-              Doanh thu gộp − Chi phí Ads − Cost sản phẩm 15%
+              Doanh thu đơn hoàn thành − Ads − sản xuất − đóng gói − vận chuyển (mọi đơn)
             </p>
           </div>
 
@@ -993,7 +1034,7 @@ export default function RevenueAdminPage() {
           }
           note={
             totalCost === null || totalRevenue <= 0
-              ? "Ads + Cost SP 15%"
+              ? "Ads + sản xuất + đóng gói + vận chuyển"
               : `${formatPercent((totalCost / totalRevenue) * 100)} doanh thu gộp`
           }
           icon="↘"
@@ -1095,7 +1136,8 @@ export default function RevenueAdminPage() {
           <div>
             <h2 className="text-base font-black">Cơ cấu chi phí</h2>
             <p className="mt-1 text-xs text-[#667085]">
-              Cùng khoảng thời gian với doanh thu
+              Tính chi phí của mọi đơn tạo trong kỳ, không chỉ đơn hoàn thành.
+              {costTotals ? ` Tổng ${costTotals.orderCount} đơn.` : ""}
             </p>
           </div>
 
@@ -1157,7 +1199,7 @@ export default function RevenueAdminPage() {
                 <p className="text-sm font-black">Cost sản phẩm</p>
               </div>
               <p className="text-sm font-black">
-                {metricsLoading ? "…" : formatCurrency(productCost)}
+                {metricsLoading ? "…" : productCost === null ? "—" : formatCurrency(productCost)}
               </p>
             </div>
 
@@ -1174,7 +1216,7 @@ export default function RevenueAdminPage() {
             </div>
 
             <div className="mt-2 flex justify-between gap-3 text-xs text-[#667085]">
-              <span>15% doanh thu gộp</span>
+              <span>Giá vốn theo từng sản phẩm đã đặt</span>
               <span>
                 {totalCost === null
                   ? "—"
@@ -1183,10 +1225,26 @@ export default function RevenueAdminPage() {
             </div>
           </div>
 
+          <div className="mt-3 rounded-2xl border border-[#e7eaf0] p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-black">Chi phí đóng gói</span>
+              <strong>{metricsLoading ? "…" : packagingCost === null ? "—" : formatCurrency(packagingCost)}</strong>
+            </div>
+            <p className="mt-2 text-xs text-[#667085]">Theo snapshot cho mọi đơn tạo trong kỳ.</p>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-[#e7eaf0] p-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="font-black">Chi phí vận chuyển thực tế</span>
+              <strong>{metricsLoading ? "…" : shippingCost === null ? "—" : formatCurrency(shippingCost)}</strong>
+            </div>
+            <p className="mt-2 text-xs text-[#667085]">Chi phí shop trả, khác phí ship thu khách.</p>
+          </div>
+
           <div className="mt-3 rounded-2xl border border-[#d2efdf] bg-[#eaf8f1] p-4 text-xs leading-5 text-[#3d6955]">
             <p className="font-black text-[#147a4f]">Cách tính</p>
             <p className="mt-1">
-              Lãi/Lỗ = Doanh thu gộp − Ads − Cost SP
+              Lãi/Lỗ = Doanh thu đơn hoàn thành − Ads − sản xuất − đóng gói − vận chuyển
               <br />
               ROI = Lãi/Lỗ ÷ Tổng chi phí × 100%
             </p>
@@ -1211,9 +1269,17 @@ export default function RevenueAdminPage() {
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <span className="text-[#667085]">
-                − Cost sản phẩm (15%)
+                − Giá vốn sản xuất
               </span>
-              <strong>{formatCurrency(productCost)}</strong>
+              <strong>{productCost === null ? "—" : formatCurrency(productCost)}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-[#667085]">− Chi phí đóng gói (mọi đơn)</span>
+              <strong>{packagingCost === null ? "—" : formatCurrency(packagingCost)}</strong>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3">
+              <span className="text-[#667085]">− Chi phí ship thực tế (mọi đơn)</span>
+              <strong>{shippingCost === null ? "—" : formatCurrency(shippingCost)}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <span className="font-bold text-[#3f4850]">
@@ -1249,10 +1315,10 @@ export default function RevenueAdminPage() {
               </p>
               <p className="mt-1 text-xs leading-5 text-[#667085]">
                 {profit === null
-                  ? "Cần dữ liệu Ads đầy đủ bằng VND trước khi tính lãi và ROI."
+                  ? "Cần dữ liệu Ads đầy đủ bằng VND và snapshot giá vốn đầy đủ trước khi tính lãi và ROI."
                   : `Bạn giữ lại ${formatPercent(
                       margin,
-                    )} doanh thu sau khi trừ Ads và cost sản phẩm.`}
+                    )} doanh thu sau khi trừ Ads, sản xuất, đóng gói và vận chuyển.`}
               </p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import type { FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import ProductImageManager from "../../components/admin/ProductImageManager";
 import ProductVideoManager from "../../components/admin/ProductVideoManager";
+import ProductProductionCostEditor from "../../components/admin/ProductProductionCostEditor";
 import { useStoreData } from "../../features/admin/StoreDataContext";
 import {
   getProductAdAssignments,
@@ -1660,6 +1661,11 @@ export default function ProductFormPage() {
               {form.variantGroups.length === 0 && <div className="rounded-2xl border border-dashed border-[#bfc7d2] p-6 text-center text-sm text-[#707881]">Sản phẩm chưa có biến thể.</div>}
             </div>
           </article>
+          <ProductProductionCostEditor
+            productId={existingProduct?.id ?? null}
+            variantGroups={existingProduct?.variantGroups ?? []}
+            disabled={saving}
+          />
         </div>
 
         <aside className="space-y-6 xl:sticky xl:top-26 xl:h-fit">
