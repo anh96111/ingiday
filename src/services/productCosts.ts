@@ -179,6 +179,40 @@ export async function saveProductProductionCostProfile(
   return profileFromRow(data as unknown as ProductProductionCostProfileRow);
 }
 
+// Upsert all filled selections in one PostgreSQL statement; no partial successes.
+// Unlisted selections stay untouched, so previously saved cost data is preserved.
+export async function saveProductProductionCostProfiles(
+  productId: string,
+  profiles: ProductProductionCostProfile[],
+): Promise<StoredProductProductionCostProfile[]> {
+  if (profiles.length === 0) return [];
+  const validatedProductId = positiveId(productId, "Mã sản phẩm");
+  const seen = new Set<string>();
+  const payload = profiles.map((profile) => {
+    const selections = selectionsForStorage(profile.selections);
+    const key = JSON.stringify(
+      Object.keys(selections).sort().map((groupId) => [groupId, selections[groupId]]),
+    );
+    if (seen.has(key)) throw new Error("Có tổ hợp Cost bị trùng lặp.");
+    seen.add(key);
+    return {
+      product_id: validatedProductId,
+      selections,
+      filament_grams: nonNegativeNumber(profile.filamentGrams, "Trọng lượng nhựa"),
+      print_minutes: nonNegativeMinutes(profile.printMinutes),
+    };
+  });
+  const { data, error } = await supabase
+    .from("product_production_cost_profiles")
+    .upsert(payload, { onConflict: "product_id,selections" })
+    .select(PROFILE_FIELDS);
+  if (error) throw error;
+  const saved = ((data ?? []) as unknown as ProductProductionCostProfileRow[]).map(profileFromRow);
+  if (saved.length !== profiles.length) {
+    throw new Error("Số dòng Cost trả về không khớp. Hãy tải lại để kiểm tra.");
+  }
+  return saved;
+}
 // Delete by the record's primary key plus its parent product; never use a JSONB subset filter.
 export async function deleteProductProductionCostProfile(
   productId: string,

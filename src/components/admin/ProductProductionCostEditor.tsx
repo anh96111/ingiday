@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   listProductProductionCostProfiles,
   loadProductionCostSettings,
-  saveProductProductionCostProfile,
+  saveProductProductionCostProfiles,
 } from "../../services/productCosts";
 import type { StoredProductProductionCostProfile } from "../../services/productCosts";
 import type { ProductVariantGroup } from "../../types/product";
@@ -86,7 +86,7 @@ export default function ProductProductionCostEditor({
   const [profiles, setProfiles] = useState<StoredProductProductionCostProfile[]>([]);
   const [drafts, setDrafts] = useState<Record<string, CostDraft>>({});
   const [loading, setLoading] = useState(false);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -145,24 +145,46 @@ export default function ProductProductionCostEditor({
     }));
   }
 
-  async function saveChoice(choice: CostChoice, key: string, draft: CostDraft) {
-    if (!productId || !settings) return;
-    setSavingKey(key);
+  async function saveAll() {
+    if (!productId || !settings || saving || disabled || loading || exceeded) return;
     setError("");
     setNotice("");
     try {
-      const profile = toCostProfile(draft, choice.selections);
-      const saved = await saveProductProductionCostProfile(productId, profile);
+      // Validate every filled row before sending a SINGLE atomic upsert request.
+      // Completely empty rows are skipped; old saved rows are not deleted.
+      const toSave = choices.flatMap((choice) => {
+        const draft = drafts[selectionKey(choice.selections)] ?? {
+          grams: "", hours: "", minutes: "",
+        };
+        if (!draft.grams.trim() && !draft.hours.trim() && !draft.minutes.trim()) {
+          return [];
+        }
+        try {
+          return [toCostProfile(draft, choice.selections)];
+        } catch (cause) {
+          throw new Error(`${choice.label}: ${cause instanceof Error ? cause.message : "Cost không hợp lệ"}`, { cause });
+        }
+      });
+      if (toSave.length === 0) {
+        throw new Error("Chưa nhập Cost cho lựa chọn nào.");
+      }
+      setSaving(true);
+      const saved = await saveProductProductionCostProfiles(productId, toSave);
+      const savedKeys = new Set(saved.map((item) => selectionKey(item.selections)));
       setProfiles((previous) => [
-        ...previous.filter((item) => selectionKey(item.selections) !== key),
-        saved,
+        ...previous.filter((item) => !savedKeys.has(selectionKey(item.selections))),
+        ...saved,
       ]);
-      setDrafts((previous) => ({ ...previous, [key]: savedDraft(saved) }));
-      setNotice(`Đã lưu Cost: ${choice.label}`);
+      setDrafts((previous) => {
+        const next = { ...previous };
+        for (const item of saved) next[selectionKey(item.selections)] = savedDraft(item);
+        return next;
+      });
+      setNotice(`Đã lưu Cost cho ${saved.length} lựa chọn.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể lưu Cost sản phẩm.");
     } finally {
-      setSavingKey(null);
+      setSaving(false);
     }
   }
 
@@ -171,7 +193,7 @@ export default function ProductProductionCostEditor({
       <h2 className="text-xl font-black">Chi phí sản xuất (Cost)</h2>
       <p className="mt-2 text-sm leading-6 text-[#707881]">
         Dùng riêng trong quản trị. Nhập lượng nhựa và thời gian in cho mỗi lựa chọn
-        đã lưu. Cost được lưu riêng bằng nút từng dòng, không nằm trong nút lưu sản phẩm.
+        đã lưu. Nhập nhiều lựa chọn và bấm "Lưu toàn bộ Cost" một lần.
       </p>
       {!productId ? (
         <p className="mt-4 rounded-xl bg-[#edf4ff] p-4 text-sm text-[#006397]">
@@ -241,21 +263,28 @@ export default function ProductProductionCostEditor({
                             className="mt-1 h-11 w-full rounded-xl border border-[#cfd6dd] px-3 text-sm font-normal" />
                         </label>
                       </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <div className="mt-3">
                         <p className="text-xs leading-5 text-[#596175]">
                           {preview
                             ? `Nhựa ${formatCurrency(preview.filamentCost)} · Điện ${preview.electricityCost === null ? "chưa cấu hình" : formatCurrency(preview.electricityCost)} · Tổng ${preview.totalCost === null ? "chưa đủ dữ liệu" : formatCurrency(preview.totalCost)}`
                             : "Nhập đủ số gram, giờ và phút để xem chi phí dự kiến."}
                         </p>
-                        <button type="button" disabled={disabled || savingKey !== null}
-                          onClick={() => { void saveChoice(choice, key, draft); }}
-                          className="rounded-xl bg-[#006397] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50">
-                          {savingKey === key ? "Đang lưu Cost..." : "Lưu Cost"}
-                        </button>
+
                       </div>
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs leading-5 text-[#707881]">
+                  Dòng để trống được bỏ qua; Cost đã lưu trước đó không bị xóa.
+                  Dòng nhập thiếu thông tin sẽ được báo lỗi và không lưu dòng nào.
+                </p>
+                <button type="button" disabled={disabled || saving || loading}
+                  onClick={() => { void saveAll(); }}
+                  className="rounded-xl bg-[#006397] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">
+                  {saving ? "Đang lưu toàn bộ Cost..." : "Lưu toàn bộ Cost"}
+                </button>
               </div>
             </>
           )}
