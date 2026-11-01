@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useSettings } from "../../features/settings/SettingsContext";
+import ProductionCostSettingsEditor from "../../components/admin/ProductionCostSettingsEditor";
 import { uploadSiteBrandImage } from "../../lib/cloudinary";
 import type { SiteBrandImageKind } from "../../lib/cloudinary";
 import type { StoreSettings } from "../../types/store";
@@ -288,6 +289,8 @@ export default function SettingsAdminPage() {
           {error}
         </p>
       )}
+
+      <ProductionCostSettingsEditor />
 
       <form onSubmit={submit} className="mt-7 space-y-6">
         <article className="rounded-3xl bg-white p-6 shadow-sm">
