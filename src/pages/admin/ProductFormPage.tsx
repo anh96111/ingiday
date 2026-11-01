@@ -103,17 +103,15 @@ function sanitizeVariantOptionsForMedia(
     videos.map((video) => video.id),
   );
 
-  return variantGroups.map((group, groupIndex) => ({
+  return variantGroups.map((group) => ({
     ...group,
     options: group.options.map((option) => {
       const imageId =
-        groupIndex === 0 &&
         option.imageId &&
         validImageIds.has(option.imageId)
           ? option.imageId
           : undefined;
       const videoId =
-        groupIndex === 0 &&
         !imageId &&
         option.videoId &&
         validVideoIds.has(option.videoId)
@@ -129,6 +127,10 @@ function sanitizeVariantOptionsForMedia(
       };
     }),
   }));
+}
+
+function canEditVariantGroupMedia(group: ProductVariantGroup, groupIndex: number): boolean {
+  return groupIndex === 0 || group.options.some((option) => Boolean(option.imageId || option.videoId));
 }
 
 function createVariantOption(): ProductVariantOption {
@@ -357,6 +359,21 @@ export default function ProductFormPage() {
       ...current,
       variantGroups: current.variantGroups.map((group, index) => index === groupIndex ? { ...group, ...changes } : group),
     }));
+  }
+
+  function moveVariantGroup(groupIndex: number, direction: -1 | 1) {
+    setForm((current) => {
+      const targetIndex = groupIndex + direction;
+      if (groupIndex < 0 || targetIndex < 0 || targetIndex >= current.variantGroups.length) {
+        return current;
+      }
+      const reorderedGroups = [...current.variantGroups];
+      [reorderedGroups[groupIndex], reorderedGroups[targetIndex]] = [
+        reorderedGroups[targetIndex],
+        reorderedGroups[groupIndex],
+      ];
+      return { ...current, variantGroups: reorderedGroups };
+    });
   }
 
   function addVariantGroup() {
@@ -757,7 +774,7 @@ export default function ProductFormPage() {
       form.videos.map((video) => video.id),
     );
     const variantGroups = form.variantGroups
-      .map((group, groupIndex) => ({
+      .map((group) => ({
         ...group,
         name: group.name.trim(),
         options: group.options
@@ -774,13 +791,11 @@ export default function ProductFormPage() {
               ? Math.max(0, Math.round(option.stock))
               : Math.max(0, Math.round(Number(option.stock) || 0)),
             imageId:
-              groupIndex === 0 &&
               option.imageId &&
               validImageIds.has(option.imageId)
                 ? option.imageId
                 : undefined,
             videoId:
-              groupIndex === 0 &&
               !(
                 option.imageId &&
                 validImageIds.has(option.imageId)
@@ -1353,6 +1368,7 @@ export default function ProductFormPage() {
               <div>
                 <h2 className="text-xl font-black">Biến thể</h2>
                 <p className="mt-1 text-sm text-[#707881]">Dùng cho màu sắc, kích thước hoặc lựa chọn riêng. Ảnh của từng tổ hợp có thể được thiết lập ở mục bên dưới.</p>
+                <p className="mt-1 text-xs text-[#707881]">Dùng nút Lên/Xuống để đổi vị trí nhóm, sau đó bấm Lưu sản phẩm để áp dụng trên website.</p>
               </div>
               <button type="button" onClick={addVariantGroup} className="rounded-2xl bg-[#edf4ff] px-5 py-3 text-sm font-bold text-[#006397]">+ Thêm nhóm</button>
             </div>
@@ -1416,7 +1432,29 @@ export default function ProductFormPage() {
                       Tên nhóm
                       <input value={group.name} onChange={(event) => updateGroup(groupIndex, { name: event.target.value })} className="mt-2 h-11 w-full rounded-xl border border-[#cfd6dd] bg-[#f7f9ff] px-4 font-normal outline-none focus:border-[#006397]" placeholder="Màu sắc" />
                     </label>
-                    <button type="button" onClick={() => removeVariantGroup(groupIndex)} className="h-11 rounded-xl bg-[#fff0eb] px-4 text-sm font-bold text-[#a43c12]">Xóa nhóm</button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={saving || groupIndex === 0}
+                        onClick={() => moveVariantGroup(groupIndex, -1)}
+                        aria-label={`Đưa nhóm ${group.name || groupIndex + 1} lên`}
+                        title="Di chuyển nhóm lên"
+                        className="h-11 rounded-xl bg-[#edf4ff] px-3 text-sm font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        ↑ Lên
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving || groupIndex === form.variantGroups.length - 1}
+                        onClick={() => moveVariantGroup(groupIndex, 1)}
+                        aria-label={`Đưa nhóm ${group.name || groupIndex + 1} xuống`}
+                        title="Di chuyển nhóm xuống"
+                        className="h-11 rounded-xl bg-[#edf4ff] px-3 text-sm font-bold text-[#006397] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        ↓ Xuống
+                      </button>
+                      <button type="button" onClick={() => removeVariantGroup(groupIndex)} className="h-11 rounded-xl bg-[#fff0eb] px-4 text-sm font-bold text-[#a43c12]">Xóa nhóm</button>
+                    </div>
                   </div>
 
                   <div className="mt-4 space-y-3">
@@ -1566,8 +1604,8 @@ export default function ProductFormPage() {
                           </div>
                         </div>
 
-                        <div className={`grid gap-3 ${groupIndex === 0 ? "lg:grid-cols-[minmax(0,240px)_1fr]" : ""}`}>
-                          {groupIndex === 0 && (
+                        <div className={`grid gap-3 ${canEditVariantGroupMedia(group, groupIndex) ? "lg:grid-cols-[minmax(0,240px)_1fr]" : ""}`}>
+                          {canEditVariantGroupMedia(group, groupIndex) && (
                             <label className="text-sm font-bold">
                               Ảnh hoặc video khi khách chọn
                               <select
@@ -1627,10 +1665,9 @@ export default function ProductFormPage() {
                                 )}
                               </select>
                               <span className="mt-2 block text-xs font-normal leading-5 text-[#707881]">
-                                Chỉ nhóm biến thể đầu tiên được gắn
-                                media. Mỗi lựa chọn chỉ dùng một ảnh,
-                                một video hoặc media mặc định. Khi xóa
-                                media, liên kết sẽ tự được bỏ.
+                                Giữ liên kết media khi đổi thứ tự nhóm. Nhóm đầu
+                                hoặc nhóm đã có media vẫn chỉnh được ảnh/video.
+                                Nếu xóa media khỏi thư viện, liên kết sẽ tự bỏ.
                               </span>
                             </label>
                           )}
